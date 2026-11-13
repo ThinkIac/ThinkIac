@@ -10,6 +10,10 @@ capacidades ativadas sob demanda ou condicionadas de forma explícita: uma
 arquitetura de especialistas combináveis, semelhante a MoE, mas governada por
 contratos e infraestrutura declarada.
 
+### Captura de Telas
+
+<img width="720" alt="thinkiac cloud_view_shell_Index" src="https://github.com/user-attachments/assets/215e73db-7f0a-46fd-a081-0500156a83be" />
+
 ## Começar a partir de uma VPS
 
 Em Debian ou Ubuntu com `systemd`, execute como usuário com `sudo`:
