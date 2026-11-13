@@ -14,6 +14,16 @@ contratos e infraestrutura declarada.
 
 <img width="720" alt="thinkiac cloud_view_shell_Index" src="https://github.com/user-attachments/assets/215e73db-7f0a-46fd-a081-0500156a83be" />
 
+## Plugins
+
+Plugins podem ser revisados e instalados separadamente no workspace ativo.
+
+| Plugin | Descrição |
+| --- | --- |
+| [Calendar](https://github.com/ThinkIac/calendar) | Calendários, eventos, lembretes e ferramentas MCP para o ThinkIac. |
+
+Antes de instalar um plugin, peça ao seu assistente de IA para analisar o repositório e as permissões envolvidas.
+
 ## Começar a partir de uma VPS
 
 Em Debian ou Ubuntu com `systemd`, execute como usuário com `sudo`:
