@@ -38,6 +38,10 @@ export class DurableRunStore {
     const next = { ...run, updatedAt: new Date(this.now()).toISOString() }
     const target = this.path(next.id)
     const temporary = `${target}.${this.ownerId}.tmp`
+    // The process can outlive a cleanup or volume remount. Recreate the journal
+    // directory immediately before the atomic write instead of relying only on
+    // construction-time setup.
+    mkdirSync(this.dir, { recursive: true })
     writeFileSync(temporary, JSON.stringify(next, null, 2), 'utf8')
     renameSync(temporary, target)
     return clone(next)

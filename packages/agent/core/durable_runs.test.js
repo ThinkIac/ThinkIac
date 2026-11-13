@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { DurableRunStore } from './durable_runs.js'
@@ -22,6 +22,15 @@ test('persiste execução e checkpoints com escrita válida', () => {
   assert.equal(persisted.sessionId, 'session-1')
   assert.equal(persisted.checkpoint.phase, 'llm-complete')
   assert.equal(persisted.maxIterations, 8)
+})
+
+test('recria o diretório removido antes de uma gravação atômica', () => {
+  const { dir, store } = fixture()
+  rmSync(dir, { recursive: true })
+
+  const run = store.start({ sessionId: 'session-1', message: 'continue' })
+
+  assert.equal(existsSync(join(dir, `${run.id}.json`)), true)
 })
 
 test('só oferece recuperação depois que o lease expira', () => {
