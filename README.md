@@ -66,6 +66,8 @@ o evento.
 // packages/notes/service.js
 import { $ } from 'logos';
 
+const Register = [];
+
 /** @register_hook notes:register */
 export async function registerNote(payload) {
   const note = { id: crypto.randomUUID(), title: payload.title, text: payload.text };
