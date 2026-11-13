@@ -25,6 +25,7 @@ Plugins podem ser revisados e instalados separadamente no workspace ativo.
 | [Flows](https://github.com/ThinkIac/flows) | Editor visual de automações, gatilhos por evento, cron e webhook, com execução durável. |
 | [Telegram](https://github.com/ThinkIac/telegram) | Bot do Telegram com sessões, atendimento público controlado, progresso de reasoning e tool MCP para envio de mensagens. |
 | [Instagram Bridge](https://github.com/ThinkIac/instagram-bridge) | Integração de conteúdo para Instagram, com geração, agendamento e publicação por Graph API. |
+| [GitHub](https://github.com/ThinkIac/github) | Repositórios, branches, Git autenticado, issues e pull requests com credenciais gerenciadas pelo ThinkIac. |
 
 Antes de instalar um plugin, peça ao seu assistente de IA para analisar o repositório e as permissões envolvidas.
 
