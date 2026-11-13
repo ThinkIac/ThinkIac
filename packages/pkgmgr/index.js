@@ -65,6 +65,7 @@ const LS_REMOTE_TIMEOUT_MS = 30_000;
 // one API call — is resolved lazily, only when a card is expanded.
 const STORE_ORG = 'ThinkIac';
 const STORE_PREFIX = 'thinkiac-';
+const STORE_TOPIC = 'thinkiac-package';
 const STORE_API = 'https://api.github.com';
 const STORE_RAW = 'https://raw.githubusercontent.com';
 const CATALOG_TTL_MS = 30 * 60 * 1000;
@@ -745,7 +746,9 @@ function storeInstallState(manifest) {
 async function buildCatalog() {
   const repos = await listStoreRepositories();
 
-  const matching = repos.filter(repo => repo.name.startsWith(STORE_PREFIX) && !repo.archived);
+  const matching = repos.filter(repo =>
+    !repo.archived && (repo.name.startsWith(STORE_PREFIX) || repo.topics?.includes(STORE_TOPIC))
+  );
 
   // Manifests come from raw.githubusercontent, which the API rate limit does
   // not cover — one per repository, in parallel.
