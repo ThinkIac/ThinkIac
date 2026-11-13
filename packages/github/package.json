@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "main": "index.js",
-  "description": "Tools do ThinkIac para GitHub, Git por SSH, repositórios, Issues e Pull Requests.",
+  "description": "Tools do ThinkIac para GitHub, Git autenticado, repositórios, Issues e Pull Requests.",
   "manifest": {
     "name": "GitHub",
     "iconPreset": { "pack": "lucide", "name": "Github" },

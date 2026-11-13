@@ -24,6 +24,20 @@ function safeBranch(branch) {
 
 export function repositoryDirectory(repo) { return path.join(REPOS_ROOT, safeRepo(repo)) }
 
+async function tokenAskpass(settings) {
+  if (!settings.token) return null
+  const helper = path.join(privateDirectory(), 'github-askpass.sh')
+  const script = `#!/bin/sh
+case "$1" in
+  *Username*) printf '%s\\n' 'x-access-token' ;;
+  *Password*) printf '%s\\n' "$GITHUB_TOKEN" ;;
+esac
+`
+  await fs.writeFile(helper, script, { mode: 0o700 })
+  await fs.chmod(helper, 0o700)
+  return { GIT_ASKPASS: helper, GIT_ASKPASS_REQUIRE: 'force', GITHUB_TOKEN: settings.token }
+}
+
 async function ensureKey() {
   const settings = await readConfig()
   if (!settings.privateKey || !settings.publicKey) {
@@ -46,19 +60,38 @@ async function ensureKey() {
   return settings
 }
 
+async function gitAuth(settings) {
+  const askpass = await tokenAskpass(settings)
+  if (askpass) {
+    return {
+      config: [
+        '-c', 'url.https://github.com/.insteadOf=git@github.com:',
+        '-c', 'url.https://github.com/.insteadOf=ssh://git@github.com/',
+      ],
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...askpass },
+      transport: 'https-token',
+    }
+  }
+  const keyFile = path.join(privateDirectory(), 'github_ed25519')
+  await fs.writeFile(keyFile, settings.privateKey, { mode: 0o600 })
+  await fs.chmod(keyFile, 0o600)
+  const sshCommand = `ssh -i "${keyFile}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`
+  return {
+    config: ['-c', `core.sshCommand=${sshCommand}`],
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: sshCommand },
+    transport: 'ssh',
+  }
+}
+
 export async function publicSshKey() { return (await ensureKey()).publicKey }
 
 async function git(repo, args) {
   const cwd = repositoryDirectory(repo)
   await fs.mkdir(REPOS_ROOT, { recursive: true, mode: 0o700 })
-  const settings = await ensureKey()
-  const keyFile = path.join(privateDirectory(), 'github_ed25519')
-  await fs.writeFile(keyFile, settings.privateKey, { mode: 0o600 })
-  await fs.chmod(keyFile, 0o600)
-  const sshCommand = `ssh -i "${keyFile}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`
-  const { stdout } = await exec('git', ['-c', `core.sshCommand=${sshCommand}`, ...args], {
+  const auth = await gitAuth(await ensureKey())
+  const { stdout } = await exec('git', [...auth.config, ...args], {
     cwd,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: sshCommand },
+    env: auth.env,
     timeout: 120000,
     maxBuffer: 2 * 1024 * 1024,
   })
@@ -71,16 +104,15 @@ export async function cloneRepository({ owner, repo, defaultBranch } = {}) {
   const target = repositoryDirectory(repo)
   try { await fs.access(path.join(target, '.git')); throw new Error(`O repositório ${repo} já foi clonado.`) }
   catch (error) { if (error.message.includes('já foi clonado')) throw error }
-  const settings = await ensureKey()
-  const keyFile = path.join(privateDirectory(), 'github_ed25519')
-  await fs.writeFile(keyFile, settings.privateKey, { mode: 0o600 })
-  await fs.chmod(keyFile, 0o600)
-  const sshCommand = `ssh -i "${keyFile}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`
-  const cloneArgs = ['clone']
+  const auth = await gitAuth(await ensureKey())
+  const cloneArgs = [...auth.config, 'clone']
   if (defaultBranch) cloneArgs.push('--branch', safeBranch(defaultBranch))
-  cloneArgs.push(`git@github.com:${owner}/${repo}.git`, target)
+  const remote = auth.transport === 'https-token'
+    ? `https://github.com/${owner}/${repo}.git`
+    : `git@github.com:${owner}/${repo}.git`
+  cloneArgs.push(remote, target)
   await exec('git', cloneArgs, {
-    cwd: PACKAGE_ROOT, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: sshCommand }, timeout: 120000, maxBuffer: 2 * 1024 * 1024,
+    cwd: PACKAGE_ROOT, env: auth.env, timeout: 120000, maxBuffer: 2 * 1024 * 1024,
   })
   const { name, email } = await readConfig()
   if (name) await exec('git', ['config', 'user.name', name], { cwd: target })

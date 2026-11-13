@@ -21,6 +21,9 @@ Plugins podem ser revisados e instalados separadamente no workspace ativo.
 | Plugin | Descrição |
 | --- | --- |
 | [Calendar](https://github.com/ThinkIac/calendar) | Calendários, eventos, lembretes e ferramentas MCP para o ThinkIac. |
+| [Tasks](https://github.com/ThinkIac/tasks) | Kanban, rotas HTTP, ferramentas MCP e eventos de tarefas para o ThinkIac. |
+| [Flows](https://github.com/ThinkIac/flows) | Editor visual de automações, gatilhos por evento, cron e webhook, com execução durável. |
+| [Telegram](https://github.com/ThinkIac/telegram) | Bot do Telegram com sessões, atendimento público controlado e tool MCP para envio de mensagens. |
 
 Antes de instalar um plugin, peça ao seu assistente de IA para analisar o repositório e as permissões envolvidas.
 

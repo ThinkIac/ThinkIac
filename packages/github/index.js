@@ -117,7 +117,7 @@ export async function createRemoteBranch({ owner, repo, branch, from = 'main' } 
 }
 
 /** @register_tool github_clone_repository
- * @description Clona um repositório por SSH para o diretório privado gerenciado pelo pacote, preparando Push e Pull.
+ * @description Clona um repositório no diretório privado do pacote, priorizando o token configurado e usando SSH quando não houver token, preparando Push e Pull.
  * @param {string} owner - Proprietário
  * @param {string} repo - Repositório
  * @param {string?} branch - Branch inicial
@@ -146,7 +146,7 @@ export async function createLocalBranchTool({ repo, branch, from = 'HEAD' } = {}
 export async function pull({ repo, branch } = {}) { return { repo, ...(await pullRepository(repo, branch)) } }
 
 /** @register_tool github_push
- * @description Envia alterações locais ao GitHub. Adiciona mudanças, cria commit quando necessário e publica a branch via SSH.
+ * @description Envia alterações locais ao GitHub. Adiciona mudanças, cria commit quando necessário e publica com o token configurado ou, na ausência dele, via SSH.
  * @param {string} repo - Nome local do repositório
  * @param {string?} branch - Branch de destino; omitida usa a branch atual
  * @param {string?} message - Mensagem do commit se houver mudanças
