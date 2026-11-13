@@ -304,6 +304,58 @@ created reminder. Another package can subscribe to `reminders:created` without
 importing this package. The decorators used by each interface are catalogued in
 the [ThinkIac decorator reference](docs/decorators.md).
 
+## Quick start on a fresh VPS
+
+The direct installer supports Debian/Ubuntu with systemd. It downloads the
+current `main` revision from this GitHub repository, installs Node.js 22 and
+the native build toolchain, creates `/opt/thinkiac`, and starts a persistent
+`thinkiac` service. Run it as a privileged user:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ThinkIac/Think/main/scripts/install.sh | sudo bash
+```
+
+On the first install it generates an administrator password and prints it once.
+Set `THINKIAC_ADMIN_EMAIL` and `THINKIAC_ADMIN_PASSWORD` before the command if
+you prefer to choose the initial credentials. The installer is idempotent: run
+the same command again to fetch the current version and restart the service.
+It stops instead of overwriting local source edits.
+
+```bash
+sudo systemctl status thinkiac
+sudo journalctl -u thinkiac -f
+```
+
+The service binds HTTP to port `5040`; open
+`http://YOUR_SERVER_IP:5040/view/auth/Login`. Configure a firewall and HTTPS
+reverse proxy before exposing the instance to the internet.
+
+## Docker and Docker Compose
+
+Docker Compose is the recommended container installation. It builds the image
+locally, loads configuration from `.env`, and persists package SQLite databases
+and Lógos state in the `thinkiac_data` named volume.
+
+```bash
+git clone https://github.com/ThinkIac/Think.git
+cd Think
+cp .env.example .env
+# Edit .env: at least change AUTH_ENV_ADMIN_PASSWORD and configure an LLM provider.
+docker compose up -d --build
+```
+
+Use `docker compose logs -f` to follow startup. To update, pull the repository
+and rebuild with `git pull --ff-only && docker compose up -d --build`.
+
+The standalone Docker equivalent is:
+
+```bash
+docker build -t thinkiac:local .
+docker run -d --name thinkiac --restart unless-stopped \
+  --env-file .env -e HOST=0.0.0.0 -p 5040:5040 \
+  -v thinkiac_data:/data thinkiac:local
+```
+
 ## Run locally
 
 Requires Node.js **22+**. `node-pty` may require a native compiler toolchain for your platform.
@@ -334,7 +386,9 @@ HTTP uses port `5040` and MCP's HTTP transport uses port `3333` by default. Revi
 
 ThinkIac can use a terminal, access files, and handle your model credentials. Treat it as a privileged environment. Never commit `.env` files, sessions, local databases, uploads, backups, or terminal profiles; inspect `git status` before publishing.
 
-This is an evolving development foundation. There is no official Docker image or hosted installation in this initial release, and individual integrations may require their own setup. Binaries and large media belong in Releases, a CDN, or Git LFS rather than the primary Git history.
+This is an evolving development foundation. Individual integrations may require
+their own setup. Binaries and large media belong in Releases, a CDN, or Git LFS
+rather than the primary Git history.
 
 ## Coffee for the builder
 

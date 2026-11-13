@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+!.env.example
+node_modules
+.logos
+.local
+.svelte-cache
+.runtime-errors.json
+packages/**/.database*
+packages/**/.private
+packages/terminal/profiles
+packages/terminal/shared-cache
+uploads
+public/private
