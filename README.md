@@ -1,13 +1,16 @@
 # ThinkIac
 
-Runtime operacional para agentes. Ele reúne interface, ferramentas, terminal,
-arquivos, provedores de IA e pacotes que podem ser adicionados ou atualizados
-sem transformar o núcleo em um monólito.
+ThinkIac é infraestrutura como código para agentes, aplicativos e automações.
+Seu Harness operacional reúne interface, ferramentas, terminal, arquivos,
+provedores de IA e pacotes sem transformar o núcleo em monólito.
 
-O núcleo é o Lógos: ele descobre pacotes, aplica o ciclo de vida e conecta seus
-eventos. HTTP, tools, banco, views e integrações são capacidades de pacotes.
+O Lógos descobre os pacotes, aplica o ciclo de vida e conecta eventos. Cada
+pacote pode expor HTTP, tools, banco, views e integrações. Especialistas são
+capacidades ativadas sob demanda ou condicionadas de forma explícita: uma
+arquitetura de especialistas combináveis, semelhante a MoE, mas governada por
+contratos e infraestrutura declarada.
 
-## Começar em uma VPS nova
+## Começar a partir de uma VPS
 
 Em Debian ou Ubuntu com `systemd`, execute como usuário com `sudo`:
 
@@ -55,23 +58,42 @@ docker run -d --name thinkiac --restart unless-stopped \
   -v thinkiac_data:/data thinkiac:local
 ```
 
-## Seu primeiro pacote: notas
+## Seu primeiro pacote fullstack: notas
 
-Pacotes expõem interfaces pequenas. Aqui, `notes:register` é o serviço: ele é
-um hook que recebe o pedido, salva a nota e marca seu próprio ciclo de vida com
-`notes:registered`. A rota e a tool não conhecem a implementação, apenas chamam
-o evento.
+O pacote abaixo combina o banco isolado do Scriba, um hook como serviço, rota,
+tool e view. `notes:register` recebe o pedido; rota e tool apenas publicam o
+evento. O serviço grava a nota e sinaliza seu ciclo de vida em
+`notes:registered`.
+
+```prisma
+// packages/notes/schema.prisma
+model Note {
+  id    String @id @default(uuid())
+  title String
+  text  String
+}
+```
+
+```prisma
+// packages/notes/features/pinning.scriba
+model Note {
+  pinned Boolean @default(false)
+}
+```
+
+O Scriba compõe esse fragmento ao schema do pacote e provisiona o banco isolado
+antes de expor as interfaces.
 
 ```js
 // packages/notes/service.js
-import { $ } from 'logos';
+import { $, getProxy } from 'logos';
 
-const Register = [];
-
-/** @register_hook notes:register */
+/**
+**@register_hook notes:register
+**/
 export async function registerNote(payload) {
-  const note = { id: crypto.randomUUID(), title: payload.title, text: payload.text };
-  Register.push(note); // substitua pelo seu banco ou armazenamento
+  const notes = getProxy('notes');
+  const note = await notes.note.push({ title: payload.title, text: payload.text });
   await $('notes:registered', note);
   return note;
 }
@@ -82,11 +104,11 @@ export async function registerNote(payload) {
 import { $ } from 'logos';
 
 /**
- * @register_tool registerNote
- * @description Registra uma nota.
- * @param {string} title - Título
- * @param {string} text - Texto
- */
+**@register_tool registerNote
+**@description Registra uma nota.
+**@param {string} title - Título
+**@param {string} text - Texto
+**/
 export function registerNoteTool({ title, text }) {
   return $('notes:register', { title, text });
 }
@@ -96,17 +118,45 @@ export function registerNoteTool({ title, text }) {
 // packages/notes/routes.js
 import { $ } from 'logos';
 
-/** @register_router notes */
-/** @method post */
+/**
+**@register_router notes
+**@method post
+**/
 export async function registerNoteRoute(req) {
   return { data: await $('notes:register', req.body ?? {}) };
 }
 ```
 
-Assim, uma tool, uma rota ou outro pacote usam o mesmo serviço por evento;
-outros hooks podem observar `notes:registered`. Consulte
+```svelte
+<!-- packages/notes/views/Home.svelte -->
+<script>
+  let title = '';
+  let text = '';
+  let saved = false;
+
+  async function submit() {
+    const response = await fetch('/notes/notes', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title, text })
+    });
+    saved = response.ok;
+  }
+</script>
+
+<form on:submit|preventDefault={submit}>
+  <label>Título <input bind:value={title} required /></label>
+  <label>Texto <textarea bind:value={text} required /></label>
+  <button type="submit">Salvar nota</button>
+  {#if saved}<p>Nota registrada.</p>{/if}
+</form>
+```
+
+Assim, uma tool, uma rota, a view Svelte ou outro pacote usam o mesmo serviço
+por evento, com armazenamento isolado pelo Scriba. Outros hooks podem observar
+`notes:registered`. Consulte
 [docs/decorators.md](docs/decorators.md) para os decorators ativos e o contrato
-de eventos do runtime.
+de eventos do Harness.
 
 ## Desenvolvimento local
 
@@ -128,8 +178,11 @@ e exponha portas apenas quando necessário.
 
 ## Licença e apoio
 
-Nesta fase inicial, pague o valor que quiser por uma licença anual. Para apoiar
-o desenvolvimento, envie USDC na rede TRON para:
+O desenvolvimento do ThinkIac começou bem antes do primeiro commit. Estou há
+um longo período sem emprego fixo, priorizando este projeto. Se ele ajudar você
+ou se pretender comercializá-lo, considere pagar o valor que quiser por uma
+licença anual neste primeiro momento. Para isso, envie USDC na rede Polygon
+para:
 
 `0x463712863f400dedc8f199d1dab9eb1fd7daf696`
 
