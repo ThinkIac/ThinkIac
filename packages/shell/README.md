@@ -68,7 +68,7 @@ deve apontar para uma view local dedicada, diferente de `Index` e `Home`:
 
 `target` aceita `left` ou `right`; sem valor, usa `left`. `hidden` define só a
 visibilidade inicial, pois a escolha posterior do usuário prevalece. Veja o
-[mapa central](../think/README.md#mapa-de-integrações).
+[mapa central](../../README.md#contratos-de-pacotes-e-interface).
 
 ## Ícones do manifesto
 

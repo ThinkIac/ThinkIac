@@ -14,4 +14,4 @@ chamador, autorizar a operação e validar os dados novamente. Segredos não dev
 ser incorporados ao documento da superfície.
 
 Veja [Settings](../settings/README.md) para declarar `settingsTab` e `keysTab`,
-e o [mapa central](../think/README.md#mapa-de-integrações) para as alternativas.
+e o [mapa central](../../README.md#contratos-de-pacotes-e-interface) para as alternativas.

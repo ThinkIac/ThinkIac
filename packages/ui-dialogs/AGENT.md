@@ -1,7 +1,7 @@
 # ui-dialogs — confirm/prompt/alert para views em iframe
 
 Este é o contrato de interações pontuais. Consulte também o
-[mapa central de integrações](../think/README.md#mapa-de-integrações).
+[mapa central de integrações](../../README.md#contratos-de-pacotes-e-interface).
 
 ## O bug que originou isto
 

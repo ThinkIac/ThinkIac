@@ -1,7 +1,7 @@
 # Integração de pacotes
 
 Esta referência resume os contratos do Lógos usados pelo
-[mapa de integrações do Think](../../../../packages/think/README.md). Lógos
+[mapa central de integrações](../../../../README.md#contratos-de-pacotes-e-interface). Lógos
 descobre o `package.json`, carrega o pacote e provisiona seus recursos; campos
 de interface como menu, widget e abas são interpretados pelos hosts de UI.
 

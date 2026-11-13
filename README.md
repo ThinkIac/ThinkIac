@@ -29,6 +29,89 @@ Plugins podem ser revisados e instalados separadamente no workspace ativo.
 
 Antes de instalar um plugin, peça ao seu assistente de IA para analisar o repositório e as permissões envolvidas.
 
+## Contratos de pacotes e interface
+
+O `package.json` de cada pacote declara contribuições, mas cada host interpreta
+somente os campos sob sua responsabilidade. O Lógos descobre o pacote e aplica
+seu ciclo de vida; Shell, Agent e Settings materializam as integrações de UI.
+
+| Quero declarar | Campo ou contrato | Responsável | Exemplo | Referência |
+| --- | --- | --- | --- | --- |
+| Item de menu | `manifest.menu` | Shell | [`pkgmgr`](packages/pkgmgr/package.json) | [Menu do Shell](packages/shell/README.md#menu) |
+| Bloco no chat / `MessageList` | `manifest.widget` | Shell e Agent | [`terminal`](packages/terminal/package.json) | [Widgets e UI bus](packages/agent/docs/package-widgets-and-ui-bus.md) |
+| Aba administrativa | `manifest.settingsTab` | Settings | [`specialists`](packages/specialists/package.json) | [Settings](packages/settings/README.md#aba-administrativa) |
+| Credenciais de integração | `manifest.keysTab` | Settings | pacote de integração | [Integrações](packages/settings/README.md#integrações-e-credenciais) |
+| Formulário declarativo | `renderer: "schema"` e `surface` | Settings e `ui-schema` | [`auth`](packages/auth/package.json) | [`ui-schema`](packages/ui-schema/README.md) |
+| Confirmação, alerta ou prompt | componente da view | `ui-dialogs` | contrato do pacote | [`ui-dialogs`](packages/ui-dialogs/AGENT.md) |
+| Ícone do pacote ou menu | `icon`, `iconDark`, `iconPreset`, `menu.icon` | Shell | [`openai-bridge`](packages/openai-bridge/package.json) | [Ícones](packages/shell/README.md#ícones-do-manifesto) |
+| Banco e isolamento | `schema.prisma`, `isolated`, `database` | Lógos e Scriba | pacote com schema | [Persistência](vendor/packages/logos/docs/package-integrations.md#banco-e-isolamento) |
+
+### Menu, widgets e `MessageList`
+
+`manifest.menu` adiciona navegação para uma view local. `manifest.widget` registra
+uma linguagem de bloco Markdown que o `MessageList` pode renderizar em uma view
+isolada; ele não cria item de menu e não concede permissão para executar o texto
+da mensagem. Exemplo mínimo:
+
+```json
+{
+  "manifest": {
+    "widget": {
+      "lang": "bash",
+      "title": "Terminal",
+      "view": "Widget",
+      "aliases": ["shell", "sh"]
+    }
+  }
+}
+```
+
+Altura, streaming de mensagens parciais e comunicação com a view seguem o
+[contrato de widgets e UI bus](packages/agent/docs/package-widgets-and-ui-bus.md).
+
+### Settings, `ui-schema` e diálogos
+
+Use `settingsTab` para configuração administrativa e `keysTab` para credenciais.
+Ambos aceitam objeto ou lista. O renderer padrão é uma view em `iframe`;
+`renderer: "schema"` exige uma `surface` válida do `ui-schema`. O pacote dono
+continua responsável por autenticação, autorização e validação de cada ação.
+Segredos não devem aparecer no manifesto nem no schema da interface.
+
+Para fluxos declarativos, consulte [`ui-schema`](packages/ui-schema/README.md).
+Para `confirm`, `prompt` e `alert` dentro de views, use
+[`ui-dialogs`](packages/ui-dialogs/AGENT.md). Não existe um pacote `ui-modal`
+neste repositório.
+
+### Ícones interpretados pelo Shell
+
+1. `manifest.menu.icon` e `menu.iconDark` valem apenas para o item de menu.
+2. Sem ícone próprio, o menu herda `manifest.icon` e `iconDark`.
+3. `manifest.iconPreset` seleciona um ícone do catálogo, por exemplo
+   `{ "pack": "lucide", "name": "Terminal" }`.
+4. Sem variante aplicável, o renderer usa seu fallback visual.
+
+`icon` e `iconDark` são caminhos de recursos do pacote. `color` e `bgColor`
+devem ser cores CSS válidas. A referência completa fica no
+[README do Shell](packages/shell/README.md#ícones-do-manifesto).
+
+### Banco, cifragem e isolamento
+
+Um `schema.prisma` provisiona tenant e diretório de banco por pacote. Para dados
+exclusivos do dono, declare no topo do `package.json`:
+
+```json
+{
+  "isolated": true,
+  "database": "private"
+}
+```
+
+Esse modo executa o pacote em runner filho e usa tenant privado cifrado em
+repouso pelo vault SQLCipher. Outros pacotes não recebem acesso direto; o dono
+expõe dados por tool, rota ou evento. `runtime.isolation.critical` protege estado
+crítico contra reinicializações globais silenciosas. Garantias, chaves, recarga
+e rollback estão no [contrato do Lógos](vendor/packages/logos/docs/package-integrations.md).
+
 ## Começar a partir de uma VPS
 
 Em Debian ou Ubuntu com `systemd`, execute como usuário com `sudo`:

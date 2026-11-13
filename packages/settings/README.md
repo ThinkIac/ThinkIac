@@ -1,7 +1,7 @@
 # Settings
 
 O Settings hospeda configurações declaradas por outros pacotes. O mapa geral
-fica no [README do Think](../think/README.md#mapa-de-integrações).
+fica no [README central](../../README.md#contratos-de-pacotes-e-interface).
 
 ## Aba administrativa
 
