@@ -1,0 +1,42 @@
+{
+  "_comment": "Suíte do classification — o propósito 'classification' roda no modelo mais barato da pool, então o que importa é acertar a rota com resposta curta e sem divagar. Esta suíte é o sinal que alimenta a recomendação para esse propósito.",
+  "suites": [
+    {
+      "name": "Classificação · Roteamento",
+      "description": "Classificar intenção e escolher rota com resposta mínima — o trabalho do modelo pequeno da pool",
+      "icon": "route",
+      "measures": [
+        { "capability": "routing.intentAccuracy", "weight": 0.7 },
+        { "capability": "structuredOutput.adherence", "weight": 0.3 }
+      ],
+      "requires": { "structuredOutput": true },
+      "tests": [
+        {
+          "type": "objective", "weight": 1.4,
+          "prompt": "Classifique a intenção da mensagem em UMA palavra dentre: financeiro, agenda, codigo, memoria, conversa. Responda apenas a palavra.\n\n\"Paguei 3 mil de material ontem\"",
+          "expected": "financeiro — e nada além dessa palavra (sem explicação, sem pontuação extra)"
+        },
+        {
+          "type": "objective", "weight": 1.4,
+          "prompt": "Classifique a intenção em UMA palavra dentre: financeiro, agenda, codigo, memoria, conversa. Responda apenas a palavra.\n\n\"Esse teste tá quebrando desde ontem, dá uma olhada\"",
+          "expected": "codigo — e nada além dessa palavra"
+        },
+        {
+          "type": "objective", "weight": 1.5,
+          "prompt": "Classifique a intenção em UMA palavra dentre: financeiro, agenda, codigo, memoria, conversa. Responda apenas a palavra.\n\n\"Marca uma reunião com o engenheiro pra discutir o custo do concreto\"",
+          "expected": "agenda — a menção a custo é contexto, não a intenção. Ambiguidade proposital: escolher financeiro é erro"
+        },
+        {
+          "type": "objective", "weight": 1.5,
+          "prompt": "Responda APENAS com um JSON no formato {\"requires\":{\"tools\":<boolean>,\"structuredOutput\":<boolean>},\"prefers\":{\"reasoning\":\"low|medium|high\"},\"confianca\":<0-1>}.\n\nTarefa do usuário: \"Refatora esse módulo pra tirar a duplicação entre llm.js e llm2.js\"",
+          "expected": "JSON estritamente válido; requires.tools=true, prefers.reasoning high e confiança alta (>0.7). Sem texto fora do JSON"
+        },
+        {
+          "type": "objective", "weight": 1.3,
+          "prompt": "A mensagem abaixo é uma solicitação de ação ou apenas conversa? Responda somente \"acao\" ou \"conversa\".\n\n\"Nossa, que dia longo... enfim. Você sabe se o pedreiro apareceu hoje?\"",
+          "expected": "acao — o desabafo é ruído; a pergunta no fim é uma solicitação real de informação"
+        }
+      ]
+    }
+  ]
+}

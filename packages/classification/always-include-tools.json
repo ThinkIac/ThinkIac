@@ -1,0 +1,32 @@
+{
+  "core": [
+    "read_file", "run_shell", "call_llm", "create_tool",
+    "run_runtime_tool", "list_runtime_tools", "request_tool_access",
+    "remember", "recall", "forget", "notify",
+    "get_secret", "reload_config", "reset_infra",
+    "list_active_sessions", "list_runtime_routes", "run_parallel",
+    "runtimeMaintenance"
+  ],
+  "browser": [
+    "browser_list_tabs", "browser_open_tab", "browser_focus_tab",
+    "browser_get_page_state", "browser_find", "browser_navigate",
+    "browser_click", "browser_fill", "browser_history", "browser_press",
+    "browser_scroll", "browser_close_tab", "browser_wait",
+    "browser_cancel_action"
+  ],
+  "bags": [
+    "bag_init", "bag_status", "bag_add", "bag_remove",
+    "bag_add_step", "bag_update_step"
+  ],
+  "experience": [
+    "query_experience", "record_experience"
+  ],
+  "agent": [
+    "spawn_agent", "get_agent_result"
+  ],
+  "consciousness": [
+    "consciousness_status", "get_master_key", "verify_master_key",
+    "consciousness_lock", "consciousness_remember", "consciousness_recall",
+    "consciousness_cross_session"
+  ]
+}

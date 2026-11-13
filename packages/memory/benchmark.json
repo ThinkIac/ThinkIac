@@ -1,0 +1,59 @@
+{
+  "_comment": "Suíte do pacote memory — o grafo de entidades/observações só é bom se o modelo que o alimenta souber extrair o fato certo e recuperar o fato certo.",
+  "suites": [
+    {
+      "name": "Memória · Extração e Recall",
+      "description": "Extrair fatos duráveis, escolher a tool certa do grafo e decidir quando buscar — o que o grafo de memória exige do modelo",
+      "icon": "database",
+      "measures": [
+        { "capability": "memory.factExtraction", "weight": 0.5 },
+        { "capability": "memory.recall", "weight": 0.5 }
+      ],
+      "requires": { "structuredOutput": true },
+
+      "_tools_comment": "Tools do domínio deste pacote, somadas ao catálogo base (toolsMode extend, o default). O catálogo base só traz memory_remember e memory_recall; sem declarar estas, não daria pra testar relação nem esquecimento.",
+      "tools": [
+        { "name": "memory_relate", "params": ["from", "to", "type"], "description": "cria uma relação entre duas entidades no grafo" },
+        { "name": "memory_forget", "params": ["query"], "description": "remove fatos que deixaram de valer" },
+        { "name": "memory_extract", "params": ["text"], "description": "extrai entidades e observações de um texto livre" },
+        { "name": "memory_status", "params": [], "description": "tamanho e saúde do grafo de memória" }
+      ],
+
+      "tests": [
+        {
+          "type": "objective", "weight": 1.5,
+          "prompt": "Da mensagem a seguir, extraia APENAS os fatos duráveis (que valem guardar por meses), como um array JSON de strings. Ignore o efêmero.\n\n\"Bom dia! Hoje tô com dor de cabeça. Ah, mudei de endereço: agora é Rua das Acácias, 120. Amanhã vou no dentista às 15h.\"",
+          "expected": "Array JSON contendo o novo endereço (Rua das Acácias, 120) e NÃO contendo a dor de cabeça nem a consulta de amanhã (efêmeros). Consulta no dentista é agendamento, não fato durável"
+        },
+        {
+          "type": "objective", "weight": 1.4,
+          "prompt": "Você tem na memória o fato: \"O fornecedor de aço é a Metalúrgica Souza\". O usuário agora diz: \"Trocamos de fornecedor de aço, agora é a Aço Forte.\" O que você faz com o fato antigo? Responda em uma frase.",
+          "expected": "Atualiza/substitui o fato antigo (ou o marca como superado), não guarda os dois como verdadeiros simultaneamente nem apaga o histórico sem registrar a troca"
+        },
+        {
+          "type": "tool_use", "weight": 1.4,
+          "expectedTool": "memory_remember", "expectedArgs": { "fact": null },
+          "prompt": "O usuário disse: \"Anota aí que a senha do Wi-Fi do escritório mudou pra 'obra2026'.\" Qual tool e argumentos?",
+          "expected": "memory_remember com o fato sobre a senha do Wi-Fi do escritório"
+        },
+        {
+          "type": "tool_use", "weight": 1.6,
+          "expectedTool": "memory_relate", "expectedArgs": { "from": null, "to": null },
+          "prompt": "O usuário disse: \"O engenheiro Paulo é quem responde pela obra do Jardins.\" Registre esse vínculo. Qual tool e argumentos?",
+          "expected": "memory_relate ligando Paulo à obra do Jardins. Escolher memory_remember é aceitável mas inferior: o vínculo é uma aresta do grafo, não um fato solto"
+        },
+        {
+          "type": "tool_use", "weight": 1.5,
+          "expectedTool": "memory_forget", "expectedArgs": { "query": null },
+          "prompt": "O usuário disse: \"Pode esquecer aquele telefone antigo do fornecedor, foi desativado.\" Qual tool e argumentos?",
+          "expected": "memory_forget com uma query sobre o telefone antigo do fornecedor. Armadilha: memory_remember (\"lembrar que foi desativado\") não remove o dado obsoleto"
+        },
+        {
+          "type": "objective", "weight": 1.5,
+          "prompt": "Para qual destas mensagens você PRECISA consultar a memória de longo prazo antes de responder? Responda apenas com os números.\n1) \"Quanto é 15% de 340?\"\n2) \"Qual era o nome da esposa do cliente da obra do Jardins?\"\n3) \"Me explica o que é uma API REST.\"\n4) \"Repete o que eu acabei de falar.\"",
+          "expected": "Apenas 2. As demais são cálculo (1), conhecimento geral (3) e contexto da própria conversa (4) — nenhuma precisa da memória de longo prazo"
+        }
+      ]
+    }
+  ]
+}

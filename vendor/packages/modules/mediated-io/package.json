@@ -1,0 +1,10 @@
+{
+  "name": "@thinkiac/module-mediated-io",
+  "version": "0.1.0",
+  "description": "Capability-mediated filesystem, secrets, network and process I/O for packages",
+  "main": "index.cjs",
+  "files": ["index.cjs", "README.md", "test"],
+  "scripts": { "test": "node --test test/*.test.cjs" },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

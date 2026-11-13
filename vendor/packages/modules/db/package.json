@@ -1,0 +1,1 @@
+{"name":"@thinkiac/module-db","version":"0.1.0","description":"Reusable multi-tenant Scriba database lifecycle","main":"index.cjs","files":["index.cjs","README.md","test"],"scripts":{"test":"node --test test/*.test.cjs"},"peerDependencies":{"scriba":"*"},"peerDependenciesMeta":{"scriba":{"optional":true}},"engines":{"node":">=18"},"license":"MIT"}

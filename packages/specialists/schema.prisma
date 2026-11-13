@@ -1,0 +1,28 @@
+// Especialistas personalizados. Campos createdAt/updatedAt/deletedAt são
+// injetados automaticamente pelo runtime (ver packages/tasks/schema.prisma).
+//
+// Especialistas GENÉRICOS (um por pacote com AGENT.md) não têm linha aqui —
+// são descobertos ao vivo em lib/discovery.js e entram no catálogo com o id
+// sintético "pkg:<nome-do-pacote>".
+
+model Specialist {
+  id            String  @id @default(uuid())
+  name          String
+  description   String?
+  // Instruções próprias do especialista, texto livre. Some com os AGENT.md
+  // compostos abaixo pra formar o prompt final (ver lib/catalog.js#composePrompt).
+  prompt        String?
+  // JSON array de nomes de pacote, na ORDEM escolhida pelo usuário — cada um
+  // deve ter um AGENT.md descobrível (lib/discovery.js). Entradas que não
+  // resolvem mais (pacote removido) são ignoradas silenciosamente no preview.
+  agents        String? @default("[]")
+  // JSON array de nomes exatos de tool — allowlist. `null` ou ausente = sem
+  // restrição (mesmo comportamento de uma sessão sem especialista). Uma vez
+  // definido, é a palavra final: nenhuma tool fora da lista chega ao LLM.
+  tools         String?
+  provider      String?
+  model         String?
+  fallbackModel String?
+  // Optional event-driven activation. JSON: { event, prompt, enabled, sessionId }
+  trigger       String?
+}

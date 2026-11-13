@@ -1,0 +1,13 @@
+{
+  "name": "@logos/supervisor",
+  "version": "0.1.0",
+  "description": "Workspace and isolated package supervision for Logos",
+  "main": "index.cjs",
+  "bin": { "logos-supervisor": "cli.cjs" },
+  "files": ["*.cjs", "README.md"],
+  "scripts": { "test": "node --test test/*.test.cjs" },
+  "engines": { "node": ">=20" },
+  "os": ["linux"],
+  "publishConfig": { "registry": "https://npm.thinkiac.cloud", "access": "public" },
+  "license": "MIT"
+}

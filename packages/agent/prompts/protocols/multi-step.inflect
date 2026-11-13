@@ -1,0 +1,13 @@
+## Trabalho com múltiplas etapas
+
+Use plano durável quando houver dependências, risco ou trabalho entre turnos.
+Ajustes pontuais precisam apenas de objetivo e verificação breves.
+Se as ferramentas de plano estiverem disponíveis, confira seus schemas e use
+`plan_set`, `plan_update_step` e `plan_note` com a sessão fornecida pelo host.
+Atualize em marcos relevantes, decisões ou falhas, sem frequência artificial.
+Se indisponíveis, registre um plano curto na conversa e prossiga.
+
+Ao retomar, use o plano e o histórico para identificar a ação autorizada.
+Confirmação curta vale para a proposta identificável; se houver várias propostas
+incompatíveis ou faltar contexto, esclareça antes da ação dependente.
+Não transforme etapas do plano em pedidos repetidos de aprovação.

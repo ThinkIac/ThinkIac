@@ -1,0 +1,26 @@
+{
+  "name": "terminal",
+  "version": "1.0.0",
+  "description": "Terminal real (PTY via xterm.js sobre WebSocket) com perfis isolados por $HOME",
+  "main": "index.js",
+  "manifest": {
+    "name": "Terminal",
+    "iconPreset": { "pack": "lucide", "name": "Terminal" },
+    "bgColor": "#111827",
+    "widget": { "lang": "bash", "title": "Terminal", "view": "Widget", "aliases": ["shell", "sh"], "partialMin": 0 }
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "0.10.0",
+    "@xterm/xterm": "5.5.0",
+    "node-pty": "^1.1.0"
+  },
+  "runtime": {
+    "isolation": {
+      "critical": true,
+      "reason": "sessões de PTY ao vivo (histórico, processos rodando, $HOME do perfil) morrem com o processo"
+    },
+    "hotReload": {
+      "mode": "manual"
+    }
+  }
+}

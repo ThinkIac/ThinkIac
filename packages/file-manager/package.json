@@ -1,0 +1,25 @@
+{
+  "name": "file-manager",
+  "version": "1.0.0",
+  "description": "File manager with extensible native previews and iframe-based viewers",
+  "main": "index.js",
+  "type": "module",
+  "manifest": {
+    "name": "File Manager",
+    "iconPreset": {
+      "pack": "lucide",
+      "name": "Folder"
+    },
+    "bgColor": "#c8a66a",
+    "tenantHidden": true
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.6.1",
+    "mime-types": "^2.1.35",
+    "tar": "^7.4.3",
+    "three": "^0.170.0"
+  }
+}

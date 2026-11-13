@@ -1,0 +1,12 @@
+{
+  "name": "hello",
+  "version": "1.0.0",
+  "description": "Minimal Lógos package: a route, a tool, a hook and a Svelte view.",
+  "runtime": {
+    "stability": {
+      "tools": "all",
+      "routes": ["ping"],
+      "maxRetries": 3
+    }
+  }
+}

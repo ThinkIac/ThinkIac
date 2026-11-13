@@ -1,0 +1,6 @@
+{
+  "name": "ui-dialogs",
+  "version": "1.0.0",
+  "description": "Modais de confirm/prompt/alert para views embedadas em iframe, onde os nativos do navegador são bloqueados silenciosamente",
+  "comment": "Pacote só de componente: não tem index.js (nada de backend) e o .svelte vive em views/components/ de propósito — .svelte na raiz de views/ vira app no registro (aura-system/apps/index.js)."
+}

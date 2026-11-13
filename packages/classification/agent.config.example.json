@@ -1,0 +1,164 @@
+{
+  "llm": {
+    "strategy": "fallback",
+    "max_retries": 10,
+    "timeout_ms": 30000,
+    "max_tokens": 8192,
+    "temperature": 0.25,
+    "pools": [
+      {
+        "id": "local",
+        "provider": "ollama",
+        "base_url": "http://localhost:11434",
+        "model": "llama3.1:8b",
+        "embed_model": "nomic-embed-text",
+        "weight": 1,
+        "enabled": false,
+        "_comment": "Provedor local nativo. Sem custo, sem latência de rede."
+      },
+      {
+        "id": "openrouter-primary",
+        "provider": "openrouter",
+        "api_keys": [
+          "<SUA_API_KEY_AQUI>"
+        ],
+        "model": "tencent/hy3:free",
+        "embed_model": "openai/text-embedding-3-small",
+        "weight": 1,
+        "enabled": true,
+        "_comment": "Pool com múltiplas chaves e rotação automática em caso de rate limit."
+      },
+      {
+        "id": "novita-primary",
+        "provider": "custom",
+        "api_keys": [
+          "sk_8lNieeYtWs2D6tUmCX9nZ2KIS92Q4WR7sFHPFXsfUYw"
+        ],
+        "model": "nex-agi/nex-n2-pro",
+        "embed_model": "openai/text-embedding-3-small",
+        "weight": 2,
+        "enabled": false,
+        "base_url": "https://api.novita.ai/openai",
+        "_comment": "Pool com múltiplas chaves e rotação automática em caso de rate limit."
+      },
+      {
+        "name": "pool-2",
+        "enabled": true,
+        "provider": "generic",
+        "base_url": "https://aiapiv2.pekpik.com/v1",
+        "api_keys": []
+      }
+    ],
+    "keys_updated_at": "2026-07-10T16:10:16.603Z"
+  },
+  "scheduler": {
+    "enabled": true,
+    "tick_minutes": 1
+  },
+  "agent": {
+    "context_limit": 4000,
+    "max_iterations": 100
+  },
+  "channels": {
+    "default": "telegram",
+    "ntfy": {
+      "enabled": true,
+      "topic": "aura-os-public",
+      "base_url": "https://ntfy.sh"
+    },
+    "telegram": {
+      "enabled": true,
+      "bot_token": "YOUR_BOT_TOKEN",
+      "monitor_groups": [],
+      "authorized_chat_ids": [
+        "6376439193"
+      ]
+    },
+    "log": {
+      "enabled": true
+    }
+  },
+  "oauth": {
+    "base_url": "https://thinkiac.cloud",
+    "google": {
+      "client_id": "831924134570-5179pampmebfr4cksn5dt9s83ueat1cb.apps.googleusercontent.com",
+      "client_secret": "YOUR_CLIENT_SECRET"
+    },
+    "github": {
+      "client_id": "Ov23liA9A04Mc2IP2CmJ",
+      "client_secret": "YOUR_CLIENT_SECRET"
+    },
+    "linkedin": {
+      "client_id": "77iscl2wus9c30",
+      "client_secret": "YOUR_CLIENT_SECRET"
+    }
+  },
+  "evolution": {
+    "api_url": "https://services-evolution-api.9wxvax.easypanel.host",
+    "api_key": "429683C4C977415CAAFCCE10F7D57E11"
+  },
+  "mcp": {
+    "servers": [
+      {
+        "_comment": "Exemplo stdio ÔÇö Brave Search.",
+        "name": "brave",
+        "type": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-brave-search"
+        ],
+        "env": {
+          "BRAVE_API_KEY": ""
+        },
+        "disabled": true
+      },
+      {
+        "_comment": "Exemplo stdio ÔÇö GitHub MCP.",
+        "name": "github",
+        "type": "stdio",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-github"
+        ],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+        },
+        "disabled": true
+      },
+      {
+        "_comment": "Exemplo http ÔÇö Firecrawl.",
+        "name": "firecrawl",
+        "type": "http",
+        "url": "https://api.firecrawl.dev/v1",
+        "api_key": "",
+        "disabled": true
+      },
+      {
+        "_comment": "Exemplo SSE ÔÇö servidor MCP remoto.",
+        "name": "meu-mcp-remoto",
+        "type": "sse",
+        "url": "https://meu-servidor.com/mcp/sse",
+        "disabled": true
+      }
+    ]
+  },
+  "fixedinstructions": [
+    "No final da intera├º├úo nunca responda 'Conclu├¡do' ou similiar, descreva sempre o resultado final de forma clara e objetiva com as informa├º├Áes mais relevantes, a menos que seja solicitado especificamente para responder apenas 'Conclu├¡do' ou similar",
+    "SEMPRE use read_file antes de qualquer edi├º├úo",
+    "Para arquivos core (agent.js, builtin_tools.js, llm.js, memory.js, registry.js, sandbox.js, privileged.js, channels.js, config.js, history.js, llm_keys.js, metacognition.js, runtime_bridge.js, scheduler.js, telegram_handler.js, timezone.js, provider.js):",
+    "  - write_file nesses arquivos ├® BLOQUEADO pelo sistema",
+    "  - Use APENAS patch_file cir├║rgico",
+    "  - Chame reset_infra IMEDIATAMENTE ap├│s qualquer edi├º├úo core",
+    "NUNCA edite mais de um arquivo core por ciclo ReAct",
+    "Se um patch falhar com rollback autom├ítico, PARE completamente e reporte ÔÇö n├úo tente novamente sem entender a causa",
+    "Prefira criar novos packages a modificar arquivos core existentes",
+    "Em caso de d├║vida, N├âO edite, sempre pergunte primeiro",
+    "Para mem├│ria use sempre howUseMemory para obter instru├º├Áes atualizadas e melhores pr├íticas",
+    "Sempre use o Search para buscar um mem├│ria no Pal├ício da Mem├│ria",
+    "Proibido fazer chamadas a APIs LLM dentro de c├│digo sandbox (tool code)",
+    "Seja objetivo e direto ÔÇö sem pre├ómbulos desnecess├írios",
+    "Fuso hor├írio: America/Sao_Paulo"
+  ]
+}

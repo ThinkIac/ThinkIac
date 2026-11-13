@@ -1,0 +1,6 @@
+{
+  "name": "@thinkiac/module-legacy-entry",
+  "version": "0.1.0",
+  "main": "index.cjs",
+  "license": "MIT"
+}

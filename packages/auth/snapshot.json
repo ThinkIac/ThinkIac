@@ -1,0 +1,14 @@
+[
+  {
+    "path": "./index.js",
+    "content": "const users = { 'admin@admin.com': 'b80d6dc4be890766e16b' }; // Usuário de teste\nconst sessions = {};\n\nfunction parseCookies(cookieHeader) {\n    const cookies = {};\n    if (!cookieHeader) return cookies;\n\n    cookieHeader.split(';').forEach(cookie => {\n        const [parts] = cookie.split('=');\n        const name = parts.trim();\n        const value = cookie.substring(name.length + 1).trim();\n        if (name) cookies[name] = decodeURIComponent(value);\n    });\n    return cookies;\n}\n\nexport function checkAuth({ req, res }) {\n    const cookies = parseCookies(req.headers.cookie);\n    const sessionId = cookies['sessionId'];\n\n    // Verifica se o ID existe na nossa memória\n    if (sessionId && sessions[sessionId]) {\n        req.user = sessions[sessionId]; // Injeta o usuário na requisição\n        return;\n    } else {\n        res.status(401).send('<h1>Acesso negado. Faça <a href=\"/login\">login</a>.</h1>');\n    }\n}\n\nexport function login(req, res) {\n    /**\n     * @register_router login\n     * @method POST\n     */\n\n    // return process.env.AUTH_ENV_SECRET_SESSION;\n    const { email, password } = req.body;\n\n    // Valida as credenciais\n    if (users[email] && users[email] === password) {\n        // Gera um ID de sessão único \"artesanal\"\n        const sessionId = Math.random().toString(36).substring(2) + Date.now().toString(36);\n\n        // Salva a sessão na memória do servidor\n        sessions[sessionId] = { email, loginAt: new Date() };\n\n        // Envia o cookie para o navegador via HTTP Header nativo\n        // HttpOnly impede que scripts maliciosos (XSS) acessem o cookie\n        res.setHeader('Set-Cookie', `sessionId=${sessionId}; HttpOnly; Path=/; SameSite=Strict`);\n\n        return res.redirect('/dashboard');\n    }\n\n    res.status(400).send('Usuário ou senha inválidos. <a href=\"/login\">Tentar novamente</a>');\n};\n\nexport function list() {\n    /**\n     * @register_router get\n     * @method GET\n     */\n\n    return sessions;\n}"
+  },
+  {
+    "path": "./package.json",
+    "content": "{\n    \"name\": \"auth\",\n    \"version\": \"0.0.1\"\n}"
+  },
+  {
+    "path": "./snapshot.json",
+    "content": ""
+  }
+]

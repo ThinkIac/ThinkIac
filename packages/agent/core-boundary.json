@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "description": "Auditable boundary between Agent Core and runtime packages.",
+  "embeddedComponents": [
+    {
+      "name": "runtime",
+      "capability": "host-neutral agent infrastructure ports",
+      "contract": "agent/runtime/index.js#createAgentHost"
+    },
+    {
+      "name": "host/logos",
+      "capability": "Logos host adapter",
+      "contract": "agent/host/logos/index.js#createLogosAgentExecutor"
+    }
+  ],
+  "requiredPackages": [
+    {
+      "name": "auth",
+      "capability": "tool permission discovery and authorization",
+      "contract": "auth/discovery_permissions.cjs and auth/permissions.cjs"
+    },
+    {
+      "name": "aura-system",
+      "capability": "runtime app and UI contribution discovery",
+      "contract": "GET /aura-system/apps/list"
+    },
+    {
+      "name": "classification",
+      "capability": "tool approximation policy",
+      "contract": "classification/approximation.js"
+    },
+    {
+      "name": "governance",
+      "capability": "tool action authorization and approval claims",
+      "contract": "governance/service.js"
+    },
+    {
+      "name": "file-manager",
+      "capability": "internal file preview protocol",
+      "contract": "file-manager/views/lib/protocol.js"
+    },
+    {
+      "name": "hermes",
+      "capability": "mobile cloud LLM model discovery and requests",
+      "contract": "hermes/index.js"
+    },
+    {
+      "name": "mcp",
+      "capability": "MCP provider catalog and client configuration",
+      "contract": "mcp/providers.js"
+    },
+    {
+      "name": "memory",
+      "capability": "long-term facts, recall and feedback memory",
+      "contract": "memory/lib/graph.js"
+    },
+    {
+      "name": "specialists",
+      "capability": "agent-file discovery and per-session specialist resolution",
+      "contract": "specialists/lib"
+    },
+    {
+      "name": "ui-schema",
+      "capability": "structured UI schemas emitted by the agent",
+      "contract": "ui-schema/index.js"
+    }
+  ],
+  "optionalPackages": [
+    {
+      "name": "cognitive-engine",
+      "capability": "optional cognitive observations and local decision experiments",
+      "integration": "package UI and event hooks only",
+      "whenAbsent": "tool and skill prioritization remain owned by classification"
+    },
+    {
+      "name": "android-device",
+      "capability": "Android context and action traces",
+      "integration": "lazy module loading",
+      "whenAbsent": "chat continues without Android context or action traces"
+    },
+    {
+      "name": "bags",
+      "capability": "session progress metadata",
+      "integration": "GET /bags/list/by-session",
+      "whenAbsent": "session list remains available without progress metadata"
+    },
+    {
+      "name": "variants",
+      "capability": "variant worktrees and previews",
+      "integration": "lazy module loading",
+      "whenAbsent": "variant tools return an explicit unavailable error"
+    },
+    {
+      "name": "ntfy",
+      "capability": "native device notification opt-in",
+      "integration": "package discovery through GET /aura-system/apps/list",
+      "whenAbsent": "notification opt-in is hidden while chat remains available"
+    }
+  ]
+}

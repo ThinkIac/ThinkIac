@@ -1,0 +1,45 @@
+# ThinkIac
+
+> ThinkIac is a cloud platform and V8 runtime for building AI agents and full-stack
+> web apps in a single environment. Plain JavaScript/TypeScript functions become
+> infrastructure through JSDoc decorators, and packages communicate through an
+> event bus instead of importing each other.
+
+## What it is
+
+- A **runtime**: one embedded V8 process runs your agents and your web apps together.
+- **Decorator-driven**: a JSDoc comment turns a function into a tool, route, view or
+  hook — `@register_tool`, `@register_router` or `@register_hook`.
+- **Event-driven**: packages stay decoupled. They emit events with `$` (the exported
+  shorthand for `dispatchEvent`) and any registered hook reacts. Example: a hook
+  defines the `web:search` event, and both a tool and a route just call
+  `$('web:search', { term })` — the logic lives in one place and can never drift.
+- **Multi-provider LLMs**: route per request to OpenAI, Anthropic (direct or via
+  OpenRouter) or DeepSeek. Cognitive features include a ReAct loop, loop-detection,
+  hallucination-detection and MoIE (an edge LLM in pure Python, no GPU).
+- **Store**: a marketplace to discover, install and publish packages.
+
+## Platforms
+
+- Windows desktop app (.exe) — available now.
+- Android app (.apk) — available now.
+- macOS, iOS and Linux — coming soon.
+- Or run entirely in the cloud with no install.
+
+## Pricing (hardware, not seats)
+
+Every tenant runs in its own container sized by InfraKit. You pick a base tier and add
+CPU, RAM and disk à la carte; the container is resized live. Prices shown in USD,
+billed monthly in BRL.
+
+- Free — 0.25 vCPU, 256 MB RAM, 1 GB disk — $0/mo
+- Basic — 0.5 vCPU, 512 MB RAM, 5 GB disk — ~$3.62/mo
+- Pro — 1 vCPU, 1 GB RAM, 20 GB disk — ~$9.07/mo
+- Add-ons: +0.25 vCPU (~$1.80/mo), +256 MB RAM (~$1.25/mo), +5 GB disk (~$0.89/mo)
+
+## Links
+
+- Home: https://thinkiac.cloud/
+- Store: https://thinkiac.cloud/view/store/Home
+- Live event playground: https://thinkiac.cloud/view/main-site/EventDemo
+- Docs: https://thinkiac.cloud/view/main-site/Docs

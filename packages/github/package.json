@@ -1,0 +1,20 @@
+{
+  "name": "github",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "description": "Tools do ThinkIac para GitHub, Git por SSH, repositórios, Issues e Pull Requests.",
+  "manifest": {
+    "name": "GitHub",
+    "iconPreset": { "pack": "lucide", "name": "Github" },
+    "keysTab": {
+      "id": "github-credentials",
+      "label": "GitHub",
+      "view": "Settings",
+      "renderer": "schema",
+      "surface": "github-credentials",
+      "order": 40
+    }
+  },
+  "dependencies": { "logos": "*" }
+}

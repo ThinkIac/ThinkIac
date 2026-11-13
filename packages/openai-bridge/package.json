@@ -1,0 +1,27 @@
+{
+  "name": "openai-bridge",
+  "version": "1.2.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/**/*.test.js"
+  },
+  "manifest": {
+    "name": "Codex",
+    "icon": "assets/openai.svg",
+    "widget": {
+      "lang": "codex",
+      "title": "Codex",
+      "view": "Widget"
+    },
+    "menu": {
+      "id": "openai",
+      "label": "Codex",
+      "target": "left",
+      "view": "Widget"
+    }
+  },
+  "logosDependencies": {
+    "terminal": "*"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "name": "High Disk Usage Alert",
+  "description": "Checks disk usage every 15 minutes and alerts only when it exceeds the configured threshold.",
+  "trigger": {
+    "type": "cron",
+    "cron": "*/15 * * * *"
+  },
+  "nodes": [
+    {
+      "id": "channel",
+      "type": "set",
+      "name": "ntfy Channel",
+      "position": { "x": 80, "y": 80 },
+      "config": {
+        "key": "channel",
+        "value": "",
+        "description": "Leave blank to use the default ntfy channel."
+      }
+    },
+    {
+      "id": "thresholdPct",
+      "type": "set",
+      "name": "Disk Usage Threshold (%)",
+      "position": { "x": 80, "y": 240 },
+      "config": {
+        "key": "thresholdPct",
+        "value": 85,
+        "description": "Send an alert when disk usage reaches or exceeds this percentage."
+      }
+    },
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "name": "Scheduled Check",
+      "position": { "x": 400, "y": 180 },
+      "config": {}
+    },
+    {
+      "id": "readStats",
+      "type": "tool",
+      "name": "Read System Metrics",
+      "position": { "x": 720, "y": 180 },
+      "config": {
+        "package": "system-monitor",
+        "name": "getSystemStats",
+        "args": {}
+      }
+    },
+    {
+      "id": "aboveThreshold",
+      "type": "condition",
+      "name": "Disk Usage Above Threshold?",
+      "position": { "x": 1040, "y": 180 },
+      "config": {
+        "left": "{{nodes.readStats.result.disk.pct}}",
+        "op": ">=",
+        "right": "{{vars.thresholdPct}}"
+      }
+    },
+    {
+      "id": "notify",
+      "type": "tool",
+      "name": "Send Alert",
+      "position": { "x": 1360, "y": 180 },
+      "config": {
+        "package": "ntfy",
+        "name": "sendNtfyNotification",
+        "args": {
+          "channel": "{{vars.channel}}",
+          "title": "High Disk Usage",
+          "message": "Disk usage is at {{nodes.readStats.result.disk.pct}}% ({{nodes.readStats.result.disk.usedGB}} GB of {{nodes.readStats.result.disk.totalGB}} GB). Configured threshold: {{vars.thresholdPct}}%.",
+          "priority": 4,
+          "tags": "warning,floppy_disk",
+          "discreteId": "system-monitor-disk-alert"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "trigger",
+      "fromPort": "out",
+      "to": "readStats"
+    },
+    {
+      "from": "readStats",
+      "fromPort": "out",
+      "to": "aboveThreshold"
+    },
+    {
+      "from": "aboveThreshold",
+      "fromPort": "true",
+      "to": "notify"
+    }
+  ]
+}

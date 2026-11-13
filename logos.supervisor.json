@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "services": {
+    "Agent": {
+      "command": "node",
+      "args": ["index.js"],
+      "cwd": ".",
+      "env": {
+        "PORT": "5041",
+        "HOST": "0.0.0.0",
+        "MCP_PORT": "3341",
+        "MCP_HOST": "127.0.0.1"
+      },
+      "ready": "ipc",
+      "policy": {
+        "restart": "always",
+        "bootTimeoutMs": 300000,
+        "heartbeatMs": 60000,
+        "stopTimeoutMs": 30000,
+        "maxRestarts": 5,
+        "windowMs": 300000
+      }
+    }
+  }
+}

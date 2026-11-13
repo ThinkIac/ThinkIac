@@ -1,0 +1,5 @@
+{
+  "name": "shell-runtime",
+  "private": true,
+  "type": "commonjs"
+}

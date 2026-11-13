@@ -1,0 +1,16 @@
+# thinkiac.yml — agent
+# Contexto completo do agente Agent
+
+ignores:
+  - snapshots
+  - node_modules
+  - .git
+  - secrets
+  - channels
+  - memory/history
+  - memory/slots_state.json
+  - views/.snapshots
+
+contexts:
+  default:
+    - .

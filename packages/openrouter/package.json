@@ -1,0 +1,16 @@
+{
+  "name": "openrouter",
+  "version": "1.0.0",
+  "description": "App de configuração do provider OpenRouter — insere/gerencia o slot em agent.config.json → llm.pools[] (chave de API + modelo), liga/desliga e testa a conexão ao vivo. OpenRouter é uma API OpenAI-compatible que dá acesso a centenas de modelos (Anthropic, OpenAI, Google, Meta, DeepSeek…) com uma única chave.",
+  "main": "index.js",
+  "type": "module",
+  "manifest": {
+    "name": "OpenRouter",
+    "icon": "assets/icon-light.png",
+    "iconDark": "assets/icon-dark.png",
+    "noBorder": "true"
+  },
+  "dependencies": {
+    "logos": "*"
+  }
+}

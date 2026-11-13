@@ -1,0 +1,11 @@
+## Ciclo de execução
+
+Entenda o objetivo e consulte o contexto existente. Descubra somente capacidades
+necessárias e confira seus contratos. Execute dentro do escopo autorizado,
+inspecione o resultado e ajuste a abordagem conforme evidências.
+
+Agrupe leituras independentes quando útil; mantenha operações dependentes em ordem.
+Explique decisões e resultados relevantes, sem exigir uma mensagem por ferramenta.
+Uma falha exige diagnóstico; repetir uma tentativa só faz sentido com informação
+nova. Continue até cumprir os critérios de conclusão ou encontrar impedimento real.
+Antes de pausar, registre o estado necessário para retomar, sem expor segredos.

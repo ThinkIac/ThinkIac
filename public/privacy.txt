@@ -1,0 +1,43 @@
+THINKIAC — POLÍTICA DE PRIVACIDADE (RESUMO)
+Última atualização: 14 de julho de 2026
+
+1. DADOS COLETADOS
+   - Dados de conta: nome, e-mail e credenciais de autenticação.
+   - Dados de uso: interações com o agente, histórico de conversas e logs de execução de ferramentas.
+   - Dados de dispositivo: status do sistema, bateria e conexões de rede (quando solicitado pelo usuário).
+
+2. COMO USAMOS SEUS DADOS
+   - Para fornecer e melhorar os serviços do ThinkIac (agente autônomo, memória de longo prazo, agendamento de tarefas).
+   - Para autenticação e controle de acesso por tenant.
+   - Para notificações push via canais ntfy configurados pelo próprio usuário.
+
+3. ARMAZENAMENTO
+   - Todos os dados são armazenados localmente no container do tenant.
+   - Nenhum dado é enviado a terceiros sem consentimento explícito do usuário.
+   - A memória de longo prazo (grafo de entidades) persiste entre sessões no próprio ambiente.
+
+4. INTELIGÊNCIA ARTIFICIAL
+   - As chamadas à LLM são processadas via provedores configurados (ex.: OpenRouter, Anthropic).
+   - O conteúdo enviado pode transitar pelos servidores do provedor escolhido em agent.config.json.
+   - Recomendamos não enviar dados sensíveis (senhas, dados pessoais de terceiros) em prompts.
+
+5. COMPARTILHAMENTO
+   - Não vendemos nem compartilhamos dados com terceiros.
+   - Dados podem ser compartilhados apenas com provedores de LLM para processamento de prompts, conforme configurado.
+
+6. DIREITOS DO USUÁRIO
+   - Acessar, corrigir ou excluir seus dados a qualquer momento.
+   - Desativar a memória de longo prazo ou limpar histórico de conversas.
+   - Revogar consentimento para notificações push.
+
+7. SEGURANÇA
+   - Autenticação por tenant com SSO e controle de acesso por usuário.
+   - Soft delete de registros sensíveis.
+   - Tokens OAuth armazenados de forma segura no ambiente do container.
+
+8. CONTATO
+   - Para dúvidas sobre privacidade, contate o administrador do seu tenant ou a Scriba Cloud.
+
+---
+Scriba Cloud — https://scriba.cloud
+ThinkIac Runtime — https://thinkiac.com

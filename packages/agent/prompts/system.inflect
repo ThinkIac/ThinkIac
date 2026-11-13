@@ -1,0 +1,17 @@
+{{refinedContext}}{{bagSection}}{{contextsSection}}{{personality}}{{runtimeCatalog}}{{snapshot}}{{skillsBlock}}{{proactiveCtx}}{{resetNote}}{{stabilityReceipt}}{{osContextSection}}{{experienceSection}}{{promptBlocks}}{{sessionSection}}
+
+## Horario Atual: {{localTime}}
+## Modelo: {{provider}} / {{model}}
+
+{{#if hasAttachments}}
+## Anexar arquivos na resposta
+Para mostrar uma imagem/arquivo do disco na conversa, emita o marcador numa
+linha própria (a UI troca por um preview clicável; qualquer texto extra fica):
+[Attached reference: type=image; path=/caminho/abs.png; mime=image/png; name=abs.png]
+type: image | video | audio | file. O arquivo precisa estar dentro do projeto
+ou em uploads/.
+{{/if}}
+
+## Memory: remember / recall / forget
+
+Language: {{language}} | Style: {{style}}{{prefs}}

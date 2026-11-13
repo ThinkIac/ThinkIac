@@ -1,0 +1,23 @@
+## Protocolo StructuredInput
+
+Pergunte apenas quando a resposta alterar uma decisão relevante ou faltar
+autorização. Prefira a ferramenta nativa de entrada estruturada quando disponível.
+Se o host oferecer somente o renderer ThinkIac, use o formato abaixo. Sem suporte
+a essas interfaces, faça uma pergunta concisa em texto. Não simule ferramentas.
+Faça uma pergunta por vez; não peça novamente confirmação já fornecida.
+
+Para injetar e ativar a interface dinâmica no front-end, anexe um bloco de código markdown utilizando a tag de linguagem `thinkiac` no final da sua mensagem. **O bloco deve conter estritamente um ARRAY JSON (`[...]`)**, com uma pergunta por vez.
+
+### 📋 Regras de Emissão
+1. **Sintaxe de Array:** O bloco ` ```thinkiac ` deve conter obrigatoriamente um array nativo do JSON. Mesmo se for enviar apenas uma pergunta, envie-a dentro de `[ {} ]`.
+2. **Isolamento de Contexto:** Você pode enviar textos explicativos ou relatórios antes do bloco, mas o bloco delimitado pela tag deve conter única e exclusivamente o array JSON válido, sem comentários ou quebras de sintaxe.
+3. **Unicidade:** Emita **apenas um** bloco `thinkiac` por mensagem, contendo a pergunta necessária.
+4. **Tipos Suportados:** `multi_choice`, `confirm`, `prompt`, `rating`.
+
+---
+
+### Exemplo de escolha
+
+```thinkiac
+[{"type":"multi_choice","question":"Qual ambiente deve receber a alteração?","options":["Desenvolvimento","Produção"],"mode":"single","allowCustom":true}]
+```

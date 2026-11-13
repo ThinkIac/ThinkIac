@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OWL — How I Work</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --accent: #7c5cff;
+    --accent2: #00d4aa;
+    --accent3: #ff6b9d;
+    --text: #e4e4ef;
+    --text-dim: #8888a0;
+    --glow: rgba(124, 92, 255, 0.15);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Ubuntu Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      linear-gradient(rgba(124,92,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,92,255,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 60px 24px;
+  }
+  .header { text-align: center; margin-bottom: 80px; animation: fadeInUp 0.8s ease; }
+  .header h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+  }
+  .header p { color: var(--text-dim); font-size: 1.1rem; max-width: 600px; margin: 0 auto; line-height: 1.6; }
+  .section { margin-bottom: 80px; }
+  .section-title {
+    font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.2em; color: var(--accent); margin-bottom: 8px;
+  }
+  .section-heading { font-size: 1.6rem; font-weight: 700; margin-bottom: 24px; color: var(--text); }
+
+  /* ReAct Loop */
+  .react-loop {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; flex-wrap: wrap; margin: 40px 0;
+  }
+  .react-step {
+    position: relative; width: 130px; height: 130px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-radius: 20px; border: 2px solid var(--border);
+    background: var(--surface); transition: all 0.4s ease; cursor: pointer;
+  }
+  .react-step:hover {
+    transform: translateY(-4px); border-color: var(--accent);
+    box-shadow: 0 8px 32px var(--glow);
+  }
+  .react-step.active {
+    border-color: var(--accent2);
+    box-shadow: 0 0 40px rgba(0, 212, 170, 0.2);
+    animation: pulse-glow 2s ease infinite;
+  }
+  .react-step.active .label { color: var(--accent2); }
+  .react-step .icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .react-step .label {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--text-dim); text-align: center;
+  }
+  .react-arrow { font-size: 1.4rem; color: var(--accent); margin: 0 6px; opacity: 0.5; }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(0,212,170,0.15); }
+    50% { box-shadow: 0 0 40px rgba(0,212,170,0.3); }
+  }
+
+  /* CoT Card */
+  .cot-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px; margin-bottom: 24px;
+  }
+  .cot-card h3 { font-size: 1rem; color: var(--accent3); margin-bottom: 16px; font-weight: 700; }
+  .cot-step { display: flex; gap: 16px; margin-bottom: 12px; align-items: flex-start; }
+  .cot-step .num {
+    min-width: 28px; height: 28px; border-radius: 8px; background: var(--accent);
+    color: white; display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 800; flex-shrink: 0;
+  }
+  .cot-step .text { font-size: 0.9rem; line-height: 1.6; color: var(--text-dim); padding-top: 3px; }
+  .cot-step .text strong { color: var(--text); }
+
+  /* Tiers */
+  .tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 24px; }
+  .tier-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px; transition: all 0.3s ease;
+  }
+  .tier-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .tier-card.compact { border-top: 3px solid var(--accent2); }
+  .tier-card.detailed { border-top: 3px solid var(--accent); }
+  .tier-card.full { border-top: 3px solid var(--accent3); }
+  .tier-card h4 { font-size: 0.95rem; margin-bottom: 4px; }
+  .tier-card .model { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 12px; }
+  .tier-card .count { font-size: 2rem; font-weight: 800; color: var(--accent); }
+  .tier-card .count span { font-size: 0.8rem; font-weight: 400; color: var(--text-dim); }
+
+  /* Protocol */
+  .protocol-box {
+    background: linear-gradient(135deg, rgba(124,92,255,0.08), rgba(0,212,170,0.05));
+    border: 1px solid rgba(124,92,255,0.2); border-radius: 16px; padding: 32px; margin-top: 24px;
+  }
+  .protocol-box h3 { color: var(--accent); margin-bottom: 16px; font-size: 1rem; }
+  .protocol-phases { display: flex; flex-wrap: wrap; gap: 12px; }
+  .phase {
+    background: var(--bg); border-radius: 10px; padding: 12px 16px;
+    font-size: 0.8rem; border: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .phase .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; }
+
+  /* Memory */
+  .memory-flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 24px; }
+  .memory-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; text-align: center;
+  }
+  .memory-item .icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .memory-item h4 { font-size: 0.85rem; margin-bottom: 4px; }
+  .memory-item p { font-size: 0.75rem; color: var(--text-dim); line-height: 1.5; }
+
+  /* Mermaid wrapper */
+  .mermaid-wrapper {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px; margin: 24px 0; overflow-x: auto;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center; padding-top: 40px;
+    border-top: 1px solid var(--border); color: var(--text-dim); font-size: 0.8rem;
+  }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in {
+    opacity: 0; transform: translateY(20px);
+    transition: all 0.6s ease;
+  }
+  .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 768px) {
+    .react-loop { gap: 8px; }
+    .react-step { width: 90px; height: 90px; }
+    .react-arrow { display: none; }
+    .protocol-phases { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>How OWL Works</h1>
+    <p>A transparent look inside the agent loop — from receiving your message to delivering a result.</p>
+  </div>
+
+  <!-- Section 1: ReAct Loop -->
+  <div class="section fade-in">
+    <div class="section-title">Core Engine</div>
+    <div class="section-heading">The ReAct Loop</div>
+    <p style="color: var(--text-dim); line-height: 1.7; max-width: 700px; margin-bottom: 24px;">
+      Every time you send a message, I enter a Reasoning + Acting loop. I think about what to do, execute a tool, observe the result, and repeat — until the task is complete.
+    </p>
+
+    <div class="react-loop">
+      <div class="react-step active" id="step-think">
+        <div class="icon">🧠</div>
+        <div class="label">Think</div>
+      </div>
+      <div class="react-arrow">→</div>
+      <div class="react-step" id="step-msg">
+        <div class="icon">💬</div>
+        <div class="label">Message</div>
+      </div>
+      <div class="react-arrow">→</div>
+      <div class="react-step" id="step-think2">
+        <div class="icon">🧠</div>
+        <div class="label">Think</div>
+      </div>
+      <div class="react-arrow">→</div>
+      <div class="react-step" id="step-act">
+        <div class="icon">⚡</div>
+        <div class="label">Act</div>
+      </div>
+      <div class="react-arrow">→</div>
+      <div class="react-step" id="step-observe">
+        <div class="icon">👁️</div>
+        <div class="label">Observe</div>
+      </div>
+      <div class="react-arrow">↺</div>
+    </div>
+
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+graph LR
+    U["👤 User Message"] --> AG["🔄 Agent Loop"]
+    AG --> T["🧠 Think\nReasoning"]
+    T --> A["⚡ Act\nTool Call"]
+    A --> O["👁️ Observe\nResult"]
+    O --> D{"✅ Done?"}
+    D -- No --> T
+    D -- Yes --> R["📤 Response"]
+    R --> U
+
+    style U fill:#1a1a2e,stroke:#7c5cff,color:#e4e4ef
+    style AG fill:#12121a,stroke:#7c5cff,color:#e4e4ef
+    style T fill:#12121a,stroke:#00d4aa,color:#e4e4ef
+    style A fill:#12121a,stroke:#ff6b9d,color:#e4e4ef
+    style O fill:#12121a,stroke:#7c5cff,color:#e4e4ef
+    style D fill:#12121a,stroke:#00d4aa,color:#e4e4ef
+    style R fill:#1a1a2e,stroke:#00d4aa,color:#e4e4ef
+      </pre>
+    </div>
+  </div>
+
+  <!-- Section 2: Architecture -->
+  <div class="section fade-in">
+    <div class="section-title">Architecture</div>
+    <div class="section-heading">Inside the Runtime</div>
+    <p style="color: var(--text-dim); line-height: 1.7; max-width: 700px; margin-bottom: 24px;">
+      Messages flow through a layered architecture: the WebSocket gateway, the agent core with its tool registry, the LLM provider, and persistent memory stores.
+    </p>
+
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+graph TB
+    subgraph Client["🌐 Client Layer"]
+        WS["WebSocket Gateway"]
+        UI["Chat UI / API"]
+    end
+
+    subgraph Core["⚙️ Agent Core"]
+        AGENT["runAgent()\nAssembles Context"]
+        LOOP["agentLoop()\nReAct Engine"]
+        COT["Chain-of-Thought\nStructured Reasoning"]
+    end
+
+    subgraph LLM["🧠 LLM Provider"]
+        ROUTER["Model Router\ncompact | detailed | full"]
+        MODEL["OpenRouter / GPT-4o\nClaude / DeepSeek"]
+    end
+
+    subgraph Tools["🔧 Tool Registry"]
+        RT["run_runtime_tool()"]
+        ENGINEER["engineer\nread_file | write_file | run_shell"]
+        MEMORY["memory\nremember | recall | forget"]
+        EXTERNAL["external\nweb_search | moondream | ntfy"]
+    end
+
+    subgraph Persistence["💾 Persistence"]
+        FACTS["facts.md\nLong-term Facts"]
+        SESSION["sessions/\nSession Data"]
+        META["metacore-bag.json\nCross-session Patterns"]
+    end
+
+    UI --> WS
+    WS --> AGENT
+    AGENT --> COT
+    COT --> LOOP
+    LOOP --> ROUTER
+    ROUTER --> MODEL
+    MODEL --> LOOP
+    LOOP --> RT
+    RT --> ENGINEER
+    RT --> MEMORY
+    RT --> EXTERNAL
+    ENGINEER --> Persistence
+    MEMORY --> FACTS
+    MEMORY --> SESSION
+    META --> AGENT
+
+    style Client fill:#0a0a0f,stroke:#333,color:#e4e4ef
+    style Core fill:#0a0a0f,stroke:#7c5cff,color:#e4e4ef
+    style LLM fill:#0a0a0f,stroke:#00d4aa,color:#e4e4ef
+    style Tools fill:#0a0a0f,stroke:#ff6b9d,color:#e4e4ef
+    style Persistence fill:#0a0a0f,stroke:#888,color:#e4e4ef
+      </pre>
+    </div>
+  </div>
+
+  <!-- Section 3: CoT -->
+  <div class="section fade-in">
+    <div class="section-title">Reasoning</div>
+    <div class="section-heading">Chain-of-Thought Protocol</div>
+    <p style="color: var(--text-dim); line-height: 1.7; max-width: 700px; margin-bottom: 24px;">
+      Before every tool call, I declare four things out loud. This makes my reasoning transparent and debuggable.
+    </p>
+
+    <div class="cot-card">
+      <h3>🔍 Before Every Tool Call</h3>
+      <div class="cot-step">
+        <div class="num">1</div>
+        <div class="text"><strong>Objective</strong> — What will this tool call resolve?</div>
+      </div>
+      <div class="cot-step">
+        <div class="num">2</div>
+        <div class="text"><strong>Expected Input</strong> — What data am I passing and why?</div>
+      </div>
+      <div class="cot-step">
+        <div class="num">3</div>
+        <div class="text"><strong>Expected Output</strong> — What should come back? What counts as success?</div>
+      </div>
+      <div class="cot-step">
+        <div class="num">4</div>
+        <div class="text"><strong>Fallback</strong> — If it fails, what's the alternative?</div>
+      </div>
+    </div>
+
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart TD
+    START["📩 User Request"] --> UNDERSTAND["1. Understand\nWhat do they really want?"]
+    UNDERSTAND --> MAP["2. Map\nWhich tools exist?"]
+    MAP --> VALIDATE["3. Validate\nPermission? Context?"]
+    VALIDATE --> CONFIRM{"4. Confirm\nDestructive action?"}
+    CONFIRM -- Yes --> ASK["Ask User\nvia StructuredInput"]
+    ASK --> ACT["5. Act\nExecute with CoT"]
+    CONFIRM -- No --> ACT
+    ACT --> LEARN["6. Learn\nDid it work? Record."]
+    LEARN --> DESCRIBE["7. Describe\nShow what was done"]
+    DESCRIBE --> DONE{"✅ Task complete?"}
+    DONE -- No --> UNDERSTAND
+    DONE -- Yes --> END["� Finalize"]
+
+    style START fill:#12121a,stroke:#7c5cff,color:#e4e4ef
+    style UNDERSTAND fill:#12121a,stroke:#00d4aa,color:#e4e4ef
+    style MAP fill:#12121a,stroke:#00d4aa,color:#e4e4ef
+    style VALIDATE fill:#12121a,stroke:#00d4aa,color:#e4e4ef
+    style CONFIRM fill:#12121a,stroke:#ff6b9d,color:#e4e4ef
+    style ACT fill:#12121a,stroke:#ff6b9d,color:#e4e4ef
+    style LEARN fill:#12121a,stroke:#7c5cff,color:#e4e4ef
+    style DESCRIBE fill:#12121a,stroke:#7c5cff,color:#e4e4ef
+    style END fill:#1a1a2e,stroke:#00d4aa,color:#e4e4ef
+      </pre>
+    </div>
+  </div>
+
+  <!-- Section 4: Tool Tiers -->
+  <div class="section fade-in">
+    <div class="section-title">Classification</div>
+    <div class="section-heading">Adaptive Tool Tiers</div>
+    <p style="color: var(--text-dim); line-height: 1.7; max-width: 700px; margin-bottom: 24px;">
+      Not every task needs every tool. I auto-scale between three tiers — compact for speed, detailed for balance, full for deep exploration.
+    </p>
+
+    <div class="tiers">
+      <div class="tier-card compact">
+        <h4>Compact</h4>
+        <div class="model">gemma-3-12b-it · low cost</div>
+        <div class="count">~8 <span>tools</span></div>
+        <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 12px; line-height: 1.5;">
+          Fast, focused. Used for simple queries and quick lookups.
+        </p>
+      </div>
+      <div class="tier-card detailed">
+        <h4>Detailed</h4>
+="model">deepseek-v4-flash · medium cost <div class="count">~25 <span>tools</span></div>
+        <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 12px; line-height: 1.5;">
+          Balanced coverage. Handles multi-step tasks and moderate complexity.
+        </p>
+      </div>
+      <div class="tier-card full">
+        <h4>Full</h4>
+        <div class="model">claude-sonnet-4.6 · high capability</div>
+        <div class="count">ALL <span>tools</span></div>
+        <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 12px; line-height: 1.5;">
+          Every tool with full descriptions. For audits, exploration, and hard problems.
+        </p>
+      </div>
+    </div>
+
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+graph TD
+    AUTO["🔄 Auto-Escalation"] --> C{"Same tool fails\n2x in a row?"}
+    C -- Yes --> ESCALATE["compact → detailed"]
+    D{"3 consecutive\niterations fail?"}
+    ESCALATE --> D
+    D -- Yes --> RECLASSIFY["Reclassify\nbased on error type"]
+    D -- No --> CONTINUE["Continue current tier"]
+    RECLASSIFY --> FULL["full\nAll tools"]
+    Q{"User asks\n'what tools do you have?'"}
+    Q -- Yes --> FULL
+
+    style AUTO fill:#12121a,stroke:#7c5cff,color:#e4e4ef
+    style C fill:#12121a,stroke:#ff6b9d,color:#e4e4ef
+    style D fill:#12121a,stroke:#ff6b9d,color:#e4e4ef
+    style Q fill:#12121a,stroke:#00d4aa,color:#e4e4ef
+      </pre>
+    </div>
+  </div>
+
+  <!-- Section 5: Multi-Step -->
+  <div class="section fade-in">
+    <div class="section-title">Complex Tasks</div>
+    <div class="section-heading">Multi-Step Decomposition</div>
+    <p style="color: var(--text-dim); line-height: 1.7; max-width: 700px; margin-bottom: 24px;">
+      For tasks with 3+ steps or high uncertainty, I decompose first, execute sequentially, and checkpoint every 3 iterations.
+    </p>
+
+    <div class="protocol-box">
+      <h3>🔬 Multi-Step Protocol</h3>
+      <div class="protocol-phases">
+        <div class="phase"><span class="dot"></span> Decompose into sub-steps</div>
+        <div class="phase"><span class="dot"></span> Execute one at a time</div>
+        <div class="phase"><span class="dot"></span> Verify each result</div>
+        <div class="phase"><span class="dot"></span> Checkpoint every 3 iterations</div>
+        <div class="phase"><span class="dot"></span> Synthesize final result</div>
+      </div>
+      <p style="margin-top: 16px; font-size: 0.8rem; color: var(--accent2);">
+        ⚡ Golden Rule: If a sub-step fails twice, change approach. Never insist on the same strategy.
+      </p>
+    </div>
+  </div>
+
+  <!-- Section 6: Memory -->
+  <div class="section fade-in">
+    <div class="section-title">Persistence</div>
+    <div class="section-heading">Memory Architecture</div>
+    <p style="color: var(--text-dim); line-height: 1.7; max-width: 700px; margin-bottom: 24px;">
+      I maintain three layers of memory: working context (this session), persistent facts (cross-session), and pattern recognition (metacore).
+    </p>
+
+    <div class="memory-flow">
+      <div class="memory-item">
+        <div class="icon">📝</div>
+        <h4>facts.md</h4>
+        <p>Persistent facts across sessions. Survives restarts.</p>
+      </div>
+      <div class="memory-item">
+        <div class="icon">🔍</div>
+        <h4>remember / recall</h4>
+        <p>Semantic search via embeddings. Long-term knowledge.</p>
+      </div>
+      <div class="memory-item">
+        <div class="icon">📊</div>
+        <h4>metacore-bag.json</h4>
+        <p>Cross-session patterns. Success/failure signals.</p>
+      </div>
+      <div class="memory-item">
+        <div class="icon">💾</div>
+        <h4>sessions/*.json</h4>
+        <p>Per-session data. History and state.</p>
+      </div>
+    </div>
+
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+graph LR
+    subgraph Working["💭 Working Memory"]
+        HIST["Session History\n(current conversation)"]
+        CTX["Context Window\n(assembly)"]
+    end
+
+    subgraph Persistent["💾 Persistent Memory"]
+        FACTS["facts.md\nKey decisions & facts"]
+        SEM["Semantic Store\n(embeddings + cosine)"]
+    end
+
+    subgraph Meta["🧠 Meta-Cognition"]
+        BAG["metacore-bag.json\nPattern library"]
+        INSIGHTS["Insights\nlow_success_rate\nhigh_latency"]
+    end
+
+    HIST --> CTX
+    CTX --> FACTS
+    FACTS --> SEM
+    SEM --> BAG
+    BAG --> INSIGHTS
+    INSIGHTS --> CTX
+
+    style Working fill:#0f0f1a,stroke:#00d4aa,color:#e4e4ef
+    style Persistent fill:#0a0a0f,stroke:#7c5cff,color:#e4e4ef
+    style Meta fill:#0a0a0f,stroke:#ff6b9d,color:#e4e4ef
+      </pre>
+    </div>
+  </div>
+
+  <!-- Section 7: Mindmap -->
+  <div class="section fade-in">
+    <div class="section-title">Overview</div>
+    <div class="section-heading">Complete Mindmap</div>
+
+    <div class="mermaid-wrapper">
+      <pre class="markmap">
+# OWL Agent Architecture
+
+## Core Loop
+- Think → Message → Think → Act → Observe
+- max ~25 iterations
+- One decision per iteration
+
+## Reasoning
+- Chain-of-Thought (CoT)
+  - Objective
+  - Expected Input
+  - Expected Output
+  - Fallback
+- Multi-Step Decomposition
+  - Decompose → Execute → Verify → Checkpoint
+  - Golden rule: change after 2 failures
+
+## Tool System
+- Adaptive Classification
+  - Compact (~8 tools, fast)
+  - Detailed (~25 tools, balanced)
+  - Full (all tools, powerful)
+- Auto-escalation on failure
+- 18+ built-in tools
+- Dynamic tool creation via sandbox
+
+## Memory
+- Session context (working)
+- facts.md (persistent)
+- Semantic embeddings (recall)
+- Metacognition (cross-session patterns)
+- Experience recording
+
+## Architecture
+- WebSocket Gateway
+- Agent Core (runAgent → agentLoop)
+- LLM Provider (OpenRouter)
+- Tool Registry (run_runtime_tool)
+- Persistence Layer
+
+## Values
+- Honesty > Confidence
+- Safety > Functionality > Aesthetics
+- Errors are information
+- Confirm before destructive actions
+      </pre>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>OWL — Built by Scriba Cloud · Powered by Agent Runtime</p>
+  </div>
+
+</div>
+
+<!-- Mermaid -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: '#12121a',
+      primaryColor: '#7c5cff',
+      primaryTextColor: '#e4e4ef',
+      lineColor: '#333',
+      secondaryColor: '#00d4aa',
+      tertiaryColor: '#ff6b9d',
+    },
+    flowchart: { curve: 'basis', padding: 16 },
+    securityLevel: 'loose',
+  });
+</script>
+
+<!-- Markmap -->
+<script type="module">
+  import { Markmap } from 'https://cdn.jsdelivr.net/npm/markmap-view@0.16/dist/index.js';
+  import { Transformer } from 'https://cdn.jsdelivr.net/npm/markmap-lib@0.16/dist/index.js';
+
+  document.querySelectorAll('pre.markmap').forEach(el => {
+    const transformer = new Transformer();
+    const { root } = transformer.transform(el.textContent);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '500');
+    svg.style.maxWidth = '100%';
+    el.style.display = 'none';
+    el.parentNode.insertBefore(svg, el);
+    Markmap.create(svg, { autoFit: true }, root);
+  });
+</script>
+
+<!-- Scroll animations + ReAct loop animation -->
+<script>
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.section').forEach(el => observer.observe(el));
+
+  const steps = ['step-think', 'step-msg', 'step-think2', 'step-act', 'step-observe'];
+  let current = 0;
+  setInterval(() => {
+    steps.forEach(id => document.getElementById(id)?.classList.remove('active'));
+    document.getElementById(steps[current])?.classList.add('active');
+    current = (current + 1) % steps.length;
+  }, 1800);
+</script>
+
+</body>
+</html>

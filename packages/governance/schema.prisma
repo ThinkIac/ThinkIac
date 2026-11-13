@@ -1,0 +1,14 @@
+model GovernanceDecision {
+  id          String @id @default(uuid())
+  sessionId   String
+  tool        String
+  target      String?
+  classification String
+  reason      String
+  actionHash  String
+  command     String?
+  status      String
+  createdAt   String
+  resolvedAt  String?
+  resolution  String?
+}

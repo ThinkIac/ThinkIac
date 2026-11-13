@@ -1,0 +1,89 @@
+{
+  "_comment": "Suítes declaradas pela Agent — o pacote que centraliza LLM/agente. Medem o que a Agent precisa de um modelo: escolher tools, conhecer a plataforma e planejar como agente.",
+  "suites": [
+    {
+      "name": "Lógos · Ferramentas",
+      "description": "O modelo deve escolher a tool certa da Lógos e montar os argumentos — avaliação programática",
+      "icon": "wrench",
+      "measures": [
+        { "capability": "tools.argumentAccuracy", "weight": 0.6 },
+        { "capability": "tools.selectionAccuracy", "weight": 0.4 }
+      ],
+      "requires": { "tools": true },
+      "tests": [
+        {
+          "type": "tool_use", "weight": 1.4,
+          "expectedTool": "createTask", "expectedArgs": { "title": null },
+          "prompt": "O usuário disse: \"Preciso lembrar de renovar o alvará da construtora semana que vem.\" Qual tool você chama e com quais argumentos?",
+          "expected": "createTask com um title referente à renovação do alvará"
+        },
+        {
+          "type": "tool_use", "weight": 1.4,
+          "expectedTool": "createTransaction", "expectedArgs": { "amount": 4500, "type": "expense" },
+          "prompt": "O usuário disse: \"Paguei R$4.500 de cimento hoje.\" Registre isso no sistema financeiro. Qual tool e argumentos?",
+          "expected": "createTransaction com amount 4500 e type \"expense\" (despesa)"
+        },
+        {
+          "type": "tool_use", "weight": 1.3,
+          "expectedTool": "memory_recall", "expectedArgs": { "query": null },
+          "prompt": "O usuário perguntou: \"Qual era o nome daquele fornecedor de aço que anotei mês passado?\" O que você faz para descobrir?",
+          "expected": "memory_recall com uma query sobre fornecedor de aço"
+        },
+        {
+          "type": "tool_use", "weight": 1.5,
+          "expectedTool": "scheduler_add", "expectedArgs": { "cron": null },
+          "prompt": "O usuário disse: \"Toda segunda de manhã me mande um resumo das obras em andamento.\" Configure isso. Qual tool e argumentos?",
+          "expected": "scheduler_add com um cron para segunda de manhã e uma action de resumo"
+        }
+      ]
+    },
+    {
+      "name": "Lógos · Sistema",
+      "description": "Conhecimento sobre a arquitetura e os conceitos da Lógos — só um modelo integrado ao sistema acerta",
+      "icon": "cpu",
+      "measures": [
+        { "capability": "runtime.knowledgeAccuracy", "weight": 1 }
+      ],
+      "requires": { "modalities": ["text:input"] },
+      "tests": [
+        {
+          "type": "logos_knowledge", "weight": 1.3,
+          "prompt": "Na Lógos, o que é um acesso de LLM e como capacidades, evidências e requisitos participam da seleção de modelos?",
+          "expected": "Acesso = combinação modelo+provider/pool/credencial; requisitos eliminam incompatíveis; evidências, custo e latência ranqueiam os restantes; override explícito precisa satisfazer os requisitos"
+        },
+        {
+          "type": "logos_knowledge", "weight": 1.3,
+          "prompt": "Explique o papel da Agent dentro da Lógos e como outros pacotes chamam a LLM sem conhecer o provider.",
+          "expected": "Agent centraliza LLM/agente; pacotes usam dispatchEvent(\"llm:call\") ou a tool call_llm; provider/chave/modelo resolvidos pelo pool ativo"
+        },
+        {
+          "type": "logos_knowledge", "weight": 1.2,
+          "prompt": "Na Lógos, para que serve getProxy(pacote) e o que ele retorna?",
+          "expected": "getProxy dá acesso ao banco/estado (scriba) do pacote; retorna proxy com coleções (ex: db.suite, db.run) com métodos push/query/all"
+        }
+      ]
+    },
+    {
+      "name": "Lógos · Agente",
+      "description": "Cenários de agente multi-step (planejar → executar → corrigir) avaliados por rubrica",
+      "icon": "bot",
+      "measures": [
+        { "capability": "agent.taskSuccess", "weight": 0.7 },
+        { "capability": "reasoning.taskSuccess", "weight": 0.3 }
+      ],
+      "requires": { "tools": true },
+      "tests": [
+        {
+          "type": "agent", "weight": 1.5,
+          "prompt": "Tarefa: \"Feche o mês financeiro da construtora.\" Descreva, passo a passo, o plano de execução como agente da Lógos — quais tools chamaria, em que ordem, e como validaria o resultado.",
+          "expected": "Plano coerente: listar transações do mês, categorizar, somar receitas/despesas, gerar relatório, validar saldo; ordem lógica; menciona tools plausíveis"
+        },
+        {
+          "type": "agent", "weight": 1.5,
+          "prompt": "Você chamou createTransaction e recebeu erro \"categoria inexistente\". Descreva como um agente robusto se recupera desse erro e conclui a tarefa.",
+          "expected": "Reconhece o erro, cria/consulta a categoria (createCategory/listCategories), reexecuta createTransaction, confirma sucesso — sem desistir nem alucinar"
+        }
+      ]
+    }
+  ]
+}

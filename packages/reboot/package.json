@@ -1,0 +1,19 @@
+{
+  "name": "reboot",
+  "version": "1.2.0",
+  "description": "Clears compiled view cache and requests supervised ThinkIac Runtime restarts",
+  "type": "module",
+  "main": "index.js",
+  "scripts": { "test": "node --test test/*.test.js" },
+  "manifest": {
+    "name": "Reboot",
+    "menu": {
+      "id": "runtime",
+      "label": "Runtime",
+      "target": "left",
+      "view": "Widget",
+      "order": 85,
+      "hidden": false
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "mcp",
+  "version": "1.0.0",
+  "description": "Global configuration and discovery of Model Context Protocol providers.",
+  "main": "index.js",
+  "type": "module",
+  "manifest": {
+    "name": "MCP",
+    "permissionGroups": [
+      {
+        "id": "manager",
+        "label": "MCP manager",
+        "permissions": ["mcp.providers.read", "mcp.providers.write"]
+      }
+    ],
+    "color": "var(--tk-accent)",
+    "noBorder": true,
+    "systemTab": {
+      "id": "mcp",
+      "label": "MCP",
+      "view": "Index",
+      "renderer": "schema",
+      "surface": "providers",
+      "order": 75
+    }
+  },
+  "scripts": { "test": "node --test test/*.test.js" }
+}

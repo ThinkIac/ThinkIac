@@ -1,0 +1,36 @@
+// memory/schema.prisma
+// Grafo de memória de longo prazo: entidades, observações (fatos atômicos
+// ligados a uma entidade) e relações entre entidades — o "palácio da
+// memória". createdAt/updatedAt/deletedAt são injetados automaticamente
+// pelo runtime.
+//
+// Unicidade (nome+tipo de entidade, triplas de relação) é garantida em
+// lib/graph.js via findOne() antes do push(), não por @@unique composto: o
+// parser Prisma deste runtime (packages/scriba/src/parser/Prisma.js) só
+// entende atributos de campo (@unique, @default, ...), não de modelo (@@...).
+
+model Entity {
+  id             String  @id @default(uuid())
+  name           String
+  type           String  @default("fact") // person | project | preference | fact | task | event | concept | legacy | schedule
+  summary        String? // resumo curto, reescrito por consolidate() quando as observações acumulam
+  importance     Float   @default(1)
+  accessCount    Int     @default(0)
+  lastAccessedAt String?
+}
+
+model Observation {
+  id        String  @id @default(uuid())
+  entityId  String
+  content   String
+  embedding Json?   // vetor de embedding (array de floats), quando disponível
+  sessionId String? // sessão onde a observação foi aprendida, se houver
+  source    String  @default("manual") // manual | migrated | consolidated | agentic
+}
+
+model Relation {
+  id           String @id @default(uuid())
+  fromEntityId String
+  toEntityId   String
+  type         String // ex.: works_on, prefers, part_of, related_to
+}

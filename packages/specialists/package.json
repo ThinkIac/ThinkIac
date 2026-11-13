@@ -1,0 +1,26 @@
+{
+  "name": "specialists",
+  "version": "1.0.0",
+  "description": "Catálogo e construtor de especialistas do Runtime — AGENT.md genéricos + especialistas personalizados (prompt, tools, provider/modelo)",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "logos": "*"
+  },
+  "manifest": {
+    "name": "Specialists",
+    "color": "#8b5cf6",
+    "launch": false,
+    "settingsTab": {
+      "id": "specialists",
+      "label": "Especialistas",
+      "view": "Index",
+      "renderer": "schema",
+      "surface": "specialists-catalog",
+      "order": 60
+    }
+  }
+}

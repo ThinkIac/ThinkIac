@@ -1,0 +1,11 @@
+{
+  "name": "py-echo",
+  "version": "1.0.0",
+  "description": "A Lógos module written in Python, bridged over stdio (NDJSON).",
+  "runtime": {
+    "role": "module",
+    "runtime": "python",
+    "main": "main.py",
+    "events": ["python:echo", "python:upper"]
+  }
+}

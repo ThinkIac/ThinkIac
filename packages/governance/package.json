@@ -1,0 +1,31 @@
+{
+  "name": "governance",
+  "version": "1.0.0",
+  "description": "Governança determinística de ações: classificação, confirmação vinculada e auditoria, independente da Cognição.",
+  "type": "module",
+  "manifest": {
+    "name": "Governance",
+    "launch": false,
+    "inputbar": {
+      "id": "approval",
+      "kind": "state",
+      "label": "Approval",
+      "hint": "How actions get approved",
+      "view": "Approval"
+    },
+    "systemTab": {
+      "id": "governance",
+      "label": "Governance",
+      "view": "Approval",
+      "renderer": "schema",
+      "surface": "governance-defaults",
+      "order": 80
+    }
+  },
+  "dependencies": {
+    "logos": "*"
+  },
+  "scripts": {
+    "test": "node test/engine.test.js && node test/service.test.js && node test/hooks.test.js && node test/view.test.js"
+  }
+}

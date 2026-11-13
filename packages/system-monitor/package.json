@@ -1,0 +1,25 @@
+{
+  "name": "system-monitor",
+  "version": "1.0.0",
+  "description": "Mini painel de uso de CPU, memória, armazenamento e rede.",
+  "type": "module",
+  "manifest": {
+    "name": "System Monitor",
+    "launch": false,
+    "color": "#888888",
+    "menu": {
+      "id": "system-monitor",
+      "label": "System Usage",
+      "target": "left",
+      "view": "Widget",
+      "order": 20,
+      "hidden": false,
+      "launcher": {
+        "label": "Uso do sistema",
+        "size": "medium",
+        "transparent": true
+      },
+      "workCanvas": { "width": 360, "height": 112 }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "globalFailover": true,
+  "providers": [
+    {
+      "name": "OpenRouter.ai",
+      "type": "openrouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKeys": [
+        "<SUA_API_KEY_AQUI>"
+      ],
+      "errorPooling": true,
+      "selectedModel": "google/gemini-2.5-flash-lite"
+    },
+    {
+      "name": "Agent.ai",
+      "type": "custom",
+      "baseUrl": "https://aura-agent.9wxvax.easypanel.host/router/inference",
+      "noKeys": true,
+      "errorPooling": true,
+      "selectedModel": "gpt-4-mini"
+    }
+  ]
+}

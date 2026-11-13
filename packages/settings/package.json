@@ -1,0 +1,25 @@
+{
+  "name": "settings",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Host de configurações e protocolo de abas administrativas do ThinkIac.",
+  "manifest": {
+    "name": "Settings",
+    "iconPreset": { "pack": "lucide", "name": "Settings" },
+    "bgColor": "#475569",
+    "page": [
+      { "name": "Settings", "source": "views/Index.svelte" }
+    ],
+    "menu": {
+      "id": "settings",
+      "label": "Settings",
+      "target": "left",
+      "view": "Index",
+      "order": 95,
+      "hidden": false
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

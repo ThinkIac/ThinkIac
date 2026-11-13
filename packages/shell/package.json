@@ -1,0 +1,27 @@
+{
+  "name": "shell",
+  "version": "1.0.0",
+  "description": "Shell principal agnóstico do ThinkIac para apps, agentes e serviços",
+  "type": "module",
+  "logosDependencies": {
+    "file-manager": "*"
+  },
+  "manifest": {
+    "name": "ThinkIac Shell",
+    "icon": "icon.svg",
+    "colored": false,
+    "noBorder": true,
+    "page": [{ "name": "Shell", "source": "views/Index.svelte" }],
+    "desktopWidget": {
+      "id": "chat",
+      "label": "Chat",
+      "component": "shell__DesktopChat",
+      "description": "Chat do agente selecionável, disponível diretamente no Desktop.",
+      "order": 0,
+      "defaultEnabled": true
+    }
+  },
+  "scripts": {
+    "test": "vitest run test/contract.test.js test/agent-runtime.test.js test/view-ssr.test.js test/desktop-handoff.test.js views/persistence.test.js views/lib/session_activation.test.js views/lib/mobile_browser_history.test.js"
+  }
+}

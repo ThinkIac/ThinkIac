@@ -1,0 +1,35 @@
+{
+    "name": "auth",
+    "version": "0.0.1",
+    "type": "module",
+    "manifest": {
+        "name": "System",
+        "color": "bg-indigo-500",
+        "launch": false,
+        "permissionGroups": [
+            {
+                "id": "administrator",
+                "label": "System administrator",
+                "permissions": [
+                    "auth.users.read",
+                    "auth.users.write",
+                    "auth.access.read",
+                    "auth.access.write",
+                    "auth.settings.read",
+                    "auth.settings.write"
+                ]
+            }
+        ],
+        "access": {
+            "views": {
+                "Index": "auth.users.read"
+            }
+        },
+        "settingsTab": [
+            { "id": "auth-users", "label": "Users", "view": "Index", "renderer": "schema", "surface": "auth-administration", "order": 10 },
+            { "id": "auth-roles", "label": "Roles", "view": "Index", "renderer": "schema", "surface": "auth-administration", "order": 11 },
+            { "id": "auth-registration", "label": "Registration", "view": "Index", "renderer": "schema", "surface": "auth-administration", "order": 12 },
+            { "id": "auth-invitations", "label": "Invitations", "view": "Index", "renderer": "schema", "surface": "auth-administration", "order": 13 }
+        ]
+    }
+}

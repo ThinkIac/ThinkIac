@@ -1,0 +1,10 @@
+{
+  "name": "@thinkiac/module-process-bridge",
+  "version": "0.1.0",
+  "description": "JSONL bridge for long-running processes in other runtimes",
+  "main": "index.cjs",
+  "files": ["index.cjs", "README.md", "test"],
+  "scripts": { "test": "node --test test/*.test.cjs" },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

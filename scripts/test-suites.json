@@ -1,0 +1,327 @@
+{
+  "suites": [
+    {
+      "name": "test-all",
+      "cwd": ".",
+      "runner": "node",
+      "files": [
+        "scripts/test/test-all.test.mjs"
+      ],
+      "timeoutMs": 15000
+    },
+    {
+      "name": "logos",
+      "runtime": true,
+      "runner": "npm",
+      "files": [
+        "package.json",
+        "vitest.config.ts",
+        "tests/auth.test.ts",
+        "tests/authority.test.ts",
+        "tests/bus.test.ts",
+        "tests/cache.test.ts",
+        "tests/checkpoint.test.ts",
+        "tests/conditions.test.ts",
+        "tests/config.test.ts",
+        "tests/container.test.ts",
+        "tests/crashguard.test.ts",
+        "tests/db-datadir.test.ts",
+        "tests/effects.test.ts",
+        "tests/env.test.ts",
+        "tests/event-calls.test.ts",
+        "tests/event-contracts.test.ts",
+        "tests/health-monitor.test.ts",
+        "tests/hooks.test.ts",
+        "tests/hotreload.test.ts",
+        "tests/isolated-runner.test.ts",
+        "tests/isolation.test.ts",
+        "tests/jsdoc.test.ts",
+        "tests/kernel.test.ts",
+        "tests/lifecycle.test.ts",
+        "tests/logos-dependencies.test.ts",
+        "tests/manifest.test.ts",
+        "tests/mcp-auth.test.ts",
+        "tests/mcp.test.ts",
+        "tests/mdsvex.test.ts",
+        "tests/mediated-io.test.ts",
+        "tests/middleware.test.ts",
+        "tests/newpackage.test.ts",
+        "tests/offline.test.ts",
+        "tests/package-command.test.ts",
+        "tests/package-contract.test.ts",
+        "tests/package-wiring.test.ts",
+        "tests/parsers.test.ts",
+        "tests/private-vault.test.ts",
+        "tests/public-routes.test.ts",
+        "tests/public-views.test.ts",
+        "tests/registry.test.ts",
+        "tests/scan.test.ts",
+        "tests/services.test.ts",
+        "tests/staging-authority.test.ts",
+        "tests/storage-s3.test.ts",
+        "tests/storage.test.ts",
+        "tests/template.test.ts",
+        "tests/tools.test.ts",
+        "tests/utils.test.ts",
+        "tests/widget-registry.test.ts",
+        "tests/ws.test.ts"
+      ],
+      "timeoutMs": 180000
+    },
+    {
+      "name": "auth:node",
+      "cwd": "packages/auth",
+      "runner": "node",
+      "files": [
+        "access-gate.test.js",
+        "app_flow.test.js",
+        "email-verification-access.test.js",
+        "email_delivery.test.js",
+        "email_verification.test.js",
+        "login-public-view.test.js",
+        "login-session-gate.test.js",
+        "mcp-auth.test.js",
+        "npm_registry.test.js",
+        "permissions.test.js",
+        "proxy_credentials.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "auth:vitest",
+      "cwd": "packages/auth",
+      "runner": "vitest",
+      "files": [
+        "google_oauth.test.js",
+        "google_user.test.js",
+        "mcp-routes.test.js",
+        "signup-flow.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "agent:node",
+      "cwd": "packages/agent",
+      "runner": "node",
+      "files": [
+        "core/activity_registry.test.js",
+        "core/chat_bus.test.js",
+        "core/commands.test.js",
+        "core/context_compiler.test.js",
+        "core/context_refiner.test.js",
+        "core/context_refiner_injection.test.js",
+        "core/durable_runs.test.js",
+        "core/execution_context.test.js",
+        "core/execution_kernel.test.js",
+        "core/governance_resume.test.js",
+        "core/input_trace.test.js",
+        "core/learning_signals.test.js",
+        "core/message_feedback.test.js",
+        "core/message_metadata.test.js",
+        "core/message_queue.test.js",
+        "core/privileged.test.js",
+        "core/recovery_policy.test.js",
+        "core/runtime_context_budget.test.js",
+        "core/session_channel.test.js",
+        "core/stability_receipts.test.js",
+        "core/thinking_titles.test.js",
+        "core/tool_outcome.test.js",
+        "core/workspace.test.js",
+        "llm/agent_output_schema.test.js",
+        "llm/cli_failures.test.js",
+        "llm/cli_sessions.test.js",
+        "llm/codex_workspace.test.js",
+        "llm/elm.test.js",
+        "llm/fallback.test.js",
+        "llm/llm2_stt.test.js",
+        "llm/mcp_context.test.js",
+        "llm/mcp_http_client.test.js",
+        "llm/mcp_schema.test.js",
+        "llm/model_catalog.test.js",
+        "llm/model_gateway.test.js",
+        "llm/model_registry.test.js",
+        "llm/provider_app.models.test.js",
+        "llm/providers/ollama.test.js",
+        "llm/stream_utils.test.js",
+        "routes/file_preview.test.js",
+        "routes/attachment.test.js",
+        "routes/ocr.test.js",
+        "routes/upload.test.js",
+        "test/agent_host.test.js",
+        "test/app_layout.test.js",
+        "test/app_tabs.test.js",
+        "test/chat_event_state.test.js",
+        "test/chat_history_loading.test.js",
+        "test/chat_route_contract.test.js",
+        "test/chat_tabs.test.js",
+        "test/cli_ndjson_text.test.js",
+        "test/desktop_chat_widget.test.js",
+        "test/inputbar_drawers.test.js",
+        "test/inputbar_location.test.js",
+        "test/inputbar_mobile_enter.test.js",
+        "test/inputbar_shortcuts.test.js",
+        "test/inputbar_v3.test.js",
+        "test/model_selector_route.test.js",
+        "test/new_topic.test.js",
+        "test/package_contributions.test.js",
+        "test/package_widget_spacing.test.js",
+        "test/pending_permissions.test.js",
+        "test/pending_questions.test.js",
+        "test/registry.test.js",
+        "test/session_title.test.js",
+        "test/session_title_settings.test.js",
+        "test/sessions_header_ui.test.js",
+        "test/shell_redirect.test.js",
+        "test/skills_inflect.test.js",
+        "test/ssr_storage_contract.test.js",
+        "test/tab_persistence.test.js",
+        "test/text_tool_protocol.test.js",
+        "test/theme_scrollbar_contract.test.js",
+        "test/tool_results.test.js",
+        "test/tool_session.test.js",
+        "test/turn_usage.test.js",
+        "core/turn_tools.test.js",
+        "utils/config.test.js",
+        "views/lib/composer_drafts.test.js",
+        "views/lib/composer_slot_bootstrap.test.js",
+        "views/lib/deep_link.test.js",
+        "views/lib/desktop_shortcuts.test.js",
+        "views/lib/markdown.test.js",
+        "views/lib/menu_bootstrap.test.js",
+        "views/lib/message_actions.test.js",
+        "views/lib/message_actions_ssr.test.js",
+        "views/lib/message_blocks.test.js",
+        "views/lib/message_time.test.js",
+        "views/lib/optional_packages.test.js",
+        "views/lib/pcm_stream_player.test.js",
+        "views/lib/react_step_summary.test.js",
+        "views/lib/renderers.test.js",
+        "views/lib/session_bag_progress.test.js",
+        "views/lib/slots.test.js",
+        "views/theme.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "governance",
+      "cwd": "packages/governance",
+      "runner": "npm",
+      "files": [
+        "test/engine.test.js",
+        "test/hooks.test.js",
+        "test/service.test.js",
+        "test/view.test.js"
+      ],
+      "timeoutMs": 60000
+    },
+    {
+      "name": "agent:runtime-node",
+      "cwd": "packages/agent/runtime",
+      "runner": "node",
+      "files": [
+        "test/runtime.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "pkgmgr:node",
+      "cwd": "packages/pkgmgr",
+      "runner": "node",
+      "files": [
+        "test/bulk-selection-view.test.js",
+        "test/disabled-history.test.js",
+        "test/environment-operations.test.js",
+        "test/environment.test.js",
+        "test/health.test.js",
+        "test/logos-runtime.test.js",
+        "test/public-tenant-lifecycle.test.js",
+        "test/rollout.test.js",
+        "test/runtime.test.js",
+        "test/staging-lifecycle.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "process-manager:node",
+      "cwd": "packages/process-manager",
+      "runner": "node",
+      "files": [
+        "test/recovery.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "terminal:node",
+      "cwd": "packages/terminal",
+      "runner": "node",
+      "files": [
+        "index.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "terminal:vitest",
+      "cwd": "packages/terminal",
+      "runner": "vitest",
+      "files": [
+        "test/accessibility.contract.test.js",
+        "test/view-ssr.test.js",
+        "views/lib/desktop-control.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "cloud:node",
+      "cwd": "packages/cloud",
+      "runner": "node",
+      "files": [
+        "actions/bundle-rollout-executor.test.js",
+        "actions/bundle-rollout.test.js",
+        "actions/claim-env.test.js",
+        "actions/deployment.test.js",
+        "actions/host-catalog.test.js",
+        "actions/managed-git-broker.test.js",
+        "actions/persisted-bundle-rollout.test.js",
+        "actions/pool-bundle.test.js",
+        "actions/pool-hosts.test.js",
+        "actions/pool-reservation.test.js",
+        "actions/release-bundle.test.js",
+        "actions/scalezero.test.js",
+        "actions/tenant-runtime.test.js",
+        "actions/tenant-storage.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "reboot:node",
+      "cwd": "packages/reboot",
+      "runner": "node",
+      "files": [
+        "test/ownership.test.js",
+        "test/views-ssr.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "v1-ui:browser",
+      "cwd": ".",
+      "runner": "node",
+      "files": [
+        "packages/shell/views/lib/desktop_shortcuts.test.js",
+        "packages/agent/test/chat_sessions_compact.browser.test.js",
+        "packages/agent/test/slate_icon.browser.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
+      "name": "desktop-control:vitest",
+      "cwd": ".",
+      "runner": "vitest",
+      "files": [
+        "packages/terminal/views/lib/desktop-control.test.js",
+        "packages/shell/views/lib/shell-control-bridge.test.js"
+      ],
+      "timeoutMs": 120000
+    }
+  ]
+}

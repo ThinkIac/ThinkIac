@@ -1,0 +1,12 @@
+model Config {
+  id                      String @id @default(uuid())
+  homepageMode            String @default("")
+  homepageType            String @default("")
+  homepagePackageName     String @default("")
+  homepagePage            String @default("")
+  homepageUrl             String @default("")
+  homepageAccessMode      String @default("admin")
+  homepagePublicPaths     String @default("[]")
+  homepageRoleRules       String @default("[]")
+  // Campos createdAt, updatedAt e deletedAt são injetados automaticamente pelo runtime
+}

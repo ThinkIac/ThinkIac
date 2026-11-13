@@ -1,0 +1,17 @@
+{
+  "name": "hermes",
+  "version": "1.0.0",
+  "description": "Link ao vivo entre o runtime e os aparelhos pareados — WebSocket bidirecional autenticado por device, no lugar do relay público do ntfy.sh",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test devices.test.js message.test.js link.test.js"
+  },
+  "manifest": {
+    "name": "hermes",
+    "color": "#0EA5E9"
+  },
+  "dependencies": {
+    "logos": "*"
+  }
+}

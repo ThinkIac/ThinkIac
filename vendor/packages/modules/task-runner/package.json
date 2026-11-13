@@ -1,0 +1,12 @@
+{
+  "name": "@thinkiac/module-task-runner",
+  "version": "0.1.0",
+  "description": "External workspace task orchestration module for Logos",
+  "main": "index.cjs",
+  "bin": { "logos-tasks": "cli.cjs" },
+  "files": ["*.cjs", "README.md"],
+  "scripts": { "test": "node --test test/*.test.cjs test/*.test.mjs" },
+  "engines": { "node": ">=18" },
+  "publishConfig": { "registry": "https://npm.thinkiac.cloud", "access": "public" },
+  "license": "MIT"
+}

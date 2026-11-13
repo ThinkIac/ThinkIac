@@ -1,0 +1,35 @@
+{
+  "name": "providers",
+  "version": "1.0.0",
+  "description": "Central management of all Agent LLM providers and their model catalogs.",
+  "main": "index.js",
+  "type": "module",
+  "manifest": {
+    "name": "Providers",
+    "permissionGroups": [
+      {
+        "id": "viewer",
+        "label": "Provider viewer",
+        "permissions": ["providers.catalog.read"]
+      },
+      {
+        "id": "manager",
+        "label": "Provider manager",
+        "permissions": ["providers.catalog.read", "providers.catalog.write", "providers.catalog.manage"]
+      }
+    ],
+    "color": "var(--tk-accent)",
+    "noBorder": true,
+    "systemTab": {
+      "id": "providers",
+      "label": "Providers",
+      "view": "Index",
+      "renderer": "schema",
+      "surface": "providers",
+      "order": 70
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

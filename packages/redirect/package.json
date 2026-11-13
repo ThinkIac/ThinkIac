@@ -1,0 +1,33 @@
+{
+  "name": "redirect",
+  "description": "Configures a direct home page that can take over the Runtime root through the Lógos views:index event.",
+  "version": "1.0.0",
+  "type": "module",
+  "manifest": {
+    "name": "Redirect",
+    "permissionGroups": [
+      {
+        "id": "viewer",
+        "label": "Routing viewer",
+        "permissions": ["redirect.homepage.read"]
+      },
+      {
+        "id": "manager",
+        "label": "Routing manager",
+        "permissions": ["redirect.homepage.read", "redirect.homepage.write"]
+      }
+    ],
+    "launch": false,
+    "systemTab": {
+      "id": "redirect",
+      "label": "Redirect",
+      "view": "Home",
+      "renderer": "schema",
+      "surface": "routing",
+      "order": 60
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

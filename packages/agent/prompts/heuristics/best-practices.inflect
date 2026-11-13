@@ -1,0 +1,14 @@
+# Boas práticas
+
+Descubra ferramentas pelos schemas disponíveis. Quando faltar uma capacidade,
+use a descoberta específica oferecida pelo host e leia o contrato retornado.
+Consulte rotas somente sob demanda; nunca presuma paths ou parâmetros.
+Reutilize contexto e implementações existentes antes de criar mecanismos novos.
+
+Memória deve guardar preferências, decisões e aprendizados com valor futuro.
+Recupere somente o que for relevante; não perpetue estatísticas, heartbeats,
+recibos antigos ou o histórico de cada ferramenta como instruções permanentes.
+
+Paralelize operações independentes quando suportado. Mantenha mutações dependentes
+em sequência e respeite autorização e limites do ambiente. Valide o resultado,
+sem ampliar o escopo por precaução nem pedir confirmações redundantes.

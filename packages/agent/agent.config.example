@@ -1,0 +1,158 @@
+{
+  "llm": {
+    "strategy": "fallback",
+    "max_retries": 3,
+    "timeout_ms": 30000,
+    "max_tokens": 8192,
+
+    "pools": [
+      {
+        "name": "local-ollama",
+        "label": "Ollama · local",
+        "provider": "ollama",
+        "base_url": "http://localhost:11434",
+        "model": "qwen2.5:72b",
+        "embed_model": "nomic-embed-text",
+        "weight": 1,
+        "enabled": true,
+        "options": {},
+        "_comment": "Daemon local do Ollama. NÃO liste `models` aqui: os modelos baixados são descobertos em /api/tags, com as capacidades reais de cada um (tools/visão/thinking/contexto), e aparecem sozinhos no seletor da InputBar. `model` é só a preferência de default do pool — se não estiver baixado, cai no primeiro com tools nativas. `options` sobrescreve as options do /api/chat (ex.: {\"num_ctx\": 32768}) quando o dimensionamento automático não servir. Sem custo e sem rede, mas 'auto' não escolhe local sozinho: o catálogo entra com um prior de qualidade por tamanho do modelo — escolha na InputBar para usar."
+      },
+      {
+        "name": "openrouter-primary",
+        "provider": "openrouter",
+        "api_keys": [
+          "sk-or-v1-CHAVE_1",
+          "sk-or-v1-CHAVE_2"
+        ],
+        "model": "qwen/qwen3-235b-a22b",
+        "embed_model": "openai/text-embedding-3-small",
+        "weight": 2,
+        "enabled": true,
+        "_comment": "Pool com múltiplas chaves — rotação automática em caso de rate limit."
+      },
+      {
+        "name": "openai-backup",
+        "provider": "openai",
+        "api_keys": ["sk-CHAVE_OPENAI"],
+        "model": "gpt-4o-mini",
+        "embed_model": "text-embedding-3-small",
+        "weight": 1,
+        "enabled": false,
+        "_comment": "Backup. Habilitar se os outros pools falharem consistentemente."
+      },
+      {
+        "name": "anthropic-direct",
+        "provider": "anthropic",
+        "api_keys": ["sk-ant-CHAVE"],
+        "model": "claude-opus-4-8",
+        "weight": 1,
+        "enabled": false,
+        "_comment": "API direta da Anthropic (Messages API, não via OpenRouter). Purpose 'development' prioriza esse pool — ver purposes.js. Sem embeddings."
+      },
+      {
+        "name": "claude-engineer",
+        "provider": "claude-cli",
+        "model": "sonnet",
+        "capabilities": {
+          "modalities": {
+            "text": { "input": true, "output": true },
+            "vision": { "input": true }
+          },
+          "tools": { "supported": true, "parallel": true, "strictSchema": false },
+          "reasoning": { "supported": true, "levels": ["low", "medium", "high"] },
+          "structuredOutput": false,
+          "streaming": true
+        },
+        "enabled": false,
+        "cli": {
+          "mcp": true,
+          "timeout_ms": null,
+          "accounts": [
+            { "name": "pessoal", "config_dir": "/home/user/.claude-pessoal" },
+            { "name": "profissional", "config_dir": "/home/user/.claude-profissional" }
+          ]
+        },
+        "_comment": "Engineer via Claude Code CLI, alternando entre 2 contas Pro/Max já logadas (uma por CLAUDE_CONFIG_DIR — configure com `CLAUDE_CONFIG_DIR=<dir> claude login` uma vez por conta, fora do Agent). timeout_ms null = sem teto, necessário pra tarefas que podem esperar uma resposta via ask_user."
+      },
+      {
+        "name": "aura-provider",
+        "enabled": true,
+        "provider": "generic",
+        "base_url": "https://aura-agent.9wxvax.easypanel.host/provider",
+        "api_keys": [
+          "no_keys"
+        ]
+      },
+      {
+        "name": "maritaca",
+        "provider": "maritaca",
+        "model": "sabia-4-thinking",
+        "weight": 1,
+        "enabled": false,
+        "_comment": "Integração NÃO-oficial: usa a API interna do chat web (chat.maritaca.ai), não a API paga com function-calling, porque é o que dá acesso ao Sabiá 4 Thinking dentro do Plano Pro já assinado. Sem api_keys aqui — auth é Bearer OAuth2 auto-renovado (não por pool/slot), configurada uma vez via env var MARITACA_REFRESH_TOKEN (seed inicial; o refresh_token vigente passa a ser persistido em packages/agent/secrets/maritaca_tokens.json, gitignored) — ver llm/providers/maritaca_auth.js. Sem function-calling nativo — tools são simuladas via prompt (envelope JSON), ver llm/providers/maritaca.js."
+      }
+    ]
+  },
+
+  "agent": {
+    "max_iterations": 50,
+    "timezone": "America/Sao_Paulo"
+  },
+
+  "scheduler": {
+    "enabled": true,
+    "tick_minutes": 1
+  },
+
+  "channels": {
+    "default": "telegram",
+    "ntfy": {
+      "enabled": true,
+      "topic": "agent-notifications",
+      "base_url": "https://ntfy.sh"
+    },
+    "telegram": {
+      "enabled": true,
+      "bot_token": "SEU_BOT_TOKEN",
+      "authorized_chat_ids": ["SEU_CHAT_ID"]
+    },
+    "webhook": {
+      "url": null,
+      "enabled": false
+    },
+    "log": {
+      "enabled": true
+    }
+  },
+
+  "oauth": {
+    "base_url": "https://aura-agent.9wxvax.easypanel.host",
+    "google": {
+      "client_id": "",
+      "client_secret": ""
+    },
+    "github": {
+      "client_id": "",
+      "client_secret": ""
+    },
+    "linkedin": {
+      "client_id": "",
+      "client_secret": ""
+    }
+  },
+
+  "mcp": {
+    "servers": []
+  },
+
+  "sessions": {
+    "title": {
+      "enabled": true,
+      "every": 6,
+      "minMessages": 2,
+      "maxChars": 60,
+      "purpose": "titling"
+    }
+  }
+}

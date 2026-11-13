@@ -1,0 +1,8 @@
+{
+  "protocol": "thinkiac.swe-baseline-results/v1",
+  "benchmarkVersion": 1,
+  "status": "pending-measurement",
+  "reason": "Resultados dependem de um target de modelo e acesso explícito; não são fabricados durante a implementação.",
+  "requiredTargets": 2,
+  "conditions": ["mesmo corpus", "mesmo orçamento", "mesmo catálogo de tools", "mesmas fixtures"]
+}

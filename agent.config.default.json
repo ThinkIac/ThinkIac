@@ -1,0 +1,37 @@
+{
+  "llm": {
+    "strategy": "fallback",
+    "max_retries": 3,
+    "timeout_ms": 30000,
+    "max_tokens": 8192,
+
+    "pools": [
+      {
+        "name": "thinkiac",
+        "provider": "thinkiac",
+        "enabled": true,
+        "model": "orbit",
+        "embed_model": "openai/text-embedding-3-small",
+        "api_keys": ["__LLM_PROXY_TOKEN__"],
+        "base_url": "__THINKIAC_PROXY_BASE_URL__",
+        "_comment": "Provider padrão ThinkIac Orbit: o gateway classifica localmente e escolhe um modelo homologado. Apps de provider instalados podem adicionar pools próprios."
+      }
+    ]
+  },
+
+  "agent": {
+    "max_iterations": 50,
+    "timezone": "America/Sao_Paulo"
+  },
+
+  "channels": {
+    "default": "log",
+    "log": {
+      "enabled": true
+    }
+  },
+
+  "mcp": {
+    "servers": []
+  }
+}

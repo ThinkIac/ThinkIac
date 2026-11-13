@@ -1,0 +1,55 @@
+# ──────────────────────────────────────────────
+# Thinkiac — .npmignore
+# This project is NOT an npm library.
+# This file prevents accidentally publishing sensitive files.
+# ──────────────────────────────────────────────
+
+# === Source code that mutates at runtime ===
+node_modules/
+.atomic_bin/
+.atomic_cache/
+.atomic_temp/
+.react-cache/
+.svelte-cache/
+.cache/
+
+# === Environment & Secrets ===
+.env
+.env.*
+packages/agent/agent.config.json
+packages/moondream/keys.json
+packages/router/keys.json
+
+# === State & Generated Data ===
+packages/routes/state.json
+packages/tasks/schedule-config.json
+*.db
+*.sqlite
+*.sqlite3
+packages/aura-system/aura-system.db
+packages/delegatus/database/delegatus.db
+palace/data/palace.db
+
+# === Secrets & Backups ===
+packages/agent/secrets/
+packages/agent/snapshots/
+packages/agent/memory/history/
+packages/engineer/backups/
+
+# === Uploads ===
+uploads/
+packages/delegatus/uploads/
+
+# === Logs & Temp ===
+*.log
+logs/
+.tmp/
+tmp/
+
+# === OS files ===
+.DS_Store
+Thumbs.db
+
+# === IDE ===
+.idea/
+.vscode/

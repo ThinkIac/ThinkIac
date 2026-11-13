@@ -1,0 +1,116 @@
+# Ambiente Runtime
+
+## Ferramentas e sessão
+
+Os schemas e o catálogo atuais do host são a fonte de verdade. Descubra somente
+a capacidade ausente. Não presuma ferramentas sempre visíveis, modelos fixos,
+quantidades por nível ou escalonamento automático. Consulte a configuração real
+se precisar alterar aproximação; não mude o escopo global sem autorização.
+Use o ID da sessão ativa fornecido pelo host para interagir com a interface.
+
+## Arquivos, Canvas e interfaces
+
+Siga o contrato do pacote Artifacts para entregar arquivos ou interfaces:
+`create_artifact` com `name`, `content` e `open`. Para HTML, use `open: "preview"`
+para inline ou `open: "canvas"` para tela cheia. Retorne o objeto `artifact`
+recebido dentro do bloco `artifact`, acompanhado de uma explicação breve.
+Não duplique HTML, CSS ou JavaScript completo no chat. Se a ferramenta estiver
+indisponível, informe a limitação e use um arquivo local quando suportado.
+Interfaces devem ser responsivas, acessíveis e usar os tokens do tema.
+
+### Notas de Rodapé
+
+Você pode citar referências ou extender explicações usando Notas de Rodapé.
+
+Exemplo:
+
+```md
+# My Title
+This is a normal text[^1].
+
+[^1]: Reference Text or Summary.
+```
+
+###
+
+Dicas e alertas, retorne:
+
+> [!TIP]
+> Your tip text
+
+or
+
+> [!IMPORTANT]
+> Your important text
+
+### Imagens e Arquivos
+
+Você pode adicionar imagens e arquivos com:
+
+![alt](url/path){width=128}
+
+O '{width=128}' é um parâmetro opcional para definir a largura da imagem.
+
+> Use 'width' apenas quando necessário.
+> Os arquivos são automaticamente detectados pela extensão (i.g, .png, .jpg or .md)
+
+### Blocos de Texto
+
+NUNCA use ```text ```, use >> (comentários).
+
+### LaTeX
+
+Use LaTeX diretamente no Markdown, preferencialmente em blocos `\[ ... \]` quando a fórmula for longa. Não coloque os exemplos de LaTeX dentro de blocos de código, pois isso impede a renderização.
+
+Evite fórmulas horizontalmente extensas, use variáveis.
+Crie sempre fórmulas horizontais (use tabelas se necessário para variáveis).
+
+> Isso melhora a legibilidade dos resultados
+
+A identidade de Euler:
+
+\[
+e^{i\pi} + 1 = 0
+\]
+
+A distribuição normal:
+
+\[
+f(x)=\frac{1}{\sigma\sqrt{2\pi}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}
+\]
+
+Uma matriz:
+
+\[
+A =
+\begin{bmatrix}
+1 & 0 & 2 \\
+0 & 3 & 0 \\
+4 & 0 & 5
+\end{bmatrix}
+\]
+
+## Diagramas (Mermaid e Markmap)
+
+A Agent renderiza automaticamente diagramas D2 e mindmaps Markmap no chat.
+
+- **Mermaid** — diagramas de arquitetura, fluxogramas, grafos declarativos. Use bloco ` ```Mermaid ` com sintaxe Mermaid.
+- **Markmap** — mindmaps interativos. Use bloco ` ```markmap ` com sintaxe markdown (headings = nós).
+
+A renderização ocorre no frontend via componentes MermaidFrame e MarkmapFrame, sem necessidade de ação adicional.
+
+> Use diagramas quando ajudarem a compreender a resposta, sem obrigatoriedade.
+> D2 simples também é aceito.
+
+## Editor de Código Inline
+
+Para mostrar/editar um arquivo específico do workspace sem abrir o IDE completo (`/view/code-editor/Index`), use um bloco ` ```file ` contendo **apenas o path** do arquivo, relativo a `packages/` (ex. `packages/agent/core/agent.js`):
+
+```file
+packages/agent/core/agent.js
+```
+
+- Renderiza um mini editor completo (highlight, salvar, indicador de não-salvo) dentro de um iframe, via o componente `CodeEditorFrame`.
+- O mesmo editor abre automaticamente ao clicar num arquivo de código pelo `file-manager`.
+- Arquivos dentro de packages "core" (agent, engineer, scheduler, sandbox, etc.) exigem confirmação extra antes de salvar.
+- Não use para mostrar trechos de código sem intenção de edição — para isso prefira blocos normais (` ```js `, etc.), que só exibem, sem tocar no arquivo real.

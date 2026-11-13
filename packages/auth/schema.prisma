@@ -1,0 +1,242 @@
+model User {
+    id            String    @id @default(uuid())
+    name          String?
+    email         String    @unique
+    username      String?   @unique
+    /// SQLite now enforces @unique for active Scriba records. The application
+    /// still checks first to provide a friendly conflict response.
+    password      String
+    /// "sub" do id_token do Google — identificador estável da conta Google,
+    /// imune a troca de e-mail. É por ele que resolvemos o usuário primeiro.
+    googleSub     String?   @unique
+    avatarUrl     String?
+    /// Só true quando o provedor atesta a posse do endereço. Vinculação
+    /// automática por e-mail depende disso (ver resolveFederatedUser).
+    emailVerified Boolean   @default(false)
+    role          String    @default("user")
+    disabled      Boolean   @default(false)
+    inviteBalance Int       @default(0)
+    tenantStatus  String    @default("pending")
+    tenantDomain  String?
+    tenantId      String?
+    llmProxyToken String?
+    failureReason String?
+    activationRequestId String?
+    activationLeaseId String?
+    activationLeaseUntil Int?
+    welcomeCreditStatus String?
+    welcomeCreditError String?
+    /// Onboarding em 2 partes: Parte 1 (purpose/briefContext/audience, mais
+    /// campos legados) preenchida na tela de espera do provisionamento; Parte 2
+    /// (tone/instructions) só existe dentro do tenant (AGENT.md), nunca volta
+    /// pra cá. Ver hooks/onboarding.js (agent) e sso() (tenant-auth).
+    onboarding    Json?
+    /// csv de pacotes marcados pelo admin para remoção — aplicado na próxima
+    /// vez que o tenant for recriado (troca de plano), nunca ao vivo.
+    pendingPackageRemovals String?
+    /// "develop": conta de teste criada por admin (ver createDevAccount),
+    /// sujeita ao reaper de ociosidade — some por completo (tenant + user)
+    /// depois de idleTimeoutMinutes sem acesso real. "normal" nunca é tocada
+    /// pelo reaper, mesmo sem idleTimeoutMinutes/lastActivityAt setados.
+    accountType   String    @default("normal")
+    /// Só relevante para accountType="develop". Null usa o default do reaper
+    /// (AUTH_ENV_DEV_IDLE_TIMEOUT_MINUTES).
+    idleTimeoutMinutes Int?
+    /// Carimbado no login() bem-sucedido — é o sinal de "acesso real" mais
+    /// próximo que o gateway central enxerga (o container do tenant em si
+    /// não reporta uso de volta pra cá). Setado na criação da conta develop
+    /// também, senão uma conta nunca logada não teria relógio de ociosidade
+    /// rodando e nunca seria varrida.
+    lastActivityAt DateTime?
+}
+
+/// Configuração única da autenticação deste Runtime. A ausência do registro
+/// preserva o comportamento histórico: cadastro e convites habilitados.
+model AuthSettings {
+    id                   String  @id @default("default")
+    registrationEnabled  Boolean @default(true)
+    invitationsEnabled   Boolean @default(true)
+    /// Grupo declarado atribuído a novos cadastros públicos. Nunca altera o
+    /// papel estrutural `User.role`, que continua reservado ao administrador.
+    defaultRolePackage   String?
+    defaultRoleGroup     String?
+    updatedAt            DateTime @updatedAt
+}
+
+/// Segredos de confirmação são persistidos somente como hash SHA-256 e podem
+/// ser consumidos uma única vez. O token atende links; o código atende a tela.
+model EmailVerification {
+    id        String   @id @default(uuid())
+    userId    String
+    email     String
+    tokenHash String
+    codeHash  String
+    expiresAt DateTime
+    consumed  Boolean  @default(false)
+    consumedAt DateTime?
+    createdAt DateTime @default(now())
+}
+
+/// Credencial exclusiva por tenant/self-hosted. O segredo só é devolvido na
+/// emissão; o gateway persiste exclusivamente SHA-256 + identificador público.
+model ProxyCredential {
+    id                   String    @id @default(uuid())
+    tokenId              String    @unique
+    tokenHash            String
+    userId               String
+    tenantId             String?
+    scopes               String    @default("[]")
+    status               String    @default("pending")
+    spendLimitMicros     Int?
+    spentMicros          Int       @default(0)
+    maxRequestsPerMinute Int       @default(60)
+    lastUsedAt           DateTime?
+    revokedAt            DateTime?
+    createdAt            DateTime  @default(now())
+}
+
+/// Metadados de pacote no registry central. A ausência nunca torna um pacote
+/// ThinkIac público: o CLI registra a política antes de enviar o tarball.
+model NpmPackage {
+    id         String   @id @default(uuid())
+    name       String   @unique
+    owner      String
+    visibility String   @default("private")
+    official   Boolean  @default(false)
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+}
+
+/// Código temporário do login por dispositivo. O segredo é persistido apenas
+/// como hash e é consumido uma única vez pelo CLI durante o polling.
+model NpmDeviceAuthorization {
+    id         String    @id @default(uuid())
+    codeHash   String    @unique
+    userId     String?
+    approvedAt DateTime?
+    consumedAt DateTime?
+    expiresAt  DateTime
+    createdAt  DateTime  @default(now())
+}
+
+/// Fluxo OAuth em andamento. Persistido, e não em memória, de propósito: o
+/// usedSsoJtis do tenant-auth é um Set em memória que zera no restart e
+/// reabre janela de replay. Linhas expiram por expiresAt e são varridas em
+/// sweepOauthState().
+model OauthFlow {
+    id           String   @id @default(uuid())
+    state        String
+    codeVerifier String
+    nonce        String
+    /// "web" | "android" | "electron" — decide se o callback devolve cookie
+    /// direto ou um LoginTicket via deep link.
+    client       String   @default("web")
+    next         String?
+    /// App público allowlisted cuja aquisição iniciou este OAuth. Quando
+    /// preenchido, uma conta Google nova nasce sem Tenant.
+    appSlug      String?
+    expiresAt    DateTime
+}
+
+/// Acesso de uma identidade central a um aplicativo distribuído. Não depende
+/// de Tenant: o mesmo vínculo continua válido depois do provisionamento.
+model AppEntitlement {
+    id        String   @id @default(uuid())
+    userId    String
+    appSlug   String
+    status    String   @default("active")
+    source    String   @default("public-flow")
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+/// Ticket de uso único para atravessar a fronteira Custom Tab -> WebView, que
+/// não compartilham cookie jar. Consumido em ticket(), nunca reutilizável.
+model LoginTicket {
+    id        String   @id @default(uuid())
+    /// O segredo de verdade — 32 bytes de CSPRNG. Não usamos o id porque o
+    /// @default(uuid()) do scriba não é garantidamente imprevisível.
+    token     String
+    userId    String
+    consumed  Boolean  @default(false)
+    expiresAt DateTime
+}
+
+model Session {
+    id        String   @id @default(uuid())
+    userId    String
+    loginAt   DateTime @default(now())
+    expiresAt DateTime
+    delegatedCapabilities String?
+    delegatedSubject      String?
+}
+
+model DelegatedTicket {
+    id           String   @id @default(uuid())
+    tokenHash    String
+    userId       String
+    subject      String
+    capabilities String
+    redirectPath String
+    expiresAt    DateTime
+}
+
+model Invite {
+    id               String    @id @default(uuid())
+    code             String    @unique
+    userId           String
+    consumed         Boolean   @default(false)
+    consumedAt       DateTime?
+    consumedByUserId String?
+    expiresAt        DateTime?
+    revoked          Boolean   @default(false)
+    revokedAt        DateTime?
+}
+
+/// Grupos globais, independentes de qualquer pacote. As permissões são
+/// concedidas ao grupo ou diretamente ao usuário através de PermissionGrant.
+model PermissionGroup {
+    active Boolean @default(true)
+    administrative Boolean @default(false)
+    id              String   @id @default(uuid())
+    name            String
+    /// Referência opcional a uma definição viva em manifest.permissionGroups.
+    /// Grupos livres continuam com ambos os campos nulos.
+    declaredPackage String?
+    declaredGroup   String?
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+}
+
+model PermissionMembership {
+    id        String   @id @default(uuid())
+    userId    String
+    groupId   String
+    createdAt DateTime @default(now())
+}
+
+/// resourceId nulo vale para todas as instâncias do recurso; caso contrário,
+/// restringe a grant àquela instância (ex.: uma mailbox concreta).
+model PermissionGrant {
+    id          String   @id @default(uuid())
+    subjectType String
+    subjectId   String
+    permission  String
+    resourceId  String?
+    effect      String   @default("allow")
+    createdById String?
+    createdAt   DateTime @default(now())
+}
+
+model PermissionAudit {
+    before String?
+    after String?
+    id          String   @id @default(uuid())
+    actorId     String
+    action      String
+    subjectType String?
+    subjectId   String?
+    permission  String?
+    resourceId  String?
+    createdAt   DateTime @default(now())
+}

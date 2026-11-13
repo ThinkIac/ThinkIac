@@ -1,0 +1,46 @@
+{
+  "name": "agent",
+  "description": "Thinkiac autonomous agent, chat runtime and integrated CLI agents.",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "better-sqlite3": "^12.5.0",
+    "dockerode": "5.0.0",
+    "inflect": "*",
+    "katex": "^0.16.47",
+    "logos": "*",
+    "mermaid": "^11.15.0",
+    "node-telegram-bot-api": "^1.1.0",
+    "panzoom": "^9.4.4"
+  },
+  "logosDependencies": {
+    "file-manager": "*"
+  },
+  "manifest": {
+    "systemTab": {
+      "id": "sessions",
+      "label": "Sessões",
+      "view": "Index",
+      "renderer": "schema",
+      "surface": "sessions",
+      "order": 60
+    }
+  },
+  "runtime": {
+    "stability": {
+      "monitor": {
+        "route": "health",
+        "interval": 30000,
+        "timeout": 3000,
+        "initialDelay": 10000,
+        "failureThreshold": 3,
+        "successThreshold": 2,
+        "recovery": "report",
+        "maxRecoveries": 2,
+        "recoveryWindow": 300000,
+        "cooldown": 60000
+      }
+    }
+  }
+}

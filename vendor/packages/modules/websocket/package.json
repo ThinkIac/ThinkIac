@@ -1,0 +1,11 @@
+{
+  "name": "@thinkiac/module-websocket",
+  "version": "0.1.0",
+  "description": "Reusable WebSocket hub with sessions, channels, authorization and heartbeat",
+  "main": "index.cjs",
+  "files": ["index.cjs", "README.md", "test"],
+  "scripts": { "test": "node --test test/*.test.cjs" },
+  "dependencies": { "ws": "^8.17.0" },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

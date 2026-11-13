@@ -1,0 +1,175 @@
+# ──────────────────────────────────────────────
+# Thinkiac — .gitignore
+# ──────────────────────────────────────────────
+
+# === Environment & Secrets ===
+.env
+.env.*
+!.env.example
+*.env
+*.env.local
+*.env.production
+*.env.development
+
+# === Runtime & Framework ===
+node_modules/
+.johankit/
+.logos/
+.atomic_bin/
+.atomic_cache/
+.atomic_temp/
+.react-cache/
+.svelte-cache/
+.cache/
+.pm2/
+.local/
+.recovery/
+.testsweep/
+.agents/
+.claude/
+.codex/
+.runtime-errors.json
+.runtime-*.log
+dist/
+build/
+
+# === IDE & OS ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-*
+
+# === Config files with secrets ===
+packages/**/.private/
+packages/agent/agent.config.json
+packages/mcp/mcp.config.json
+packages/moondream/keys.json
+packages/router/keys.json
+
+# === Databases ===
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db-*
+**/.database*
+**/*.db-journal
+packages/aura-system/aura-system.db
+packages/delegatus/database/delegatus.db
+packages/delegatus/*.db
+palace/data/palace.db
+# packages/tasks/.database carrega tarefas pessoais reais — nunca versionar.
+packages/tasks/.database
+packages/tasks/.database-journal
+packages/specialists/.database
+packages/specialists/.database-journal
+packages/specialists/data/session_specialists.json
+
+# === State & Schedule ===
+packages/routes/state.json
+packages/tasks/schedule-config.json
+packages/agent/memory/mcp-config.json
+# Estado transitório de seleção e saúde de slots/modelos locais.
+packages/agent/memory/session_models.json
+packages/agent/memory/slots_state.json*
+
+# === Secrets & Backups ===
+packages/agent/secrets/
+packages/agent/bkg.json
+packages/hermes/devices.json
+packages/git-cloud/data/gateway.json
+packages/git-cloud/data/*_key.pem
+packages/engineer/backups/
+packages/code-editor/.backups/
+
+# === Snapshots & History (generated content) ===
+packages/agent/snapshots/
+packages/agent/memory/history/
+packages/agent/data/metacore-bag.json
+packages/engineer/backups/
+
+# Local agent activity and operational receipts. These files can contain
+# conversations, tool output, identifiers and configuration references.
+packages/agent/sessions/
+packages/agent/data/durable-runs/
+packages/agent/data/stability-receipts.json
+packages/agent/stability-receipts.json
+
+# Local copies and observations, never source fixtures.
+packages/code-editor/.backups/
+packages/classification/data/decision-experiences.json
+packages/classification/data/experiences.json
+
+# === Uploads ===
+uploads/
+packages/delegatus/uploads/
+# Dados e backups privados nunca fazem parte da distribuição beta.
+public/private/
+
+# === Logs ===
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Logs (general) ===
+logs/
+*.log
+
+# === Package manager lock files (optional) ===
+# Uncomment if you want to track lock files:
+# package-lock.json
+# yarn.lock
+
+# === Docker ===
+docker-compose.override.yml
+
+# === Misc ===
+.tmp/
+tmp/
+*.tmp
+*.temp
+
+# === Variant worktrees (packages/variants) ===
+.variants/
+packages/variants/data/variants.json
+packages/variants/data/logs/
+*.bak
+
+# === flows runtime data (execution history — not committed) ===
+packages/flows/data/*.json
+
+# === pkgmgr install staging (cleaned after each install; leftovers only on a crash) ===
+.pkgmgr-staging/
+
+# Historical snapshots kept by old tenant maintenance workflows
+*.deleted/
+*.deleted
+
+# Pacotes removidos do perfil local e seu registro de restauração. O histórico
+# fica fora da distribuição pública inicial; publique um manifesto curado se
+# ele for necessário.
+.disabled-packages/
+
+# MCP credential hashes and metadata audit (private host state)
+.private/auth-mcp/
+
+# Proxy Router direct credentials (owner-readable runtime state)
+packages/proxy-router/data/
+data/proxy-router/
+
+# Terminal: homes, credentials, history and CLI cache stay local
+/packages/terminal/profiles/
+/packages/terminal/shared-cache/
+
+# Release assets are distributed through Releases, CDN or Git LFS, not the
+# source repository.
+public/videos/
+public/downloads/
+public/tiktok-talking-host/
+public/thinkiac.exe
+public/thinkiac.aab

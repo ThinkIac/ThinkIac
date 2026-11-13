@@ -1,0 +1,58 @@
+{
+  "_comment": "Suítes do Engineer — fluxo de vibecoding com plano/diff/rollback. Mede o que o pacote depende de um modelo: escrever código correto e produzir diffs aplicáveis.",
+  "suites": [
+    {
+      "name": "Código",
+      "description": "Tarefas de programação — avaliadas por corretude, estilo e eficiência",
+      "icon": "code",
+      "measures": [
+        { "capability": "code.correctness", "weight": 0.7 },
+        { "capability": "code.maintainability", "weight": 0.3 }
+      ],
+      "requires": { "modalities": ["text:input"] },
+      "tests": [
+        {
+          "type": "code", "weight": 1,
+          "prompt": "Escreva uma função em Python que verifica se uma string é um palíndromo.",
+          "expected": "Função correta tratando maiúsculas/minúsculas e espaços"
+        },
+        {
+          "type": "code", "weight": 1.1,
+          "prompt": "Implemente uma fila (queue) em JavaScript usando classes.",
+          "expected": "Implementação correta com enqueue/dequeue/peek"
+        },
+        {
+          "type": "code", "weight": 1.2,
+          "prompt": "Crie uma query SQL que retorna os 5 produtos mais vendidos do mês.",
+          "expected": "Query com JOIN, GROUP BY, ORDER BY e LIMIT"
+        }
+      ]
+    },
+    {
+      "name": "Engineer · Diff Aplicável",
+      "description": "O fluxo do Engineer aplica patches — um modelo que erra o formato do diff é inútil aqui, por melhor que seja o código",
+      "icon": "git-branch",
+      "measures": [
+        { "capability": "code.patchApplicability", "weight": 1 }
+      ],
+      "requires": { "structuredOutput": true },
+      "tests": [
+        {
+          "type": "code", "weight": 1.6,
+          "prompt": "Dado o arquivo `soma.js` com o conteúdo exato:\n\n```\nfunction soma(a, b) {\n  return a - b;\n}\n```\n\nProduza APENAS um patch em formato unified diff (com cabeçalhos --- / +++ e hunk @@) que corrija o bug. Nada além do diff.",
+          "expected": "Unified diff válido e aplicável: cabeçalhos ---/+++, um hunk @@ com contagens de linha corretas, troca `a - b` por `a + b`. Sem prosa nem cerca de markdown extra"
+        },
+        {
+          "type": "code", "weight": 1.5,
+          "prompt": "Você precisa renomear a função `getUser` para `fetchUser` em um projeto. Descreva o plano de execução mínimo e seguro (quais buscas, em que ordem, e como evitar renomear ocorrências que não são a função — comentários, strings, `getUserById`).",
+          "expected": "Menciona busca por ocorrências com word-boundary, distingue getUserById/getUserName de getUser, atualiza definição + call sites + testes, e valida rodando os testes. Reconhece o risco de replace cego"
+        },
+        {
+          "type": "code", "weight": 1.4,
+          "prompt": "Um teste falha com `TypeError: Cannot read properties of undefined (reading 'map')` na linha `return res.data.map(x => x.id)`. Sem ver mais código, liste as hipóteses de causa em ordem de probabilidade e o que checaria primeiro.",
+          "expected": "Hipóteses concretas: res.data ausente na resposta, request falhou/404, resposta assíncrona não aguardada, shape diferente do esperado (data aninhado). Propõe inspecionar res real antes de \"consertar\" com optional chaining"
+        }
+      ]
+    }
+  ]
+}

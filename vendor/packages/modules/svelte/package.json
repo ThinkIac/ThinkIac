@@ -1,0 +1,21 @@
+{
+  "name": "@thinkiac/module-svelte",
+  "version": "0.1.0",
+  "description": "Reusable Svelte 4 SSR, hydration, cache, widget and HMR engine for Logos runtimes",
+  "main": "index.cjs",
+  "types": "index.d.ts",
+  "files": ["index.cjs", "index.d.ts", "lib", "README.md"],
+  "scripts": { "test": "node --test test/*.test.cjs" },
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "peerDependencies": {
+    "esbuild": "^0.28.0",
+    "esbuild-svelte": "^0.9.0",
+    "svelte": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "esbuild": { "optional": true },
+    "esbuild-svelte": { "optional": true },
+    "svelte": { "optional": true }
+  }
+}

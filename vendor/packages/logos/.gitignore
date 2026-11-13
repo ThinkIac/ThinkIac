@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.svelte-cache/
+.runtime-errors.json
+uploads/
+# workspace runtime artefacts
+packages/**/.database/
+packages/.logos/
+*.log

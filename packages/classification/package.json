@@ -1,0 +1,9 @@
+{
+  "name": "classification",
+  "version": "2.0.0",
+  "description": "Classificação extensível por exemplos locais, ferramentas e níveis de aproximação",
+  "main": "index.js",
+  "dependencies": {
+    "logos": "*"
+  }
+}

@@ -1,0 +1,10 @@
+{
+    "name": "code-editor",
+    "version": "0.0.1",
+    "description": "Package Code Editor",
+    "manifest": {
+        "name": "Code",
+        "iconPreset": { "pack": "lucide", "name": "Code" },
+        "bgColor": "#2563eb"
+    }
+}

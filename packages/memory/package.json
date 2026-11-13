@@ -1,0 +1,9 @@
+{
+  "name": "memory",
+  "description": "Memória de longo prazo do runtime: grafo de entidades/observações/relações (\"palácio da memória\"), com busca semântica best-effort e consolidação via LLM. Substitui o facts.md + embeddings.json planos usados antes por aurora e agentic.",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "logos": "*"
+  }
+}

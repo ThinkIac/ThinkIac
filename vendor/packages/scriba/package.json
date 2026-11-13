@@ -1,0 +1,26 @@
+{
+  "name": "scriba",
+  "version": "1.0.2",
+  "main": "src/index.js",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@johanlabs/rust-scriba": "^0.5.6",
+    "@prisma/internals": "^7.2.0",
+    "better-sqlite3": "^12.5.0",
+    "chokidar": "^5.0.0",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "express": "^5.2.1",
+    "pluralize": "^8.0.0",
+    "scriba-rule-engine": "^1.0.9",
+    "swagger-themes": "^1.4.3",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

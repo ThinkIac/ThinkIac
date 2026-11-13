@@ -1,0 +1,8 @@
+{
+  "name": "inflect",
+  "version": "1.0.0",
+  "description": "Inflect – a lightweight recursive template engine for Markdown and JavaScript with includes, loops, and logic blocks.",
+  "main": "inflect.js",
+  "type": "commonjs",
+  "keywords": ["template", "engine", "markdown", "inflect", "renderer"]
+}

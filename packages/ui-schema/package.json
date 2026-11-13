@@ -1,0 +1,6 @@
+{
+  "name": "ui-schema",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Contrato seguro para superfícies administrativas declarativas do ThinkIac"
+}

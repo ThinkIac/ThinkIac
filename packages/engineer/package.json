@@ -1,0 +1,25 @@
+{
+  "name": "engineer",
+  "version": "1.0.0",
+  "description": "Pacote Engineer — Fluxo Vibecoding seguro com plano, diffs, aprovação e rollback",
+  "type": "module",
+  "main": "index.js",
+  "classification": {
+    "examples": [
+      {
+        "id": "workspace-shell",
+        "utterances": [
+          "execute os testes do projeto",
+          "rode o lint e a compilação",
+          "inspecione o repositório pelo terminal"
+        ],
+        "target": { "type": "tool", "value": "run_shell" },
+        "threshold": 0.72
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {}
+}

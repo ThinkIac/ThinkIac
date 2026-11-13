@@ -1,0 +1,73 @@
+{
+  "name": "logos",
+  "version": "2.0.0",
+  "description": "L\u00f3gos \u2014 a small launcher and compatibility protocol for externally composed Node.js runtimes.",
+  "keywords": [
+    "runtime",
+    "logos",
+    "launcher",
+    "modules",
+    "protocol",
+    "composition"
+  ],
+  "license": "MIT",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "bin": {
+    "logos": "dist/src/cli/index.js",
+    "thinkiac": "dist/src/cli/index.js",
+    "think": "dist/src/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "MIGRATION.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@thinkiac/module-mediated-io": "file:../modules/mediated-io",
+    "@thinkiac/module-process-bridge": "file:../modules/process-bridge",
+    "better-sqlite3-multiple-ciphers": "^13.0.3",
+    "chokidar": "^3.6.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "ws": "^8.17.0"
+  },
+  "optionalDependencies": {
+    "ssh2": "^1.17.0",
+    "esbuild": "^0.28.1",
+    "esbuild-svelte": "^0.9.5",
+    "mdsvex": "^0.12.0",
+    "svelte": "^4.2.0",
+    "@tailwindcss/postcss": "^4.3.3"
+  },
+  "peerDependencies": {
+    "scriba": "*"
+  },
+  "peerDependenciesMeta": {
+    "scriba": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.12.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "@thinkiac/module-tools",
+  "version": "0.1.0",
+  "description": "External tools capability for the Logos event kernel",
+  "main": "index.cjs",
+  "license": "MIT",
+  "engines": { "node": ">=18" }
+}

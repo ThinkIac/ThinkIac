@@ -1,0 +1,24 @@
+# Configuração local e credenciais
+agent.config.json
+agent.config.json.*.tmp
+agent.config.json.bak
+secrets/
+
+# Estado operacional e dados de sessões
+sessions/
+uploads/
+data/
+memory/history/
+memory/session_purposes.json
+memory/session_models.json
+memory/slots_state.json*
+
+# Artefatos gerados e cópias de recuperação
+node_modules/
+.atomic_bin/
+core/.atomic_bin/
+snapshots/
+views/.bak-*/
+*.bak
+*.tmp
+*.swp
