@@ -1,0 +1,49 @@
+name: Release runtime
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: runtime-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Package and publish runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm run test:runner
+      - name: Package immutable runtime archive
+        env:
+          RUNTIME_VERSION: main-${{ github.sha }}
+        run: node scripts/package-runtime.mjs --version "$RUNTIME_VERSION" --output dist/runtime
+      - name: Validate archive layout and checksum
+        run: |
+          unzip -t dist/runtime/*.zip
+          (cd dist/runtime && sha256sum --check checksums.txt)
+          unzip -p dist/runtime/*.zip 'thinkiac-runtime/runtime.json' | node --input-type=module -e "let source=''; for await (const chunk of process.stdin) source += chunk; const manifest=JSON.parse(source); if (manifest.entrypoint !== 'index.js' || manifest.readinessPath !== '/__ready') process.exit(1)"
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: runtime-main-${{ github.sha }}
+          name: ThinkIac Runtime ${{ github.sha }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          prerelease: true
+          files: |
+            dist/runtime/*.zip
+            dist/runtime/runtime-manifest.json
+            dist/runtime/checksums.txt
