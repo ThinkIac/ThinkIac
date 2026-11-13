@@ -1,5 +1,8 @@
 # ui-dialogs — confirm/prompt/alert para views em iframe
 
+Este é o contrato de interações pontuais. Consulte também o
+[mapa central de integrações](../think/README.md#mapa-de-integrações).
+
 ## O bug que originou isto
 
 As views de pacote rodam dentro de um iframe (ver `views/lib/theme.js` em

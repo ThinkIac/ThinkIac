@@ -1,5 +1,8 @@
 # Widgets de pacote e bus de UI
 
+Este documento detalha a extensão do chat. Para escolher entre widget, menu,
+Settings, schema e diálogos, consulte o [mapa central](../../think/README.md#mapa-de-integrações).
+
 Este documento descreve os dois contratos usados por pacotes para integrar
 interfaces ao Agent:
 

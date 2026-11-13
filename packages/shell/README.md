@@ -45,3 +45,44 @@ mesmo Runtime: `{ type: "thinkiac:header-action", version: 1, action, target }`.
 A view alvo deve escutar o evento e validar `event.origin` antes de agir. O
 manifest não executa código, não aceita URL arbitrária e não transporta payload
 livre; a ação é apenas uma intenção nomeada que o pacote alvo escolhe suportar.
+
+## Menu
+
+O Shell interpreta `manifest.menu` como uma contribuição compacta. A entrada
+deve apontar para uma view local dedicada, diferente de `Index` e `Home`:
+
+```json
+{
+  "manifest": {
+    "menu": {
+      "id": "my-package",
+      "label": "Meu pacote",
+      "target": "left",
+      "view": "Widget",
+      "order": 100,
+      "hidden": true
+    }
+  }
+}
+```
+
+`target` aceita `left` ou `right`; sem valor, usa `left`. `hidden` define só a
+visibilidade inicial, pois a escolha posterior do usuário prevalece. Veja o
+[mapa central](../think/README.md#mapa-de-integrações).
+
+## Ícones do manifesto
+
+1. `manifest.menu.icon` e `menu.iconDark` valem somente para o menu.
+2. Sem ícone próprio, o menu herda `manifest.icon` e `iconDark`.
+3. `manifest.iconPreset` seleciona um ícone do catálogo, por exemplo
+   `{ "pack": "lucide", "name": "Terminal" }`.
+4. Sem variante aplicável, o renderer usa seu fallback visual.
+
+`icon` e `iconDark` são caminhos de recursos do pacote. `color` e `bgColor`
+devem ser cores CSS válidas, não classes Tailwind.
+
+## Widget no chat
+
+`manifest.widget` registra uma linguagem de bloco Markdown que o `MessageList`
+renderiza numa view isolada; ele não cria item de menu. Veja o contrato de
+[widgets e UI bus](../agent/docs/package-widgets-and-ui-bus.md).

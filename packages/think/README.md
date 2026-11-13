@@ -9,14 +9,14 @@ links abaixo são a fonte de verdade.
 
 | Quero declarar | Declaração no `package.json` | Host responsável | Exemplo ativo | Referência |
 | --- | --- | --- | --- | --- |
-| Item de menu | `manifest.menu` | Shell | [`tasks`](../../apps/thinkiac/packages/tasks/package.json) | [Shell](../../apps/thinkiac/packages/shell/README.md#menu) |
-| Bloco no chat / `MessageList` | `manifest.widget` | Shell e Agent | [`terminal`](../../apps/thinkiac/packages/terminal/package.json) | [Widgets do Agent](../../apps/thinkiac/packages/agent/docs/package-widgets-and-ui-bus.md) |
-| Aba administrativa | `manifest.settingsTab` | Settings | [`specialists`](../../apps/thinkiac/packages/specialists/package.json) | [Settings](../../apps/thinkiac/packages/settings/README.md#aba-administrativa) |
-| Credenciais de integração | `manifest.keysTab` | Settings | [`instagram-suite`](../../apps/thinkiac/packages/instagram-suite/package.json) | [Integrações](../../apps/thinkiac/packages/settings/README.md#integrações-e-credenciais) |
-| Formulário declarativo | `renderer: "schema"` e `surface` na aba | Settings + `ui-schema` | [`auth`](../../apps/thinkiac/packages/auth/package.json) | [ui-schema](../../apps/thinkiac/packages/ui-schema/README.md) |
-| Confirmação, alerta ou prompt em uma view | importação do componente | `ui-dialogs` | [contrato do `ui-dialogs`](../../apps/thinkiac/packages/ui-dialogs/AGENT.md) | [Diálogos](../../apps/thinkiac/packages/ui-dialogs/AGENT.md) |
-| Ícone do pacote ou do menu | `icon`, `iconDark`, `iconPreset`, `menu.icon` | Shell | [`openai-bridge`](../../apps/thinkiac/packages/openai-bridge/package.json) | [Ícones do Shell](../../apps/thinkiac/packages/shell/README.md#ícones-do-manifesto) |
-| Dados próprios | `schema.prisma` | Lógos | [contrato Lógos](../logos/docs/packages.md#database) | [Banco e isolamento](#banco-e-isolamento) |
+| Item de menu | `manifest.menu` | Shell | [`pkgmgr`](../pkgmgr/package.json) | [Shell](../shell/README.md#menu) |
+| Bloco no chat / `MessageList` | `manifest.widget` | Shell e Agent | [`terminal`](../terminal/package.json) | [Widgets do Agent](../agent/docs/package-widgets-and-ui-bus.md) |
+| Aba administrativa | `manifest.settingsTab` | Settings | [`specialists`](../specialists/package.json) | [Settings](../settings/README.md#aba-administrativa) |
+| Credenciais de integração | `manifest.keysTab` | Settings | pacote com integração | [Integrações](../settings/README.md#integrações-e-credenciais) |
+| Formulário declarativo | `renderer: "schema"` e `surface` na aba | Settings + `ui-schema` | [`auth`](../auth/package.json) | [ui-schema](../ui-schema/README.md) |
+| Confirmação, alerta ou prompt em uma view | importação do componente | `ui-dialogs` | [contrato do `ui-dialogs`](../ui-dialogs/AGENT.md) | [Diálogos](../ui-dialogs/AGENT.md) |
+| Ícone do pacote ou do menu | `icon`, `iconDark`, `iconPreset`, `menu.icon` | Shell | [`openai-bridge`](../openai-bridge/package.json) | [Ícones do Shell](../shell/README.md#ícones-do-manifesto) |
+| Dados próprios | `schema.prisma` | Lógos | [contrato Lógos](../../vendor/packages/logos/docs/package-integrations.md#banco-e-isolamento) | [Banco e isolamento](#banco-e-isolamento) |
 
 Lógos descobre `package.json`, mas os campos de interface acima são
 interpretados pelos hosts indicados, não pelo kernel. O contrato de pacote do
@@ -44,7 +44,7 @@ do Shell/Agent pode renderizar numa view isolada. Uma declaração típica é:
 ```
 
 Para altura, mensagens parciais e comunicação com a view, siga o contrato de
-[widgets e UI bus](../../apps/thinkiac/packages/agent/docs/package-widgets-and-ui-bus.md).
+[widgets e UI bus](../agent/docs/package-widgets-and-ui-bus.md).
 O widget é uma contribuição de mensagem, não uma permissão para executar código
 na mensagem.
 
@@ -97,19 +97,17 @@ Esse modo executa o pacote no runner filho isolado e cria um tenant privado
 cifrado em repouso pelo vault SQLCipher. Outro pacote não obtém esse banco com
 `getProxy`; dados devem sair por tool, rota ou evento do próprio dono. As
 garantias, fontes de chave e limites operacionais estão em
-[Private Vault](../logos/docs/private-vault.md) e [Authority](../logos/docs/authority.md#private-database-tenants).
+[Banco e isolamento no Lógos](../../vendor/packages/logos/docs/package-integrations.md#banco-e-isolamento).
 
 `runtime.isolation.critical` trata outro problema: impede que uma reinicialização
 global silenciosa derrube estado crítico. A recarga e o rollback de um pacote
 são isolados; em alterações de `schema.prisma`, código e banco são restaurados
-juntos. Consulte [Packages](../logos/docs/packages.md) e
-[Stabilizer](../logos/docs/stabilizer.md).
+juntos. Consulte [isolamento e Stabilizer](../../vendor/packages/logos/docs/package-integrations.md#recarga-e-estado-crítico).
 
 ## Referência rápida
 
-- [Contrato de pacotes do Lógos](../logos/docs/packages.md)
-- [Autoridade e execução isolada](../logos/docs/authority.md)
-- [Shell](../../apps/thinkiac/packages/shell/README.md)
-- [Settings](../../apps/thinkiac/packages/settings/README.md)
-- [ui-schema](../../apps/thinkiac/packages/ui-schema/README.md)
-- [ui-dialogs](../../apps/thinkiac/packages/ui-dialogs/AGENT.md)
+- [Pacotes, banco e isolamento no Lógos](../../vendor/packages/logos/docs/package-integrations.md)
+- [Shell](../shell/README.md)
+- [Settings](../settings/README.md)
+- [ui-schema](../ui-schema/README.md)
+- [ui-dialogs](../ui-dialogs/AGENT.md)
