@@ -60,9 +60,9 @@ docker run -d --name thinkiac --restart unless-stopped \
 
 ## Seu primeiro pacote fullstack: notas
 
-O pacote abaixo combina o banco isolado do Scriba, um hook como serviço, rota,
-tool e view. `notes:register` recebe o pedido; rota e tool apenas publicam o
-evento. O serviço grava a nota e sinaliza seu ciclo de vida em
+O pacote abaixo combina o banco do Scriba, um hook como serviço, rota, tool e
+view. `notes:register` recebe o pedido; rota e tool apenas chamam esse evento.
+O serviço grava a nota e retorna-a pelo seu evento de ciclo de vida,
 `notes:registered`.
 
 ```prisma
@@ -89,13 +89,16 @@ antes de expor as interfaces.
 import { $, getProxy } from 'logos';
 
 /**
-**@register_hook notes:register
+ * @register_hook notes:register
 **/
 export async function registerNote(payload) {
   const notes = getProxy('notes');
-  const note = await notes.note.push({ title: payload.title, text: payload.text });
-  await $('notes:registered', note);
-  return note;
+  const note = await notes.Note.push({
+    title: payload.title,
+    text: payload.text
+  });
+
+  return $('notes:registered', note);
 }
 ```
 
@@ -104,10 +107,10 @@ export async function registerNote(payload) {
 import { $ } from 'logos';
 
 /**
-**@register_tool registerNote
-**@description Registra uma nota.
-**@param {string} title - Título
-**@param {string} text - Texto
+ * @register_tool registerNote
+ * @description Registra uma nota.
+ * @param {string} title - Título
+ * @param {string} text - Texto
 **/
 export function registerNoteTool({ title, text }) {
   return $('notes:register', { title, text });
@@ -119,8 +122,8 @@ export function registerNoteTool({ title, text }) {
 import { $ } from 'logos';
 
 /**
-**@register_router notes
-**@method post
+ * @register_router notes
+ * @method post
 **/
 export async function registerNoteRoute(req) {
   return { data: await $('notes:register', req.body ?? {}) };
@@ -152,9 +155,12 @@ export async function registerNoteRoute(req) {
 </form>
 ```
 
-Assim, uma tool, uma rota, a view Svelte ou outro pacote usam o mesmo serviço
-por evento, com armazenamento isolado pelo Scriba. Outros hooks podem observar
-`notes:registered`. Consulte
+Assim, uma tool, uma rota, a view Svelte ou outro pacote chamam o mesmo serviço
+por `$('notes:register', payload)`. `$()` é a única operação de evento do
+exemplo: ela passa o payload pelos hooks e devolve o último valor não nulo. Sem
+nenhum hook em `notes:registered`, devolve a própria nota, portanto o evento é
+seguro mesmo sem ouvintes. O Scriba reconhece `Note` porque ela foi declarada no
+schema e `getProxy('notes').Note` expõe esse model para o pacote. Consulte
 [docs/decorators.md](docs/decorators.md) para os decorators ativos e o contrato
 de eventos do Harness.
 
