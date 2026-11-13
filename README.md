@@ -63,7 +63,8 @@ docker run -d --name thinkiac --restart unless-stopped \
 O pacote abaixo combina o banco do Scriba, um hook como serviço, rota, tool e
 view. `notes:register` recebe o pedido; rota e tool apenas chamam esse evento.
 O serviço grava a nota e retorna-a pelo seu evento de ciclo de vida,
-`notes:registered`.
+`notes:registered`. A view pode ouvir esse mesmo ciclo de vida e atualizar a
+lista sem buscar os dados de novo.
 
 ```prisma
 // packages/notes/schema.prisma
@@ -103,6 +104,24 @@ export async function registerNote(payload) {
 ```
 
 ```js
+// packages/notes/realtime.js
+import { broadcast } from 'logos';
+
+/**
+ * @register_hook notes:registered
+**/
+export function sendRegisteredNoteToViews(note) {
+  broadcast({
+    type: 'bus:event',
+    event: 'notes:registered',
+    detail: note
+  });
+
+  return note;
+}
+```
+
+```js
 // packages/notes/tools.js
 import { $ } from 'logos';
 
@@ -133,9 +152,38 @@ export async function registerNoteRoute(req) {
 ```svelte
 <!-- packages/notes/views/Home.svelte -->
 <script>
+  import { onMount } from 'svelte';
+
   let title = '';
   let text = '';
   let saved = false;
+  let notes = [];
+
+  onMount(() => {
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${protocol}://${location.host}/ws?session=notes`);
+
+    function receive(event) {
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+
+      if (message.type !== 'bus:event' || message.event !== 'notes:registered') return;
+
+      const note = message.detail;
+      if (!note?.id || notes.some(item => item.id === note.id)) return;
+      notes = [note, ...notes];
+    }
+
+    socket.addEventListener('message', receive);
+    return () => {
+      socket.removeEventListener('message', receive);
+      socket.close();
+    };
+  });
 
   async function submit() {
     const response = await fetch('/notes/notes', {
@@ -153,6 +201,12 @@ export async function registerNoteRoute(req) {
   <button type="submit">Salvar nota</button>
   {#if saved}<p>Nota registrada.</p>{/if}
 </form>
+
+<ul>
+  {#each notes as note (note.id)}
+    <li><strong>{note.title}</strong>: {note.text}</li>
+  {/each}
+</ul>
 ```
 
 Assim, uma tool, uma rota, a view Svelte ou outro pacote chamam o mesmo serviço
@@ -163,6 +217,13 @@ seguro mesmo sem ouvintes. O Scriba reconhece `Note` porque ela foi declarada no
 schema e `getProxy('notes').Note` expõe esse model para o pacote. Consulte
 [docs/decorators.md](docs/decorators.md) para os decorators ativos e o contrato
 de eventos do Harness.
+
+O `fetch` do formulário continua sendo apenas o pedido de criação. Não há novo
+`fetch` para atualizar a lista: o hook observador transmite a nota já criada e
+a view a insere ao receber `notes:registered`. `broadcast` entrega a todas as
+abas conectadas, portanto o payload deve ser apropriado para todos os usuários
+que podem ver essas notas. Para dados privados, a entrega deve ser limitada a
+uma sessão ou sala autorizada, não transmitida globalmente.
 
 ## Desenvolvimento local
 
