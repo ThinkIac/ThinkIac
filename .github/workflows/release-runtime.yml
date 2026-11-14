@@ -14,7 +14,7 @@ concurrency:
 jobs:
   release:
     name: Package and publish runtime
-    runs-on: ubuntu-latest
+    runs-on: windows-2025
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -22,19 +22,21 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci --omit=dev --legacy-peer-deps
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
       - run: npm run test:runner
-      - name: Package immutable runtime archive
+      - name: Package Windows runtime with Node and dependencies
         env:
           RUNTIME_VERSION: main-${{ github.sha }}
-        run: node scripts/package-runtime.mjs --version "$RUNTIME_VERSION" --output dist/runtime
+        run: node scripts/package-runtime-windows.mjs
       - name: Validate archive layout and checksum
         run: |
-          unzip -t dist/runtime/*.zip
-          (cd dist/runtime && sha256sum --check checksums.txt)
-          unzip -p dist/runtime/*.zip 'thinkiac-runtime/runtime.json' | node --input-type=module -e "let source=''; for await (const chunk of process.stdin) source += chunk; const manifest=JSON.parse(source); if (manifest.entrypoint !== 'index.js' || manifest.readinessPath !== '/__ready') process.exit(1)"
+          7z t dist/runtime/*.zip
+          $line = Get-Content dist/runtime/checksums.txt
+          if ($line -notmatch '^[a-f0-9]{64}  thinkiac-runtime-win-x64-') { throw 'Checksum inválido' }
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

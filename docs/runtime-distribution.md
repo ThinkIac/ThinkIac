@@ -8,9 +8,9 @@ como `runtime-main-<SHA completo>`. Ela possui três ativos:
   SHA-256 do ZIP;
 - `checksums.txt`: checksum verificável pelo consumidor.
 
-O ZIP não contém `node_modules`, dados de usuário, caches ou segredos. Ele é o
-contrato de aplicação compartilhado entre distribuidores. Cada consumidor deve
-fornecer um Node compatível e suas dependências nativas para a plataforma.
+O ZIP Windows contém `node.exe` e `node_modules` prontos para Windows x64. Não
+contém dados de usuário, caches ou segredos. O Desktop valida o SHA-256, extrai o
+asset e executa `node/node.exe index.js`, sem usar npm no computador do usuário.
 
 ## Consumidor Electron
 
