@@ -28,7 +28,7 @@ jobs:
           cache: npm
       # Baixa a árvore travada sem acionar scripts de pacotes que não pertencem
       # ao Runtime (por exemplo, downloads opcionais de navegador).
-      - run: npm ci --omit=dev --legacy-peer-deps --ignore-scripts
+      - run: npm install --omit=dev --legacy-peer-deps --ignore-scripts --package-lock=false
         env:
           PUPPETEER_SKIP_DOWNLOAD: 'true'
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
