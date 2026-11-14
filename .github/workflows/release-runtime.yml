@@ -26,16 +26,18 @@ jobs:
           # que node-pty e better-sqlite3 usem seus binários Windows pré-compilados.
           node-version: 20
           cache: npm
-      # Baixa a árvore travada sem acionar scripts de pacotes que não pertencem
-      # ao Runtime (por exemplo, downloads opcionais de navegador).
-      - run: npm install --omit=dev --legacy-peer-deps --ignore-scripts --package-lock=false
+      # O pacote local `logos` compila seu artefato distribuível no `prepare`.
+      # Portanto a instalação precisa incluir as dependências de desenvolvimento;
+      # depois elas são removidas antes de montar o ZIP final.
+      - run: npm ci --legacy-peer-deps
         env:
           PUPPETEER_SKIP_DOWNLOAD: 'true'
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
+      - run: npm run test:runner
+      - run: npm prune --omit=dev --legacy-peer-deps --ignore-scripts
       # Estes são os únicos addons nativos que o Runtime distribui. Compilá-los
       # isoladamente mantém o ZIP independente de Node/npm na máquina do usuário.
       - run: npm rebuild node-pty better-sqlite3 better-sqlite3-multiple-ciphers --foreground-scripts
-      - run: npm run test:runner
       - name: Package Windows runtime with Node and dependencies
         env:
           RUNTIME_VERSION: main-${{ github.sha }}
