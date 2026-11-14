@@ -28,7 +28,7 @@ Packages podem ser revisados e instalados separadamente no workspace ativo.
 | [GitHub](https://github.com/ThinkIac/github) | Repositórios, branches, Git autenticado, issues e pull requests com credenciais gerenciadas pelo ThinkIac. |
 | [Cloudflare](https://github.com/ThinkIac/cloudflare) | Integração Cloudflare para OAuth, catálogo de capacidades, chamadas nativas e auditoria. |
 
-Veja todos os repositórios públicos no tópico [packages](https://github.com/topics/packages).
+Veja os repositórios públicos da organização ThinkIac marcados com o tópico [packages](https://github.com/orgs/ThinkIac/repositories?type=all&q=topic%3Apackages&language=&sort=).
 
 Antes de instalar um package, peça ao seu assistente de IA para analisar o repositório e as permissões envolvidas.
 
