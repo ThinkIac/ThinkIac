@@ -12,6 +12,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:all": "node scripts/test-all.mjs",
     "test:runner": "node --test scripts/test/test-all.test.mjs",
+    "package:runtime:win": "node scripts/package-runtime.mjs",
     "start:foreground": "logos supervisor run"
   },
   "keywords": [],

@@ -1,0 +1,37 @@
+name: Release Runtime Windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev --legacy-peer-deps
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+      - run: npm run test:runner
+      - run: node scripts/package-runtime.mjs --version=main-${{ github.sha }}
+        env:
+          RUNTIME_VERSION: main-${{ github.sha }}
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: runtime-main-${{ github.sha }}
+          name: Runtime Windows ${{ github.sha }}
+          prerelease: true
+          generate_release_notes: true
+          files: |
+            dist/thinkiac-runtime-win-x64-*.zip
+            dist/runtime-manifest.json
+            dist/checksums.txt
