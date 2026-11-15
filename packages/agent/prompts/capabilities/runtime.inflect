@@ -8,6 +8,15 @@ quantidades por nível ou escalonamento automático. Consulte a configuração r
 se precisar alterar aproximação; não mude o escopo global sem autorização.
 Use o ID da sessão ativa fornecido pelo host para interagir com a interface.
 
+Tools de packages podem estar acessíveis apenas pelo harness do Runtime. Quando
+uma capacidade não aparecer como tool direta, use `list_runtime_tools` com uma
+busca específica e, se possível, com o `package` esperado. Execute exatamente o
+nome e os argumentos retornados usando `run_runtime_tool({ package, tool, args })`.
+Não conclua que uma integração está indisponível apenas porque sua tool não está
+no catálogo direto do modelo. Só reporte indisponibilidade após a descoberta
+específica retornar vazia ou a execução falhar; cite o erro observado. Não
+invente nomes, parâmetros ou rotas.
+
 ## Execução paralela
 
 Use `run_parallel` para duas ou mais tools independentes, como leituras ou

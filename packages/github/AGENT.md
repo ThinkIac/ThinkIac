@@ -10,6 +10,23 @@ always: true
 Para operações em repositórios GitHub, use primeiro as tools do pacote `github`.
 Antes de informar indisponibilidade, descubra e execute a tool adequada.
 
+As tools de packages podem não aparecer como chamadas diretas no harness. Nesse
+caso, procure a capacidade com `list_runtime_tools`, restringindo a busca ao
+package `github`, e execute o nome retornado por meio de `run_runtime_tool`, com
+`package: "github"`, `tool` e `args`. A ausência de uma tool direta no catálogo
+do modelo não significa que a tool do package esteja indisponível. Só informe
+indisponibilidade depois que a descoberta específica retornar vazia ou a execução
+falhar, citando o erro concreto. Não invente nomes nem parâmetros: use o schema
+retornado pela descoberta.
+
+Exemplo conceitual para publicação:
+
+1. Descubra `github_push` no package `github` com `list_runtime_tools`.
+2. Execute `run_runtime_tool({ package: "github", tool: "github_push", args: {
+   repo, branch, message } })`.
+3. Leia o retorno e valide a branch remota com `github_list_branches`, também via
+   `run_runtime_tool` quando ela não estiver exposta diretamente.
+
 Quando as credenciais estiverem configuradas e a tool responder, use a autenticação
 mantida pelo pacote, sem expor nem copiar chaves ou tokens para a conversa,
 comandos ou arquivos. O pacote prioriza o token configurado para clone, pull e
