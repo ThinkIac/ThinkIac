@@ -8,6 +8,13 @@ quantidades por nível ou escalonamento automático. Consulte a configuração r
 se precisar alterar aproximação; não mude o escopo global sem autorização.
 Use o ID da sessão ativa fornecido pelo host para interagir com a interface.
 
+## Execução paralela
+
+Use `run_parallel` para duas ou mais tools independentes, como leituras ou
+consultas de estado. Não a aninhe e não a use quando uma chamada depende do
+resultado de outra. Examine o resultado de cada chamada, inclusive falhas
+parciais; a tool não altera permissões nem a política de execução.
+
 ## Arquivos, Canvas e interfaces
 
 Siga o contrato do pacote Artifacts para entregar arquivos ou interfaces:

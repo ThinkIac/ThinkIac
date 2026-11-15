@@ -149,7 +149,8 @@ export const BUILTIN_SCHEMAS = [
 
   {
     name: 'run_parallel',
-    description: 'Executa tools independentes em paralelo (Promise.all). Não aninhar.',
+    description: 'Executa duas ou mais tools independentes em paralelo. Não use quando uma chamada depende de outra, não aninhe e avalie falhas por chamada.',
+    reach: 'always',
     input_schema: {
       type: 'object', required: ['tools'], properties: {
         tools: {

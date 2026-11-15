@@ -10,6 +10,14 @@ capacidades ativadas sob demanda ou condicionadas de forma explícita: uma
 arquitetura de especialistas combináveis, semelhante a MoE, mas governada por
 contratos e infraestrutura declarada.
 
+## Documentação de tools e classificação
+
+O contrato canônico de decorators está em [docs/decorators.md](docs/decorators.md#tools).
+Para autoria e regras de uso, consulte [Engineer: tools](packages/engineer/docs/tools.md).
+O comportamento do ciclo de execução está no [README do Agent](packages/agent/README.md)
+e o roteamento de catálogo, `@reach` e exemplos declarativos no
+[README da Classification](packages/classification/README.md).
+
 ### Captura de Telas
 
 <img width="720" alt="thinkiac cloud_view_shell_Index" src="https://github.com/user-attachments/assets/215e73db-7f0a-46fd-a081-0500156a83be" />
@@ -24,6 +32,7 @@ Plugins podem ser revisados e instalados separadamente no workspace ativo.
 | [Tasks](https://github.com/ThinkIac/tasks) | Kanban, rotas HTTP, ferramentas MCP e eventos de tarefas para o ThinkIac. |
 | [Flows](https://github.com/ThinkIac/flows) | Editor visual de automações, gatilhos por evento, cron e webhook, com execução durável. |
 | [Telegram](https://github.com/ThinkIac/telegram) | Bot do Telegram com sessões, atendimento público controlado, progresso de reasoning e tool MCP para envio de mensagens. |
+| [WhatsApp Manager](https://github.com/ThinkIac/whatsapp-manager) | Inbox, contatos, modelos e provedores WhatsApp para o ThinkIac. |
 | [Instagram Bridge](https://github.com/ThinkIac/instagram-bridge) | Integração de conteúdo para Instagram, com geração, agendamento e publicação por Graph API. |
 | [GitHub](https://github.com/ThinkIac/github) | Repositórios, branches, Git autenticado, issues e pull requests com credenciais gerenciadas pelo ThinkIac. |
 

@@ -16,3 +16,6 @@ um diretório persistente separado e verificar o SHA-256 antes de iniciar
 
 O Desktop consulta o manifesto da release mais recente, baixa somente o asset
 `win32-x64` e nunca executa `npm install` na máquina do usuário.
+
+As releases são prévias imutáveis por commit de `main`, permitindo que o Desktop
+faça rollback escolhendo uma versão já publicada.
