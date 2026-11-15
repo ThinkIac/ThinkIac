@@ -6,6 +6,7 @@
   "scripts": {
     "postinstall": "node scripts/prepare-terminal-assets.mjs",
     "prepare:terminal-assets": "node scripts/prepare-terminal-assets.mjs",
+    "package:runtime": "node scripts/package-runtime.mjs",
     "start": "logos supervisor start Agent",
     "start:runtime": "node index.js",
     "setup:minimal": "node scripts/install-minimal.mjs",

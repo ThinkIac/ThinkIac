@@ -1,21 +1,40 @@
 # Distribuição do Runtime
 
-Cada push em `main` publica uma release prévia do Runtime Windows.
+Cada push em `main` gera uma GitHub Release de pré-lançamento imutável, marcada
+como `runtime-main-<SHA completo>`. Ela possui três ativos:
 
-## Assets
+- `thinkiac-runtime-main-<SHA>.zip`: fonte rastreada do Runtime e `runtime.json`;
+- `runtime-manifest.json`: contrato para consumidores, versão, commit, tamanho e
+  SHA-256 do ZIP;
+- `checksums.txt`: checksum verificável pelo consumidor.
 
-- `thinkiac-runtime-win-x64-<versão>.zip`: Runtime completo para Windows x64.
-- `runtime-manifest.json`: contrato consumido pelos distribuidores.
-- `checksums.txt`: SHA-256 do ZIP.
+O ZIP Windows contém `node.exe` e `node_modules` prontos para Windows x64. Não
+contém dados de usuário, caches ou segredos. O Desktop valida o SHA-256, extrai o
+asset e executa `node/node.exe index.js`, sem usar npm no computador do usuário.
 
-O ZIP contém `node.exe`, `node_modules` instalados no runner Windows e o código
-do Runtime. Não contém dados do usuário, `.env`, caches, logs ou diretórios Git.
-O consumidor deve extrair o ZIP em um diretório descartável, manter os dados em
-um diretório persistente separado e verificar o SHA-256 antes de iniciar
-`node/node.exe index.js`.
+## Consumidor Electron
 
-O Desktop consulta o manifesto da release mais recente, baixa somente o asset
-`win32-x64` e nunca executa `npm install` na máquina do usuário.
+O bootstrapper Electron deve escolher uma release explícita, baixar primeiro
+`runtime-manifest.json`, validar o SHA-256 do ZIP, extrair em um diretório
+versionado e descartável, instalar ou fornecer o runtime Windows compatível e
+iniciar `node index.js`. Dados persistentes e logs ficam fora do diretório
+extraído. Só depois de `GET /__ready` ele abre o endereço localhost.
 
-As releases são prévias imutáveis por commit de `main`, permitindo que o Desktop
-faça rollback escolhendo uma versão já publicada.
+Não use `git clone`, `main` em tempo de execução nem um ZIP sem checksum. Para
+produção estável, promova uma release por tag semântica usando o mesmo formato
+de manifesto; a release automática de `main` serve como canal contínuo.
+
+## Produção manual
+
+Para gerar localmente:
+
+```bash
+npm run package:runtime -- --version 1.2.3 --output dist/runtime
+```
+
+O comando imprime os caminhos gerados e o SHA-256. Antes de publicar, valide:
+
+```bash
+unzip -t dist/runtime/*.zip
+(cd dist/runtime && sha256sum --check checksums.txt)
+```

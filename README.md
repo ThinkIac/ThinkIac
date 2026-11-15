@@ -22,21 +22,25 @@ e o roteamento de catálogo, `@reach` e exemplos declarativos no
 
 <img width="720" alt="thinkiac cloud_view_shell_Index" src="https://github.com/user-attachments/assets/215e73db-7f0a-46fd-a081-0500156a83be" />
 
-## Plugins
+## Packages
 
-Plugins podem ser revisados e instalados separadamente no workspace ativo.
+Packages podem ser revisados e instalados separadamente no workspace ativo.
 
-| Plugin | Descrição |
+| Package | Descrição |
 | --- | --- |
 | [Calendar](https://github.com/ThinkIac/calendar) | Calendários, eventos, lembretes e ferramentas MCP para o ThinkIac. |
 | [Tasks](https://github.com/ThinkIac/tasks) | Kanban, rotas HTTP, ferramentas MCP e eventos de tarefas para o ThinkIac. |
+| [WhatsApp Manager](https://github.com/ThinkIac/whatsapp-manager) | Sessões, QR code, conversas e mensagens pelo WhatsApp. |
 | [Flows](https://github.com/ThinkIac/flows) | Editor visual de automações, gatilhos por evento, cron e webhook, com execução durável. |
 | [Telegram](https://github.com/ThinkIac/telegram) | Bot do Telegram com sessões, atendimento público controlado, progresso de reasoning e tool MCP para envio de mensagens. |
 | [WhatsApp Manager](https://github.com/ThinkIac/whatsapp-manager) | Inbox, contatos, modelos e provedores WhatsApp para o ThinkIac. |
 | [Instagram Bridge](https://github.com/ThinkIac/instagram-bridge) | Integração de conteúdo para Instagram, com geração, agendamento e publicação por Graph API. |
 | [GitHub](https://github.com/ThinkIac/github) | Repositórios, branches, Git autenticado, issues e pull requests com credenciais gerenciadas pelo ThinkIac. |
+| [Cloudflare](https://github.com/ThinkIac/cloudflare) | Integração Cloudflare para OAuth, catálogo de capacidades, chamadas nativas e auditoria. |
 
-Antes de instalar um plugin, peça ao seu assistente de IA para analisar o repositório e as permissões envolvidas.
+Veja os repositórios públicos da organização ThinkIac marcados com o tópico [packages](https://github.com/orgs/ThinkIac/repositories?type=all&q=topic%3Apackages&language=&sort=).
+
+Antes de instalar um package, peça ao seu assistente de IA para analisar o repositório e as permissões envolvidas.
 
 ## Contratos de pacotes e interface
 

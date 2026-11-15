@@ -1,0 +1,61 @@
+name: Release runtime
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: runtime-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Package and publish runtime
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          # Node 20 é o ABI de distribuição do Runtime. Isso também permite
+          # que node-pty e better-sqlite3 usem seus binários Windows pré-compilados.
+          node-version: 20
+          cache: npm
+      # O pacote local `logos` compila seu artefato distribuível no `prepare`.
+      # Portanto a instalação precisa incluir as dependências de desenvolvimento;
+      # depois elas são removidas antes de montar o ZIP final.
+      - run: npm ci --legacy-peer-deps
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
+      - run: npm run test:runner
+      - run: npm prune --omit=dev --legacy-peer-deps --ignore-scripts
+      # Estes são os únicos addons nativos que o Runtime distribui. Compilá-los
+      # isoladamente mantém o ZIP independente de Node/npm na máquina do usuário.
+      - run: npm rebuild node-pty better-sqlite3 better-sqlite3-multiple-ciphers --foreground-scripts
+      - name: Package Windows runtime with Node and dependencies
+        env:
+          RUNTIME_VERSION: main-${{ github.sha }}
+        run: node scripts/package-runtime-windows.mjs
+      - name: Validate archive layout and checksum
+        run: |
+          7z t dist/runtime/*.zip
+          $line = Get-Content dist/runtime/checksums.txt
+          if ($line -notmatch '^[a-f0-9]{64}  thinkiac-runtime-win-x64-') { throw 'Checksum inválido' }
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: runtime-main-${{ github.sha }}
+          name: ThinkIac Runtime ${{ github.sha }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          prerelease: true
+          files: |
+            dist/runtime/*.zip
+            dist/runtime/runtime-manifest.json
+            dist/runtime/checksums.txt
