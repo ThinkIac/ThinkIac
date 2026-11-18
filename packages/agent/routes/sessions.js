@@ -39,13 +39,15 @@ async function removeArchivedSession(sessionId, archive) {
 const metaCache = new Map(); 
 
 let listing = null;
-async function listSessions() {
+async function listSessions(req) {
     /**
      * @register_router sessions/list
      * @method GET
      */
     if (!listing) listing = readSessionList().finally(() => { listing = null; });
-    return listing;
+    const result = await listing;
+    if (result.error) return result;
+    return req?.query?.includeStatus === '1' ? result : result.sessions;
 }
 
 async function readSessionList() {
@@ -60,14 +62,14 @@ async function readSessionList() {
         }
 
         const sessions = [];
+        let skipped = 0;
         const pendingFiles = [...jsonFiles];
         let nextFile = 0;
         await Promise.all(Array.from({ length: Math.min(8, pendingFiles.length) }, async () => {
         while (nextFile < pendingFiles.length) {
             const fileIndex = nextFile++;
             const file = pendingFiles[fileIndex];
-            
-            
+            // Skip unreadable files and flag the listing as partial.
             try {
                 const filePath = path.join(SESSION_DIR, file);
                 const stat = await fs.stat(filePath);
@@ -91,16 +93,20 @@ async function readSessionList() {
                 }
                 sessions[fileIndex] = { ...entry.meta, active: activeSessions.has(entry.meta.id) };
             } catch (err) {
+                skipped++;
                 await $('session:error', `listSessions: skipping ${file}: ${err.message}`);
             }
         }
 
         }));
 
-        return sessions.filter(Boolean).sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+        return {
+            sessions: sessions.filter(Boolean).sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || '')),
+            partial: skipped > 0
+        };
     } catch (err) {
         await $('session:error', err.message);
-        return [];
+        return { error: 'Unable to read the session list.', code: 'session_list_unavailable' };
     }
 }
 

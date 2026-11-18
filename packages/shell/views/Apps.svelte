@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
   import { api } from './api';
+  import { saveWidgetCache } from './persistence.js';
   import { getTheme } from './theme.js';
   import AppCell from './AppCell.svelte';
   import { recordOpen } from './lib/app_usage.js';
@@ -20,13 +21,14 @@
 
   const dispatch = createEventDispatcher();
   let pollingInterval;
-  let appsLoading = false;
-  let appsLoadError = '';
+  let appsLoading = true;
+  let appsLoadError = false;
+  let hasLoadedApps = false;
+  let loadGeneration = 0;
   let theme = 'dark';
   let mobileViewport = false;
   let query = '';
   let page = 0;
-  let refreshing = false;
   let touchStartX = 0;
   let touchStartY = 0;
   let mouseStartX = 0;
@@ -42,79 +44,90 @@
     return String(app?.packageName || '').trim().toLowerCase() !== 'shell';
   }
 
-  function restoreAppsCache() {
+  function restoreAppsCache(deviceId) {
     if (typeof localStorage === 'undefined') return false;
     try {
       const cached = JSON.parse(localStorage.getItem(APPS_CACHE_KEY) || 'null');
-      if (!Array.isArray(cached)) return false;
-      apps = cached.filter(isMenuPreviewApp);
+      const items = deviceId === null ? cached : cached?.scope === deviceId ? cached.items : null;
+      if (!Array.isArray(items)) return false;
+      apps = visibleApps(items);
       return true;
     } catch {
       return false;
     }
   }
 
-  function saveAppsCache(nextApps) {
-    if (typeof localStorage === 'undefined') return;
-    try { localStorage.setItem(APPS_CACHE_KEY, JSON.stringify(nextApps.slice(0, MAX_CACHED_APPS))); } catch {}
+  function saveAppsCache(nextApps, deviceId) {
+    saveWidgetCache(APPS_CACHE_KEY, nextApps, MAX_CACHED_APPS, 'apps cache', deviceId);
+  }
+
+  function visibleApps(list) {
+    return list
+      .filter((app) => typeof app?.name === 'string')
+      .filter((app) => app.mobileSupported !== false || !mobileViewport)
+      .filter(isMenuPreviewApp)
+      .filter((app) => !exclude.includes(app.packageName))
+      .map((app, index) => ({ ...app, id: app.id || String(index) }));
   }
 
   function onThemeChanged(e) { theme = e.detail; }
 
   async function fetchApps() {
+    const generation = ++loadGeneration;
     appsLoading = true;
-    appsLoadError = '';
     try {
-      const deviceId = typeof window !== 'undefined'
-        ? new URLSearchParams(window.location.search).get('appId')
-        : null;
+      const deviceId = new URLSearchParams(window.location.search).get('appId') || null;
       const suffix = deviceId ? `?appId=${encodeURIComponent(deviceId)}` : '';
       const list = await api(`/apps/list${suffix}`, 'GET', null, 'shell', { timeoutMs: 12000 });
+      if (generation !== loadGeneration) return;
       if (!Array.isArray(list)) {
-        apps = [];
-        appsLoadError = list?.error
-          ? `${list.error}${list.status ? ` (HTTP ${list.status})` : ''}`
-          : 'The packages API did not return a list. Reload and try again.';
+        appsLoadError = true;
+        console.warn('[Shell] Apps refresh failed', { status: list?.status, code: list?.code });
         return;
       }
-      const nextApps = list
-        .filter((app) => (app?.url || app?.mobile) && app?.default === true)
-        .filter((app) => app?.mobileSupported !== false || !mobileViewport)
-        .filter(isMenuPreviewApp)
-        .filter((app) => !exclude.includes(app.packageName))
-        .map((app, index) => ({ ...app, id: app.id || String(index) }));
+      const catalog = list.filter((app) => (app?.url || app?.mobile) && app?.default === true)
+        .filter(isMenuPreviewApp);
+      const nextApps = visibleApps(catalog);
       apps = nextApps;
-      saveAppsCache(nextApps);
+      appsLoadError = false;
+      hasLoadedApps = true;
+      saveAppsCache(catalog, deviceId);
     } catch (error) {
-      // Não descarte a última lista válida: o widget continua útil durante
-      // quedas transitórias do Runtime e tenta atualizar de novo no polling.
-      appsLoadError = apps.length ? '' : (error?.message || 'Failed to load packages.');
-      console.error('Erro ao atualizar apps:', error);
+      if (generation !== loadGeneration) return;
+      appsLoadError = true;
+      console.warn('[Shell] Apps refresh failed', error?.name);
     } finally {
-      appsLoading = false;
+      if (generation === loadGeneration) appsLoading = false;
     }
   }
 
   onMount(() => {
     const mobileQuery = window.matchMedia('(max-width: 767px)');
     const coarsePointerQuery = window.matchMedia('(pointer: coarse)');
-    const syncViewport = () => {
+    const updateViewport = () => {
       mobileViewport = mobileQuery.matches || coarsePointerQuery.matches;
+    };
+    const syncViewport = () => {
+      updateViewport();
       fetchApps();
     };
-    restoreAppsCache();
+    updateViewport();
+    if (!apps.length) restoreAppsCache(new URLSearchParams(window.location.search).get('appId') || null);
     favoriteIds = readFavoriteApps();
     theme = getTheme();
     window.addEventListener('think:theme-changed', onThemeChanged);
     window.addEventListener('storage', onStorage);
+    window.addEventListener('online', fetchApps);
     mobileQuery.addEventListener('change', syncViewport);
     coarsePointerQuery.addEventListener('change', syncViewport);
-    syncViewport();
+    fetchApps();
     pollingInterval = setInterval(fetchApps, 30000);
     return () => {
+      loadGeneration++;
       clearInterval(pollingInterval);
       window.removeEventListener('think:theme-changed', onThemeChanged);
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener('online', fetchApps);
       mobileQuery.removeEventListener('change', syncViewport);
       coarsePointerQuery.removeEventListener('change', syncViewport);
     };
@@ -183,12 +196,6 @@
     const deltaX = event.clientX - mouseStartX;
     if (Math.abs(deltaX) > 40) swipe(deltaX);
   }
-  async function refresh() {
-    if (refreshing) return;
-    refreshing = true;
-    await fetchApps();
-    refreshing = false;
-  }
 </script>
 
 <svelte:window on:mouseup={onMouseUp} />
@@ -204,8 +211,8 @@
     {#if query}
       <button on:click={() => query = ''} aria-label="Clear search" class="shrink-0 text-sm leading-none cursor-pointer bg-transparent border-none px-0.5 rounded" style="color: var(--rail-txt-3);">×</button>
     {/if}
-    <button on:click={refresh} disabled={refreshing} aria-label="Refresh apps" class="w-5 h-5 shrink-0 flex items-center justify-center bg-transparent border-none cursor-pointer rounded-[5px] p-0 disabled:opacity-40" style="color: var(--rail-txt-3);">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class:spinning={refreshing}>
+    <button on:click={fetchApps} disabled={appsLoading} aria-busy={appsLoading} aria-label="Refresh apps" class="w-5 h-5 shrink-0 flex items-center justify-center bg-transparent border-none cursor-pointer rounded-[5px] p-0 disabled:opacity-40" style="color: var(--rail-txt-3);">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
       </svg>
     </button>
@@ -226,7 +233,7 @@
     {/each}
   </div>
 
-  <div class="overflow-hidden select-none cursor-grab active:cursor-grabbing" on:touchstart={onTouchStart} on:touchend={onTouchEnd} on:mousedown={onMouseDown} role="grid" aria-label="Package list">
+  <div class="overflow-hidden select-none" class:cursor-grab={visible.length > 0} on:touchstart={onTouchStart} on:touchend={onTouchEnd} on:mousedown={onMouseDown} role="grid" aria-label="Package list">
     <div class={layout === 'list' ? 'flex flex-col gap-1' : layout === 'compact' ? 'grid grid-cols-4 gap-1' : 'grid grid-cols-3 gap-1.5'}>
       {#if visible.length}
         {#each visible as app (app.id)}
@@ -242,18 +249,33 @@
             on:info={() => showAppInfo(app)}
           />
         {/each}
-      {:else if appsLoading}
-        <p class="flex items-center justify-center text-[11px] italic py-[18px] m-0" style="color: var(--rail-txt-3);">Loading packages…</p>
-      {:else if appsLoadError}
-        <div class="flex flex-col items-center justify-center gap-2 py-[18px] text-center">
-          <p class="m-0 text-[11px]" style="color: var(--rail-txt-2);">Could not load packages</p>
-          <p class="m-0 max-w-full break-words text-[10px]" style="color: var(--rail-txt-3);">{appsLoadError}</p>
-          <button on:click={fetchApps} class="cursor-pointer rounded-lg px-3 py-1.5 text-[11px]" style="background: var(--rail-flat); border: 0.5px solid var(--rail-border); color: var(--rail-txt);">Try again</button>
-        </div>
-      {:else}
-        <p class="flex items-center justify-center text-[11px] italic py-[18px] m-0" style="color: var(--rail-txt-3);">no apps found</p>
+      {:else if appsLoading && !hasLoadedApps && !apps.length}
+        {#each Array(layout === 'grid' ? 6 : 4) as _}
+          <div class="app-placeholder" class:placeholder-list={layout === 'list'} aria-hidden="true">
+            <span class="placeholder-icon"></span>
+            <span class="placeholder-label"></span>
+          </div>
+        {/each}
       {/if}
     </div>
+    {#if !visible.length && appsLoading && !hasLoadedApps && !apps.length}
+      <span class="sr-only" role="status">Loading apps</span>
+    {:else if !visible.length && appsLoadError && !apps.length}
+      <div class="app-state" role="status">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+          <rect x="4" y="4" width="6" height="6" rx="1"/>
+          <rect x="14" y="4" width="6" height="6" rx="1"/>
+          <rect x="4" y="14" width="6" height="6" rx="1"/>
+          <path d="M14 17h6"/>
+        </svg>
+        <span>Apps unavailable</span>
+        <button class="app-retry" on:click={fetchApps}>Try again</button>
+      </div>
+    {:else if !visible.length}
+      <p class="app-state" role="status">{query ? 'No matching apps' : 'No apps found'}</p>
+    {:else if appsLoadError}
+      <p class="app-state-note" role="status">Refresh failed. Showing the last available apps.</p>
+    {/if}
   </div>
 
   {#if totalPages > 1}
@@ -270,7 +292,59 @@
 </div>
 
 <style>
-  .spinning { animation: spin 0.7s linear infinite; }
+  .app-state {
+    display: flex;
+    min-height: 112px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    padding: 12px;
+    text-align: center;
+    color: var(--tk-muted);
+    font-size: 11px;
+  }
+  .app-state-note {
+    margin: 6px 0 0;
+    text-align: center;
+    color: var(--tk-muted);
+    font-size: 11px;
+  }
+  .app-retry {
+    border: 1px solid var(--tk-border);
+    border-radius: var(--tk-radius-md);
+    background: var(--tk-surface);
+    color: var(--tk-text);
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  .app-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 4px;
+  }
+  .placeholder-list {
+    flex-direction: row;
+    padding: 6px;
+  }
+  .placeholder-icon, .placeholder-label {
+    display: block;
+    background: var(--tk-surface-2);
+  }
+  .placeholder-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--tk-radius-md);
+  }
+  .placeholder-label {
+    width: 65%;
+    height: 6px;
+    border-radius: var(--tk-radius-md);
+  }
+  .placeholder-list .placeholder-label { max-width: 88px; }
   .layout-mode-button {
     border: 0;
     border-radius: 5px;
@@ -292,5 +366,4 @@
     color: var(--rail-txt);
     background: var(--rail-flat);
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
 </style>

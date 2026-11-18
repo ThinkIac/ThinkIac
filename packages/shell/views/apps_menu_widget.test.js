@@ -7,7 +7,7 @@ const [source, favoritesSource] = await Promise.all([
 ]);
 
 assert.match(source, /sortAppsWithFavorites\(apps, favoriteIds\)/);
-assert.match(source, /let layout = 'list';/);
+assert.match(source, /let layout = 'compact';/);
 assert.match(source, /\{ id: 'grid', label: 'Grid' \}/);
 assert.match(source, /\{ id: 'compact', label: 'Compact' \}/);
 assert.match(source, /\{ id: 'list', label: 'List' \}/);
@@ -17,12 +17,15 @@ assert.match(source, /showFavorite/);
 assert.match(source, /on:favorite=\{\(\) => toggleFavorite\(app\)\}/);
 assert.match(favoritesSource, /const FAVORITE_APPS_KEY = 'shell:favorite-packages:v1';/);
 assert.match(source, /const APPS_CACHE_KEY = 'shell:apps-cache:v1';/);
-assert.match(source, /restoreAppsCache\(\);/);
-assert.match(source, /saveAppsCache\(nextApps\);/);
+assert.match(source, /restoreAppsCache\(new URLSearchParams/);
+assert.match(source, /saveAppsCache\(catalog, deviceId\);/);
 assert.match(source, /function isMenuPreviewApp\(app\)/);
 assert.match(source, /toLowerCase\(\) !== 'shell'/);
-assert.match(source, /cached\.filter\(isMenuPreviewApp\)/);
+assert.match(source, /apps = visibleApps\(items\)/);
 assert.match(source, /\.filter\(isMenuPreviewApp\)/);
 assert.doesNotMatch(source, /Auto|Manual|New folder|Edit apps|app_folders|app_layout|pinned_apps/);
+
+assert.doesNotMatch(source, /\{appsLoadError\}/);
+assert.match(source, /Apps unavailable/);
 
 console.log("menu apps widget: local favorites first with list, grid, and compact: ok");
