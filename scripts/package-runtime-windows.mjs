@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { cp, mkdir, rm, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ZipArchive } from 'archiver'
@@ -33,7 +33,12 @@ await rm(archivePath, { force: true })
 await mkdir(stage, { recursive: true })
 try {
   const runtime = join(stage, 'thinkiac-runtime')
-  await cp(root, runtime, { recursive: true, filter: keep })
+  await mkdir(runtime)
+  // Node rejects copying a tree into its own subdirectory, even with a filter.
+  for (const name of await readdir(root)) {
+    const source = join(root, name)
+    if (keep(source)) await cp(source, join(runtime, name), { recursive: true, filter: keep })
+  }
   // npm file dependencies are junctions on Windows. Materialize them so the
   // archive can run with no references to the runner checkout.
   // Provider setup expects a writable config. Ship an empty pool list so
