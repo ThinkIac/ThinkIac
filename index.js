@@ -16,7 +16,12 @@ async function loadIdentity() {
 
 const main = async () => {
   try {
+    const desktop = process.env.THINKIAC_DESKTOP === '1';
     const identity = await loadIdentity();
+    const accessGate = (req, res, next) => {
+      if (desktop && req.method === 'GET' && req.path === '/__ready' && req.socket.remoteAddress === '127.0.0.1') return next();
+      return identity.accessGate(req, res, next);
+    };
     const runtimeConfig = await applyRuntimeBootstrapExtensions({
       workspace: './packages',
       environment: process.env,
@@ -46,7 +51,7 @@ const main = async () => {
           ...(identity ? { auth: identity.mcpAuth } : {}) },
         // Com Auth instalado, preserva o controle de acesso atual. Sem ele,
         // omitimos os três adaptadores para o Runtime continuar público.
-        middleware: [normalizeViewAlias, ...(identity ? [identity.accessGate] : [])],
+        middleware: [normalizeViewAlias, ...(identity ? [accessGate] : [])],
         ...(identity ? {
           ws: { authorize: async req => {
             const resolved = await identity.identityProvider.resolve(req);
@@ -56,7 +61,7 @@ const main = async () => {
         views: {
           precompileCss: true,
           warmup: process.env.THINKIAC_VIEW_WARMUP === '0' ? [] : [
-            { package: 'desktop', page: 'Index' },
+            desktop ? { package: 'auth', page: 'Login' } : { package: 'desktop', page: 'Index' },
             { package: 'shell', page: 'Index' },
           ],
           bootstrap5: false,                     // conflita com o CSS próprio de main-site/auth

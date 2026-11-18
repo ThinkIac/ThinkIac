@@ -47,7 +47,7 @@ class TailwindStyles {
             return null;
         const work = this.queue.then(async () => {
             const css = await new Promise((resolve, reject) => {
-                const worker = new worker_threads_1.Worker(path_1.default.join(__dirname, 'tailwind-worker.cjs'), {
+                const worker = new worker_threads_1.Worker(path_1.default.join(__dirname, '..', 'lib', 'tailwind-worker.cjs'), {
                     workerData: { pluginPath, files: Object.keys(manifest.files), theme, workspace, cacheDir: this.cacheDir },
                 });
                 const timer = setTimeout(() => { reject(new Error('CSS build timed out')); void worker.terminate(); }, 30000);
