@@ -1,6 +1,9 @@
 <script>
   import { onMount, createEventDispatcher } from 'svelte';
+  import { flip } from 'svelte/animate';
+  import { cubicOut } from 'svelte/easing';
   import { api } from './api';
+  import { saveWidgetCache, writeShellStorage } from './persistence.js';
   import BagProgressRing from './BagProgressRing.svelte';
   import { bagProgress, bagStatus, hasBagSteps } from './lib/session_bag_progress.js';
   import { readFavoriteSessions, toggleFavoriteSession, writeFavoriteSessions } from './lib/favorite_sessions.js';
@@ -21,6 +24,7 @@
   let loading = false;
   let initialLoaded = false;
   let fetchError = false;
+  let listSource = null;
   let deletingId = null;
   let openingSessionId = null;
   let favoriteSessionIds = [];
@@ -37,7 +41,8 @@
     try {
       const cached = JSON.parse(localStorage.getItem(SESSIONS_CACHE_KEY) || 'null');
       if (!Array.isArray(cached)) return false;
-      sessions = cached;
+      sessions = cached.filter((session) => typeof session?.id === 'string');
+      listSource = 'cache';
       initialLoaded = true;
       return true;
     } catch {
@@ -46,10 +51,14 @@
   }
 
   function saveSessionsCache(nextSessions) {
-    if (typeof localStorage === 'undefined') return;
     // É somente um fallback para abrir a lista enquanto a API responde.
     // Histórico completo pertence ao Runtime, não ao armazenamento do browser.
-    try { localStorage.setItem(SESSIONS_CACHE_KEY, JSON.stringify(nextSessions.slice(0, MAX_CACHED_SESSIONS))); } catch {}
+    const rows = nextSessions.slice(0, MAX_CACHED_SESSIONS).map(({ id, title, created_at }) => ({ id, title, created_at }));
+    saveWidgetCache(SESSIONS_CACHE_KEY, rows, MAX_CACHED_SESSIONS, 'sessions cache');
+  }
+
+  function reorderDuration() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 240;
   }
 
   const PAGE_SIZE = 4;
@@ -117,7 +126,7 @@
     loading = true;
     try {
       const [data, bags] = await Promise.all([
-        api('/sessions/list', 'GET', null, null, { timeoutMs: 12000 }),
+        api('/sessions/list?includeStatus=1', 'GET', null, null, { timeoutMs: 12000 }),
         loadBags()
       ]);
 
@@ -125,12 +134,15 @@
       // segunda notificação do WebSocket ou um refresh manual.
       if (generation !== loadGeneration) return;
       bagsBySession = bags;
-      if (Array.isArray(data)) {
-        sessions = data;
-        saveSessionsCache(data);
-        fetchError = false;
-      } else {
-        fetchError = true;
+      const nextSessions = Array.isArray(data) ? data : data?.sessions;
+      fetchError = !Array.isArray(nextSessions) || data?.partial === true;
+      if (!fetchError) {
+        sessions = nextSessions;
+        listSource = 'live';
+        saveSessionsCache(nextSessions);
+      } else if (Array.isArray(nextSessions) && (!sessions.length || listSource === 'partial')) {
+        sessions = nextSessions;
+        listSource = 'partial';
       }
       initialLoaded = true;
     } catch (error) {
@@ -167,7 +179,7 @@
       const data = await api(`/sessions/${sessionId}/history`, 'GET');
       const history = Array.isArray(data) ? data : (data?.messages ?? []);
 
-      if (typeof localStorage !== 'undefined') localStorage.setItem('current_sessionId', sessionId);
+      writeShellStorage('current_sessionId', sessionId, 'session selection');
       dispatch('selectSession', { sessionId, history });
     } finally {
       openingSessionId = null;
@@ -218,15 +230,18 @@
     restoreSessionsCache();
     favoriteSessionIds = readFavoriteSessions();
     loadSessions();
+    return () => {
+      loadGeneration++;
+      clearTimeout(debounceTimer);
+    };
   });
 </script>
+
+<svelte:window on:online={scheduleLoad} />
 
 <div class="sessions-widget">
   <header class="sessions-header">
     <div class="sessions-actions">
-      {#if fetchError}
-        <span class="fetch-error" title="Refresh failed — showing the latest available list"></span>
-      {/if}
       <button
         class="sessions-new-topic icon-action"
         on:click={onNewTopic}
@@ -267,9 +282,10 @@
         on:click={loadSessions}
         title="Refresh sessions"
         aria-label="Refresh sessions"
+        aria-busy={loading}
         disabled={loading}
       >
-        <svg viewBox="0 0 16 16" fill="none" class:loading aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M13 8A5 5 0 1 1 8 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           <path d="M8 1l2.5 2L8 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -277,23 +293,38 @@
     </div>
   </header>
 
+  {#if listSource === 'cache' || listSource === 'partial' || fetchError}
+    <p class="sessions-status" role="status">
+      {#if listSource === 'cache'}
+        {loading ? 'Loading sessions. Showing a cached list that may be incomplete.' : 'Showing a cached list that may be incomplete.'}
+      {:else if listSource === 'partial'}
+        The Runtime returned an incomplete list.
+      {:else if listSource === 'live'}
+        Refresh failed. Showing the last loaded list.
+      {:else}
+        Could not load sessions.
+      {/if}
+    </p>
+  {/if}
+
   <!-- List -->
   <div
     class="session-list flex max-h-[300px] flex-col gap-1 overflow-y-auto"
     on:touchstart={handleTouchStart}
     on:touchend={handleTouchEnd}
   >
-    {#if loading && !initialLoaded}
+    {#if !initialLoaded}
+      <span class="sr-only" role="status">Loading sessions</span>
       {#each Array(3) as _, i}
         <div class="flex items-start gap-2.5 rounded-[10px] px-3 py-2.5" style="opacity: {1 - i * 0.28}">
-          <div class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--w10)]"></div>
+          <div class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--tk-surface-2)]"></div>
           <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-            <div class="h-[10px] w-[62%] overflow-hidden rounded bg-[var(--w06)] shimmer"></div>
-            <div class="h-[6px] w-[40%] overflow-hidden rounded bg-[var(--w06)] shimmer"></div>
+            <div class="h-[10px] w-[62%] overflow-hidden rounded bg-[var(--tk-surface-2)]"></div>
+            <div class="h-[6px] w-[40%] overflow-hidden rounded bg-[var(--tk-surface-2)]"></div>
           </div>
         </div>
       {/each}
-    {:else if filteredSessions.length === 0 && !fetchError}
+    {:else if filteredSessions.length === 0 && !fetchError && listSource === 'live'}
       <div class="flex flex-col items-center gap-1.5 px-3 py-3.5 font-sans text-[11px] text-[var(--w30)]">
         <svg viewBox="0 0 24 24" fill="none" width="18" height="18" opacity=".3">
           <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.3"/>
@@ -302,7 +333,7 @@
         <span>{activityOnly ? 'No active or updated sessions' : favoritesOnly ? 'No favorite sessions' : 'No sessions'}</span>
       </div>
     {:else}
-      {#each groupedSessions as { session: s, group, showGroupHeader }, i (s.id)}
+      {#each groupedSessions as { session: s, group, showGroupHeader } (s.id)}
         {@const active = s.id === currentSessionId}
         {@const opening = s.id === openingSessionId}
         {@const favorite = favoriteSessionIds.includes(s.id)}
@@ -312,85 +343,83 @@
         {@const pct = bagProgress(bag)}
         {@const showSteps = hasBagSteps(bag)}
         {@const st = bagStatus(bag?.status)}
-        {#if showGroupHeader}
-          <span class="session-group-label">{group}</span>
-        {/if}
-        <div
-          class:active
-          class="session-card group relative flex w-full will-change-[transform,opacity] animate-[item-in_.42s_ease-out_both]"
-          style="animation-delay: {Math.min(i, 6) * 80}ms"
-        >
-          <button
-            class="session-open"
-            on:click={() => selectSession(s.id)}
-            aria-current={active ? 'page' : undefined}
-            aria-busy={opening}
-            disabled={openingSessionId !== null}
-            title={sessionLabel(s, bag)}
-          >
-            {#if bag}
-              <BagProgressRing progress={pct} status={st.key} />
-            {:else}
-              <span
-                class="session-neutral"
-                class:session-neutral-opening={opening}
-                class:session-neutral-working={!opening && working}
-                class:session-neutral-unread={!opening && !working && unread}
-                aria-label={opening ? 'Opening session' : working ? 'Response in progress' : unread ? 'New response' : undefined}
-              >
-                <svg viewBox="0 0 20 20" fill="none">
-                  <path d="M4 5.5h12v8H8l-3.5 2v-2H4v-8Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
-                  <path d="M7 8.5h6M7 11h3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-                </svg>
-              </span>
-            {/if}
+        <div animate:flip={{ duration: reorderDuration, easing: cubicOut }}>
+          {#if showGroupHeader}
+            <span class="session-group-label">{group}</span>
+          {/if}
+          <div class:active class="session-card group relative flex w-full">
+            <button
+              class="session-open"
+              on:click={() => selectSession(s.id)}
+              aria-current={active ? 'page' : undefined}
+              aria-busy={opening}
+              disabled={openingSessionId !== null}
+              title={sessionLabel(s, bag)}
+            >
+              {#if bag}
+                <BagProgressRing progress={pct} status={st.key} />
+              {:else}
+                <span
+                  class="session-neutral"
+                  class:session-neutral-opening={opening}
+                  class:session-neutral-working={!opening && working}
+                  class:session-neutral-unread={!opening && !working && unread}
+                  aria-label={opening ? 'Opening session' : working ? 'Resposta em andamento' : unread ? 'Nova resposta' : undefined}
+                >
+                  <svg viewBox="0 0 20 20" fill="none">
+                    <path d="M4 5.5h12v8H8l-3.5 2v-2H4v-8Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
+                    <path d="M7 8.5h6M7 11h3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+                  </svg>
+                </span>
+              {/if}
 
-            <span class="session-copy">
-              <span class="session-title">{sessionLabel(s, bag)}</span>
-              <span class="session-meta">
-                {#if bag}
-                  {#if showSteps}
-                    <span class="step-count">{bag.doneSteps}/{bag.totalSteps} steps</span>
+              <span class="session-copy">
+                <span class="session-title">{sessionLabel(s, bag)}</span>
+                <span class="session-meta">
+                  {#if bag}
+                    {#if showSteps}
+                      <span class="step-count">{bag.doneSteps}/{bag.totalSteps} steps</span>
+                    {/if}
+                    <span class="status status-{st.key}">
+                      <span class="status-mark" aria-hidden="true"></span>
+                      {st.label}
+                    </span>
+                    <span class="meta-separator" aria-hidden="true"></span>
                   {/if}
-                  <span class="status status-{st.key}">
-                    <span class="status-mark" aria-hidden="true"></span>
-                    {st.label}
-                  </span>
-                  <span class="meta-separator" aria-hidden="true"></span>
-                {/if}
-                <span>{formatDate(s.created_at)}</span>
+                  <span>{formatDate(s.created_at)}</span>
+                </span>
               </span>
-            </span>
-          </button>
+            </button>
 
-          <button
-            class="session-favorite"
-            class:active={favorite}
-            on:click={() => toggleFavorite(s.id)}
-            aria-label={favorite ? `Remove ${sessionLabel(s, bag)} from favorites` : `Add ${sessionLabel(s, bag)} to favorites`}
-            aria-pressed={favorite}
-            title={favorite ? 'Remove from favorites' : 'Add to favorites'}
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path d="m8 1.9 1.8 3.65 4.03.58-2.92 2.85.69 4.03L8 11.16 4.4 13l.69-4.03L2.17 6.13l4.03-.58L8 1.9Z"/>
-            </svg>
-          </button>
-
-          <button
-            class="session-delete"
-            on:click={() => deleteSession(s.id)}
-            title="Delete session"
-            aria-label={`Delete ${sessionLabel(s, bag)}`}
-            disabled={deletingId === s.id}
-          >
-            {#if deletingId === s.id}
-              <span class="h-[9px] w-[9px] rounded-full bg-current opacity-40 animate-[pulse-soft_1.1s_ease-in-out_infinite]"></span>
-            {:else}
-              <svg viewBox="0 0 16 16" fill="none" width="11" height="11">
-                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <button
+              class="session-favorite"
+              class:active={favorite}
+              on:click={() => toggleFavorite(s.id)}
+              aria-label={favorite ? `Remove ${sessionLabel(s, bag)} from favorites` : `Add ${sessionLabel(s, bag)} to favorites`}
+              aria-pressed={favorite}
+              title={favorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="m8 1.9 1.8 3.65 4.03.58-2.92 2.85.69 4.03L8 11.16 4.4 13l.69-4.03L2.17 6.13l4.03-.58L8 1.9Z"/>
               </svg>
-            {/if}
-          </button>
+            </button>
+
+            <button
+              class="session-delete"
+              on:click={() => deleteSession(s.id)}
+              title="Delete session"
+              aria-label={`Delete ${sessionLabel(s, bag)}`}
+              disabled={deletingId === s.id}
+            >
+              {#if deletingId === s.id}
+                <span class="h-[9px] w-[9px] rounded-full bg-current opacity-40 animate-[pulse-soft_1.1s_ease-in-out_infinite]"></span>
+              {:else}
+                <svg viewBox="0 0 16 16" fill="none" width="11" height="11">
+                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              {/if}
+            </button>
+          </div>
         </div>
       {/each}
     {/if}
@@ -454,12 +483,10 @@
     padding: 0 10px 0 12px;
   }
 
-  .fetch-error {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--tk-muted);
-    opacity: .7;
+  .sessions-status {
+    margin: 4px 12px;
+    color: var(--tk-muted);
+    font: 11px var(--tk-font);
   }
 
   .sessions-actions {
@@ -496,7 +523,6 @@
   .icon-action:active { transform: scale(.94); }
   .icon-action:disabled { cursor: wait; opacity: .4; }
   .icon-action svg { width: 13px; height: 13px; }
-  .icon-action svg.loading { animation: pulse-soft 1.1s ease-out infinite; }
 
   @media (pointer: coarse) {
     .icon-action {
@@ -784,10 +810,6 @@
     }
   }
 
-  @keyframes item-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
   @keyframes pulse-soft {
     0%, 100% { opacity: 0.25; }
     50%      { opacity: 0.7; }
@@ -797,9 +819,12 @@
     0%, 100% { color: var(--tk-muted-2); }
     50% { color: var(--tk-text); }
   }
-  .shimmer {
-    position: relative;
-    overflow: hidden;
-    animation: pulse-soft 1.2s ease-out infinite;
+  .session-card { animation: session-enter 220ms ease-out; }
+  @keyframes session-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .session-card { animation: none; }
   }
 </style>
