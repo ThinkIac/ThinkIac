@@ -263,7 +263,9 @@ os decorators ativos e o contrato de eventos do Harness.
 
 Requer Node.js 22.12+. O CI verifica o setup no Linux e no macOS. No macOS,
 instale o Xcode Command Line Tools (`xcode-select --install`) e o Python 3
-caso o npm precise compilar módulos nativos.
+caso o npm precise compilar módulos nativos. Use `npm run start:runtime`
+para desenvolvimento no macOS. O supervisor usado por `npm start` depende
+do `/proc` do Linux.
 
 ```bash
 git clone https://github.com/ThinkIac/ThinkIac.git

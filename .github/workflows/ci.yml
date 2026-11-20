@@ -24,4 +24,4 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - run: npm run test:runner
-      - run: npm exec -- vitest run --root vendor/packages/logos tests/logos-dependencies.test.ts
+      - run: npm exec -- vitest run --root vendor/packages/logos tests/logos-dependencies.test.ts tests/scriba-reactivity.browser.test.ts

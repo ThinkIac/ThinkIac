@@ -43,7 +43,10 @@ async function bundle(source: string, generate: 'dom' | 'ssr') {
       plugin.onLoad({filter:/.*/,namespace:'fixture'}, args => {
         if (args.path === 'logos:scriba-view') return {contents:scope, resolveDir:process.cwd()};
         const child = `<script>export let panel;</script><span id="child">{panel.title}</span>`;
-        return {contents:compile(args.path === 'fixture:Child' ? child : transformSharedState(source), {generate, hydratable:true}).js.code,resolveDir:process.cwd()};
+        return {contents:compile(args.path === 'fixture:Child' ? child : transformSharedState(source), {
+          generate: generate === 'dom' ? 'client' : 'server',
+          compatibility: { componentApi: 4 },
+        }).js.code,resolveDir:process.cwd()};
       });
     }}],
   });
