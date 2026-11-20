@@ -60,3 +60,19 @@ test('unmount removes window listeners, contributed handlers and persistence tim
   expect(offBus).toHaveBeenCalledOnce(); expect(offGesture).toHaveBeenCalledOnce(); expect(s.disposeBackgroundViews).toHaveBeenCalledOnce();
   vi.advanceTimersByTime(30000); expect(s.fullSaveSessionState).not.toHaveBeenCalled();
 });
+
+test('unmount unregisters runtime message, reopen and command subscriptions',()=>{
+  const {state:s,mount}=setup(); const dispose=mount(); dispose();
+  for(const method of ['on','onReopen','onCommand']) expect(s.agentRuntime[method].mock.results[0].value).toHaveBeenCalledOnce();
+});
+test('unmount removes the exact visibility callback registered at mount',()=>{
+  const {state:s,mount}=setup(); const dispose=mount(); const registered=s.document.addEventListener.mock.calls.find(([event])=>event==='visibilitychange')[1];
+  s.document.hidden=true; registered(); expect(s.fullSaveSessionState).toHaveBeenCalledOnce(); dispose();
+  expect(s.document.removeEventListener).toHaveBeenCalledWith('visibilitychange',registered);
+});
+test('delayed mount work cannot run after disposal',async()=>{
+  let finishTick,finishBackground;
+  const {state:s,mount}=setup({tick:()=>new Promise(resolve=>{finishTick=resolve;}),bootstrapBackgroundViews:()=>new Promise(resolve=>{finishBackground=resolve;})});
+  const dispose=mount(); dispose(); finishTick(); finishBackground(); await vi.advanceTimersByTimeAsync(16);
+  expect(s.measureComposerDock).not.toHaveBeenCalled(); expect(s.publishBackgroundContext).not.toHaveBeenCalled(); expect(s.postEdgeStatus).not.toHaveBeenCalled();
+});
