@@ -149,7 +149,7 @@ test('provisioning readiness does not depend on destination cache warm-up', asyn
 });
 
 test('every browser session uses the protocol-aware cookie builder', async () => {
-    const source = await readFile(authEntry, 'utf8');
+    const source = await readFile(authEntry, 'utf8') + '\n' + await readFile(new URL('./services/browser-sessions.js', import.meta.url), 'utf8');
 
     assert.match(source, /function sessionCookie\(req, sessionId, durationMs\)/);
     assert.match(source, /res\.setHeader\('Set-Cookie', sessionCookie\(req, session\.id, durationMs\)\);/);

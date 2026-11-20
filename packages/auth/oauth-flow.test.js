@@ -177,3 +177,41 @@ test.each([['https', false, true], ['http', false, false], ['https', true, false
     expect(cookie).toContain('HttpOnly;');
     expect(cookie).toContain('SameSite=Strict; Max-Age=60');
 });
+
+// Verificações de integração dos adaptadores com o serviço de sessão extraído.
+test.each(['', 'invalid', '0'])('session duration %s preserves the one day fallback', async duration => {
+    vi.stubEnv('AUTH_ENV_SESSION_DURATION_MS', duration);
+    const res = response();
+    const saved = await auth.startSession(request(), res, 'u1');
+    expect(saved.expiresAt.getTime() - Date.now()).toBeGreaterThan(86399000);
+    expect(res.setHeader.mock.calls[0][1]).toContain('Max-Age=86400');
+});
+test('a session persistence failure cannot set a browser cookie', async () => {
+    state.db.session.push.mockRejectedValueOnce(new Error('storage unavailable'));
+    const res = response();
+    await expect(auth.startSession(request(), res, 'u1')).rejects.toThrow('storage unavailable');
+    expect(res.setHeader).not.toHaveBeenCalled();
+});
+test.each([false, true])('logout clears cookie even when session deletion fails: %s', async fails => {
+    if (fails) state.db.session.delete.mockRejectedValueOnce(new Error('storage unavailable'));
+    const res = response();
+    expect(await auth.logout({ ...request(), headers: { cookie: 'sessionId=browser-session' } }, res)).toBe('/view/auth/Login');
+    expect(state.db.session.delete).toHaveBeenCalledWith('browser-session');
+    expect(res.setHeader).toHaveBeenCalledWith('Set-Cookie', expect.stringContaining('sessionId=; HttpOnly; Secure; Path=/; SameSite=Strict; Max-Age=0'));
+    expect(res.setHeader.mock.invocationCallOrder[0]).toBeLessThan(res.redirect.mock.invocationCallOrder[0]);
+});
+test('logout without a cookie clears the browser without deleting other sessions', async () => {
+    const res = response();
+    await auth.logout(request(), res);
+    expect(state.db.session.delete).not.toHaveBeenCalled();
+    expect(res.setHeader.mock.calls[0][1]).toContain('Max-Age=0');
+});
+test('callback preserves login when the credit event fails', async () => {
+    const { dispatchEvent } = await import('logos');
+    dispatchEvent.mockRejectedValueOnce(new Error('credit unavailable'));
+    // Credit policy catches errors and marks pending, preserving successful login.
+    const res = response();
+    expect(await auth.googleCallback(request({ code: 'code', state: 'state' }), res)).toBe('/redirect/home');
+    expect(state.db.session.push).toHaveBeenCalledTimes(1);
+    expect(state.db.user.u1.welcomeCreditStatus).not.toBe('granted');
+});

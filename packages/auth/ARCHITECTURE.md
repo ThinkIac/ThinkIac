@@ -44,6 +44,9 @@ os comandos locais continuam protegidos pela fronteira de acesso ao host.
 | `services/login-throttle.js` | Limite por origem e interpretação de proxy confiável |
 | `services/permissions.js` | Grupos, memberships, grants e auditoria administrativa |
 | `services/registry-devices.js` | Workspace npm, tokens e pareamento de dispositivos |
+| `services/browser-sessions.js` | Criação e encerramento da sessão e atributos do cookie |
+| `services/google-auth.js` | OAuth Google, PKCE, callback, limpeza e emissão de deep link |
+| `services/login-tickets.js` | Troca de ticket de login por sessão e redirect seguro |
 | `index.js` | Composição e adaptadores públicos compatíveis; fluxos ainda não extraídos |
 
 Os serviços não importam o entrypoint. O scanner do Lógos percorre subdiretórios,
@@ -51,13 +54,21 @@ portanto os serviços não possuem anotações de registro. As rotas e hooks leg
 mantêm adaptadores no entrypoint; cada operação é registrada uma única vez.
 Caches de limite continuam em memória por processo, com as mesmas janelas.
 
-A extração é deliberadamente incremental. Login, OAuth, confirmação por email,
+A extração é deliberadamente incremental. Login por senha, confirmação por email,
 provisionamento, catálogo de pacotes de tenants, onboarding e administração MCP
 permanecem no entrypoint nesta etapa. Eles já têm auxiliares existentes e podem
 ser extraídos em mudanças seguintes com a mesma proteção de compatibilidade.
 Não houve implantação nem substituição do pacote carregado pelo Runtime.
 
 ## Validação
+
+O commit `6d1aba1b` adiciona 36 testes de OAuth, callback, tickets e cookies antes
+da segunda extração. `google-auth.js` recebe callbacks de política do entrypoint,
+sem importá-lo. Os eventos existentes de crédito continuam no mesmo caminho;
+tokens, cookies, códigos OAuth e tickets não ganham novos eventos de divulgação.
+As tabelas, TTLs, ordem de operações e tratamento de falhas foram preservados.
+Esta extração não adiciona consumo transacional de tickets/estados: a sequência
+legada de leitura e remoção não comprova exclusão mútua entre processos.
 
 O commit `52526656` registra os testes de caracterização antes da extração.
 `boundaries.test.js` exercita 40 casos de identidade, comandos locais, segredos,
@@ -83,6 +94,6 @@ o grupo administrativo do próprio Auth, além de Redirect e Providers. Também 
 ajustados três casos de cadastro já falhos no entrypoint original: configuração
 de convites contraditória e nomes de campos antigos na resposta das settings.
 
-Resultado local: 97 testes Node e 106 testes Vitest de Auth; seis testes do runner.
+Resultado local: 97 testes Node e 150 testes Vitest de Auth; seis testes do runner.
 O clone utiliza Vitest 1.6.1 preexistente, embora o lockfile declare uma versão
 mais recente. Não houve reinstalação de dependências nem validação em produção.

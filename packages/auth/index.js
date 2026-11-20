@@ -1,4 +1,7 @@
-import { normalizeUser, parseCookies, identityProvider } from './services/identity.js';
+import { AUTHENTICATED_HOME, sessionCookie, startSession as startSessionHandler, endBrowserSession } from './services/browser-sessions.js';
+import { createGoogleAuth } from './services/google-auth.js';
+import { ticket as ticketHandler } from './services/login-tickets.js';
+import { normalizeUser, identityProvider } from './services/identity.js';
 import { validateUsername, provisionInitialAdmin, manageUserCommand } from './services/local-users.js';
 import { allowLoginAttempt } from './services/login-throttle.js';
 import { resolveUserIdFromBearer, resolveProxyCredential, onResolveProxyToken as onResolveProxyTokenHandler, onRecordProxySpend as onRecordProxySpendHandler } from './services/credentials.js';
@@ -52,23 +55,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { isPublicExposure } from './runtime/public-exposure.js';
-import {
-    GOOGLE_AUTH_URL,
-    GOOGLE_TOKEN_URL,
-    SIGN_IN_VIEW,
-    decodeIdTokenClaims,
-    validateIdTokenClaims,
-    safeNext,
-    signInRedirect,
-    normalizeClient,
-    precisaDeTicket,
-    sessionCookie as sessionCookieFor,
-    shouldUseSecureSessionCookie,
-} from './google_oauth.js';
-import { resolveGoogleUser } from './google_user.js';
+import { SIGN_IN_VIEW, signInRedirect } from './google_oauth.js';
 import { queueVerificationEmail } from './email_delivery.js';
 import { createEmailVerification, verificationMatches, verificationTokenHash } from './email_verification.js';
-import { appDestination, distributedApp, getDistributedApp, pathBelongsToApp, tenantPluginsFor } from './app_flow.js';
+import { distributedApp, getDistributedApp, pathBelongsToApp, tenantPluginsFor } from './app_flow.js';
 // Caminho relativo intencional: pacotes do Runtime são carregados diretamente
 // pelo host, sem exigir instalação prévia em node_modules.
 import { attachPrincipal } from './runtime/identity.js';
@@ -84,10 +74,6 @@ const BILLING_ADMIN_HEADER = 'x-billing-admin-token';
 
 // Registro público pode receber um role de produto, mas nunca uma capacidade
 // que administra a própria identidade do Runtime.
-
-// A entrada autenticada é decidida pelo pacote Redirect. Ele aplica a regra
-// do cargo, quando houver, e usa a tela inicial como destino padrão.
-const AUTHENTICATED_HOME = '/redirect/home';
 
 function uniqueConflict(error, field) {
     if (error?.code !== 'SQLITE_CONSTRAINT_UNIQUE') return null;
@@ -744,17 +730,6 @@ export async function login(req, res) {
     return res.status(400).send({ error: 'Credentials not found.' });
 }
 
-/** Encerra a sessão atual e impede que o navegador a reutilize. */
-async function endBrowserSession(req, res) {
-    const sessionId = parseCookies(req.headers?.cookie).sessionId;
-    if (sessionId) {
-        await getProxy('auth').session.delete(sessionId).catch(() => {});
-    }
-    // Usa os mesmos atributos de escopo e segurança do cookie de login para
-    // garantir que a remoção alcance a sessão, inclusive atrás de proxy HTTPS.
-    res.setHeader('Set-Cookie', sessionCookie(req, '', 0));
-}
-
 export async function logout(req, res) {
     /**
      * @register_router logout
@@ -1006,60 +981,10 @@ export async function verifyEmail(req, res) {
     return res.redirect('/view/auth/Login?email-verification=confirmed');
 }
 
-// --- LOGIN COM GOOGLE (OAUTH 2.0 + PKCE) ---
-//
-// Por que o fluxo é tão indireto: o Google recusa OAuth dentro de WebView
-// embutida (403 disallowed_useragent), e o app mobile (apps/mobile) é
-// exatamente uma WebView. Então o consentimento precisa abrir FORA dela, num
-// Chrome Custom Tab — que tem cookie jar próprio, separado do da WebView.
-// Daí o LoginTicket: o callback não consegue gravar o cookie de sessão na
-// WebView, então devolve um ticket de uso único por deep link
-// (thinkiac://open/auth?ticket=…), e a WebView o troca por cookie numa
-// navegação top-level normal. Nenhum token de sessão passa por JavaScript.
-//
-// Para client=web/electron o ticket não existe: o callback já grava o cookie.
-
-const OAUTH_FLOW_TTL_MS = 10 * 60 * 1000;
-const LOGIN_TICKET_TTL_MS = 60 * 1000;
-
-function googleRedirectUri() {
-    return `${gatewayBaseUrl()}/auth/google/callback`;
-}
-
-function sessionCookie(req, sessionId, durationMs) {
-    return sessionCookieFor(sessionId, durationMs, {
-        insecure: !shouldUseSecureSessionCookie(req, {
-            insecureOverride: process.env.AUTH_ENV_INSECURE_COOKIES === '1',
-        }),
-    });
-}
+const googleAuth = createGoogleAuth({ requestWelcomeCredit, ensureEntitlement, isRetiredLocalAccount });
 
 export async function startSession(req, res, userId) {
-    const db = getProxy('auth');
-    const durationMs = parseInt(process.env.AUTH_ENV_SESSION_DURATION_MS) || 86400000;
-    const session = await db.session.push({
-        userId,
-        expiresAt: new Date(Date.now() + durationMs),
-    });
-    res.setHeader('Set-Cookie', sessionCookie(req, session.id, durationMs));
-    return session;
-}
-
-function loginRedirect(reason) {
-    return `/view/auth/Login?erro=${encodeURIComponent(reason)}`;
-}
-
-// Varre estado expirado. O jti em memória do tenant-auth cresce sem limite e
-// zera no restart; aqui as linhas são persistidas e limpas por tempo.
-async function sweepOauthState() {
-    const db = getProxy('auth');
-    const agora = new Date();
-    for (const tabela of ['oauthflow', 'loginticket']) {
-        // query() do scriba já filtra deletedAt IS NULL, então linhas
-        // queimadas (delete() é soft) não reaparecem aqui.
-        const vencidas = db[tabela].query({ expiresAt: { $lt: agora } }) || [];
-        for (const linha of vencidas) await db[tabela].delete(linha.id).catch(() => {});
-    }
+    return startSessionHandler(req, res, userId);
 }
 
 export async function googleStart(req, res) {
@@ -1067,52 +992,7 @@ export async function googleStart(req, res) {
      * @register_router google/start
      * @method GET
      */
-    const clientId = process.env.AUTH_ENV_GOOGLE_CLIENT_ID;
-    if (!clientId) return res.redirect(loginRedirect('google-nao-configurado'));
-
-    const client = normalizeClient(req.query?.client);
-    const app = distributedApp(req.query || {});
-    if (req.query?.flow === 'app' && !app) {
-        return res.redirect(loginRedirect('app-invalido'));
-    }
-
-    // Só caminho relativo — impede open redirect via ?next=https://malicioso.
-    // safeNext devolve o fallback quando o destino não presta; guardamos null
-    // nesse caso para o callback usar o default dele.
-    const next = app ? appDestination(app.slug) : safeNext(req.query?.next, null);
-
-    const state = crypto.randomBytes(32).toString('base64url');
-    const nonce = crypto.randomBytes(16).toString('base64url');
-    const codeVerifier = crypto.randomBytes(64).toString('base64url');
-    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
-
-    const db = getProxy('auth');
-    await db.oauthflow.push({
-        state,
-        codeVerifier,
-        nonce,
-        client,
-        next,
-        appSlug: app?.slug || null,
-        expiresAt: new Date(Date.now() + OAUTH_FLOW_TTL_MS),
-    });
-    sweepOauthState().catch(() => {});
-
-    const params = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: googleRedirectUri(),
-        response_type: 'code',
-        scope: 'openid email profile',
-        state,
-        nonce,
-        code_challenge: codeChallenge,
-        code_challenge_method: 'S256',
-        // Evita reaproveitar silenciosamente a sessão do navegador quando o
-        // usuário quer trocar de conta.
-        prompt: 'select_account',
-    });
-
-    return res.redirect(`${GOOGLE_AUTH_URL}?${params}`);
+    return googleAuth.googleStart(req, res);
 }
 
 export async function googleCallback(req, res) {
@@ -1120,111 +1000,7 @@ export async function googleCallback(req, res) {
      * @register_router google/callback
      * @method GET
      */
-    const db = getProxy('auth');
-
-    if (req.query?.error) return res.redirect(loginRedirect('google-cancelado'));
-
-    const { code, state } = req.query || {};
-    if (!code || !state) return res.redirect(loginRedirect('google-resposta-incompleta'));
-
-    const flow = await db.oauthflow.findOne({ state });
-    if (!flow) return res.redirect(loginRedirect('google-estado-invalido'));
-
-    // Uso único: some antes de qualquer await de rede, para que o mesmo code
-    // não possa ser processado duas vezes em paralelo.
-    await db.oauthflow.delete(flow.id).catch(() => {});
-
-    if (new Date(flow.expiresAt).getTime() < Date.now()) {
-        return res.redirect(loginRedirect('google-estado-expirado'));
-    }
-
-    let tokenPayload;
-    try {
-        const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                code,
-                client_id: process.env.AUTH_ENV_GOOGLE_CLIENT_ID || '',
-                client_secret: process.env.AUTH_ENV_GOOGLE_CLIENT_SECRET || '',
-                redirect_uri: googleRedirectUri(),
-                grant_type: 'authorization_code',
-                code_verifier: flow.codeVerifier,
-            }),
-            signal: AbortSignal.timeout(15000),
-        });
-        if (!tokenRes.ok) return res.redirect(loginRedirect('google-troca-falhou'));
-        tokenPayload = await tokenRes.json();
-    } catch {
-        return res.redirect(loginRedirect('google-indisponivel'));
-    }
-
-    const claims = decodeIdTokenClaims(tokenPayload?.id_token);
-    const problema = validateIdTokenClaims(claims, {
-        expectedNonce: flow.nonce,
-        expectedAudience: process.env.AUTH_ENV_GOOGLE_CLIENT_ID,
-    });
-    if (problema) {
-        console.warn('[auth] id_token do Google recusado:', problema);
-        return res.redirect(loginRedirect('google-token-invalido'));
-    }
-
-    // Google é também uma forma de cadastro. Só permite criar uma identidade
-    // nova quando o registro público está aberto e o Runtime não exige convite.
-    // Contas já existentes continuam podendo entrar normalmente.
-    const settings = db.authsettings?.findOne?.({ id: 'default' });
-    const registrationEnabled = settings?.registrationEnabled !== false;
-    const invitationsEnabled = registrationEnabled && settings?.invitationsEnabled === true;
-    const autolink = process.env.AUTH_ENV_GOOGLE_AUTOLINK !== '0';
-    const normalizedGoogleEmail = String(claims.email || '').trim().toLowerCase();
-    const existingGoogleUser = await db.user.findOne({ googleSub: claims.sub });
-    const existingEmailUser = autolink ? await db.user.findOne({ email: normalizedGoogleEmail }) : null;
-    if (!existingGoogleUser && !existingEmailUser && (!registrationEnabled || invitationsEnabled)) {
-        return res.redirect(loginRedirect('google-registration-disabled'));
-    }
-
-    const { user, created } = await resolveGoogleUser(db.user, claims, {
-        // Lazily evaluated: logins de contas existentes não pagam PBKDF2 nem
-        // criam material secreto descartável.
-        passwordHash: () => hashPasswordAsync(crypto.randomBytes(48).toString('base64url')),
-        autolink,
-    });
-
-    if (user.disabled || isRetiredLocalAccount(user)) return res.redirect(loginRedirect('conta-bloqueada'));
-
-    // Mesmo sinal de "acesso real" que login() carimba, para o reaper de
-    // contas develop não varrer quem só entra por Google.
-    user.lastActivityAt = new Date();
-    await requestWelcomeCredit(user.id);
-
-    if (flow.appSlug) {
-        await ensureEntitlement(db, user.id, flow.appSlug);
-        if (created) user.tenantStatus = null;
-    }
-
-    // A autenticação não provisiona infraestrutura. O destino padrão passa
-    // pelo Redirect, que decide a página conforme o cargo da pessoa.
-    const destino = safeNext(flow.next, AUTHENTICATED_HOME);
-
-    // android: Custom Tab; electron: navegador padrão do sistema. Nos dois o
-    // consentimento roda num cookie jar que não é o da janela do app, então
-    // gravar o cookie aqui não serviria de nada — devolve ticket por deep link.
-    // Só o navegador comum (client=web) recebe cookie direto, porque aí quem
-    // consentiu e quem vai usar a sessão são a mesma janela.
-    if (precisaDeTicket(flow.client)) {
-        const token = crypto.randomBytes(32).toString('base64url');
-        await db.loginticket.push({
-            token,
-            userId: user.id,
-            consumed: false,
-            expiresAt: new Date(Date.now() + LOGIN_TICKET_TTL_MS),
-        });
-        const params = new URLSearchParams({ ticket: token, next: destino });
-        return res.redirect(`thinkiac://open/auth?${params}`);
-    }
-
-    await startSession(req, res, user.id);
-    return res.redirect(destino);
+    return googleAuth.googleCallback(req, res);
 }
 
 export async function ticket(req, res) {
@@ -1232,25 +1008,7 @@ export async function ticket(req, res) {
      * @register_router ticket
      * @method GET
      */
-    const db = getProxy('auth');
-    const token = req.query?.ticket;
-    if (!token) return res.redirect(loginRedirect('ticket-ausente'));
-
-    const found = await db.loginticket.findOne({ token });
-    if (!found) return res.redirect(loginRedirect('ticket-invalido'));
-
-    // Queima primeiro, valida depois — uma corrida entre duas requisições não
-    // pode resultar em duas sessões.
-    await db.loginticket.delete(found.id).catch(() => {});
-
-    if (found.consumed) return res.redirect(loginRedirect('ticket-reusado'));
-    if (new Date(found.expiresAt).getTime() < Date.now()) return res.redirect(loginRedirect('ticket-expirado'));
-
-    const user = db.user[found.userId];
-    if (!user) return res.redirect(loginRedirect('ticket-orfao'));
-
-    await startSession(req, res, user.id);
-    return res.redirect(safeNext(req.query?.next, AUTHENTICATED_HOME));
+    return ticketHandler(req, res);
 }
 
 // dispatchEvent() é um pipeline (packages/logos/dist/src/kernel/bus.js): sem
