@@ -294,6 +294,20 @@ ThinkIac pode acessar terminal, arquivos e credenciais. Não versione `.env`,
 sessões, bancos locais, uploads ou backups. Revise `git status` antes de publicar
 e exponha portas apenas quando necessário.
 
+Por padrão, a porta HTTP do runtime atende páginas e APIs na mesma origem.
+Se um cliente web em outra origem precisar ler respostas, configure
+`THINKIAC_CORS_ORIGINS` antes de iniciar o runtime. Informe as origens exatas
+separadas por vírgulas, por exemplo
+`THINKIAC_CORS_ORIGINS=https://portal.example.com,http://localhost:5173`.
+Inclua a porta quando ela fizer parte da origem. O CORS não habilita cookies
+entre origens nem substitui a autenticação. O transporte MCP tem configuração
+própria.
+
+A página de login aplica Content Security Policy (CSP). A política limita
+scripts externos aos dois recursos usados pelo renderizador e permite scripts
+inline para a hidratação atual do Svelte. As demais views podem carregar
+recursos de pacotes com requisitos próprios.
+
 ## Licença e apoio
 
 O desenvolvimento do ThinkIac começou bem antes do primeiro commit. Estou há

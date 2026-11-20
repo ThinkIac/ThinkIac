@@ -23,7 +23,7 @@ function mountPackageViews(container, pkg, { getEngine, getPackageMount, replace
         if (filePath.endsWith('.mjs')) res.setHeader('Content-Type', 'application/javascript');
         if (versionedAsset(path.basename(filePath))) {
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-          res.setHeader('Vary', 'Accept-Encoding');
+          res.vary('Accept-Encoding');
         }
       },
     }));

@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import { installGracefulShutdown } from './lib/runtime-lifecycle.js';
 import { applyRuntimeBootstrapExtensions } from './lib/runtime-bootstrap-extensions.js';
 import { normalizeViewAlias } from './lib/view-alias.js';
+import { corsOptions, setSecurityHeaders } from './lib/http-security.js';
 
 // Auth é uma extensão do host, não uma dependência do kernel Lógos. Uma
 // instalação mínima pode não carregar esse pacote e, nesse caso, não instala
@@ -31,11 +32,7 @@ const main = async () => {
         port: Number(process.env.PORT) || 5040,
         host: process.env.HOST || '127.0.0.1',
         http: { public: 'public' },              // static files next to packages/
-        cors: {
-          origin: '*',
-          methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-          allowedHeaders: ['Content-Type', 'Authorization'],
-        },
+        cors: corsOptions(process.env.THINKIAC_CORS_ORIGINS),
         // Porta do transporte MCP. Fixa em 3333 no logos, o que impede duas
         // instâncias na mesma máquina: a segunda morre com EADDRINUSE, e o
         // erro vem por evento 'error' do server, fora do alcance do try/catch
@@ -51,7 +48,7 @@ const main = async () => {
           ...(identity ? { auth: identity.mcpAuth } : {}) },
         // Com Auth instalado, preserva o controle de acesso atual. Sem ele,
         // omitimos os três adaptadores para o Runtime continuar público.
-        middleware: [normalizeViewAlias, ...(identity ? [accessGate] : [])],
+        middleware: [normalizeViewAlias, setSecurityHeaders, ...(identity ? [accessGate] : [])],
         ...(identity ? {
           ws: { authorize: async req => {
             const resolved = await identity.identityProvider.resolve(req);
