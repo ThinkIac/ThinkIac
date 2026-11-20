@@ -854,6 +854,104 @@ export async function createUserCommand() {
     return provisionInitialAdmin(getProxy('auth'), process.env);
 }
 
+// These commands are a local administrative capability: access to the host and
+// database is the authorization boundary, not a remotely callable endpoint.
+export async function manageUserCommand(db, operation, env = process.env) {
+    const users = await db.user.all();
+    const id = String(env.AUTH_USER_ID || '').trim();
+    const view = user => ({ id: user.id, name: user.name, email: user.email, username: user.username, role: user.role, disabled: !!user.disabled });
+    if (operation === 'list') return { users: users.map(view) };
+    const target = id && db.user[id];
+    if (operation === 'get') {
+        if (!target) throw new Error('User not found. Set AUTH_USER_ID.');
+        return { user: view(target) };
+    }
+    if (operation !== 'create' && !target) throw new Error('User not found. Set AUTH_USER_ID.');
+    const changes = {};
+    const editing = operation === 'create' || operation === 'update';
+    if (editing && (operation === 'create' || env.AUTH_USER_USERNAME !== undefined)) {
+        const validation = validateUsername(env.AUTH_USER_USERNAME);
+        if (!validation.valid) throw new Error(validation.reason);
+        changes.username = validation.username;
+    }
+    if (editing && (operation === 'create' || env.AUTH_USER_EMAIL !== undefined)) {
+        changes.email = String(env.AUTH_USER_EMAIL || '').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(changes.email)) throw new Error('A valid AUTH_USER_EMAIL is required.');
+    }
+    if (editing && env.AUTH_USER_NAME !== undefined) changes.name = String(env.AUTH_USER_NAME).trim() || null;
+    if (editing && (operation === 'create' || env.AUTH_USER_ROLE !== undefined)) {
+        changes.role = env.AUTH_USER_ROLE || 'user';
+        if (!['user', 'admin'].includes(changes.role)) throw new Error('Invalid AUTH_USER_ROLE.');
+    }
+    if (editing && (operation === 'create' || env.AUTH_USER_PASSWORD !== undefined)) {
+        if (typeof env.AUTH_USER_PASSWORD !== 'string' || env.AUTH_USER_PASSWORD.length < 12) throw new Error('AUTH_USER_PASSWORD must contain at least 12 characters.');
+        changes.password = await hashPasswordAsync(env.AUTH_USER_PASSWORD);
+    }
+    for (const field of ['email', 'username']) {
+        if (changes[field] && users.some(u => u.id !== target?.id && String(u[field] || '').toLowerCase() === changes[field])) throw new Error(`${field} is already registered.`);
+    }
+    if (!['create', 'update', 'disable', 'enable'].includes(operation)) throw new Error('Invalid operation.');
+    if (target && target.role === 'admin' && !target.disabled && (operation === 'disable' || changes.role === 'user')) {
+        if (!users.some(u => u.id !== target.id && u.role === 'admin' && !u.disabled)) throw new Error('Cannot remove the last active administrator.');
+    }
+    if (operation === 'update' && !Object.keys(changes).length) throw new Error('No changes supplied.');
+    let user = target;
+    if (operation === 'create') user = await db.user.push({ ...changes, name: changes.name || changes.username, emailVerified: true });
+    else {
+        if (operation === 'disable') changes.disabled = true;
+        if (operation === 'enable') changes.disabled = false;
+        Object.assign(target, changes);
+    }
+    if (target && (operation === 'disable' || changes.password)) {
+        for (const session of await db.session.query({ userId: target.id })) await db.session.delete(session.id);
+    }
+    await db.permissionAudit.push({ actorId: 'local-cli', action: `user.${operation}`, subjectType: 'user', subjectId: user.id });
+    return { user: view(user) };
+}
+
+export async function addUserCommand() {
+    /** @register_command add-user
+     * @description Cria uma conta local usando variáveis AUTH_USER_.
+     * @cli_runtime full
+     */
+    return manageUserCommand(getProxy('auth'), 'create');
+}
+export async function listUsersCommand() {
+    /** @register_command list-users
+     * @description Lista contas locais.
+     * @cli_runtime full
+     */
+    return manageUserCommand(getProxy('auth'), 'list');
+}
+export async function getUserCommand() {
+    /** @register_command get-user
+     * @description Consulta uma conta por AUTH_USER_ID.
+     * @cli_runtime full
+     */
+    return manageUserCommand(getProxy('auth'), 'get');
+}
+export async function updateUserCommand() {
+    /** @register_command update-user
+     * @description Atualiza uma conta por AUTH_USER_ID.
+     * @cli_runtime full
+     */
+    return manageUserCommand(getProxy('auth'), 'update');
+}
+export async function disableUserCommand() {
+    /** @register_command disable-user
+     * @description Desativa uma conta por AUTH_USER_ID.
+     * @cli_runtime full
+     */
+    return manageUserCommand(getProxy('auth'), 'disable');
+}
+export async function enableUserCommand() {
+    /** @register_command enable-user
+     * @description Reativa uma conta por AUTH_USER_ID.
+     * @cli_runtime full
+     */
+    return manageUserCommand(getProxy('auth'), 'enable');
+}
+
 export async function initialSetupStatus(req) {
     /**
      * @register_router initial-setup
