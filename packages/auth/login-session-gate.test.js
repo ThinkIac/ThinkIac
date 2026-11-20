@@ -12,7 +12,7 @@ test('Login waits for session validation before rendering credentials', async ()
     assert.match(source, /let sessionCheck = "checking";/);
     assert.match(source, /\{#if sessionCheck === "checking"\}/);
     assert.match(source, /\{:else if sessionCheck === "failed"\}/);
-    assert.match(source, /\{:else if tenantStatus && !provisioningFailed\}/);
+    assert.match(source, /\{:else if sessionCheck === "authenticated"\}/);
     assert.match(source, /checkExistingSession\(\);/);
     assert.match(source, /response\.status !== 401/);
     assert.match(source, /on:click=\{checkExistingSession\}/);
@@ -46,62 +46,9 @@ test('Lectio public flow is preserved across password, session and Google paths'
 
     assert.match(source, /query\.get\("flow"\) === "app" && query\.get\("app"\) === "lectio"/);
     assert.match(source, /return "\/auth\/apps\/lectio\/enter"/);
-    assert.match(source, /flow: "app", app: appFlow/);
     assert.match(source, /params\.set\("flow", "app"\)/);
 
     assert.doesNotThrow(() => compile(source, { generate: 'ssr' }));
-});
-
-test('legacy tenant warm-up stays isolated from the normal login destination', async () => {
-    const source = await readFile(loginView, 'utf8');
-
-    assert.match(source, /async function pollDestinationUntilReady\(\)/);
-    assert.match(source, /await fetch\("\/auth\/destination-ready"\)/);
-    assert.match(source, /if \(!response\.ok \|\| !result\.ready\)/);
-    assert.match(source, /window\.location\.assign\("\/auth\/enter"\)/);
-    assert.match(source, /const DESTINATION_WARMUP_BUDGET_MS = 6000;/);
-    assert.match(source, /Date\.now\(\) < deadline/);
-    assert.match(source, /if \(isMounted\) window\.location\.assign\("\/auth\/enter"\)/);
-    assert.match(source, /if \(onboardingDone\) pollDestinationUntilReady\(\)/);
-    assert.match(source, /tenantStatus === "ready" && onboardingDone/);
-    assert.match(source, /class="redirect-progress"/);
-    assert.doesNotMatch(source, /Go to my workspace/);
-    assert.match(source, /window\.location\.href = result\.redirectUrl \|\| "\/redirect\/home";/);
-
-    assert.doesNotThrow(() => compile(source, { generate: 'ssr' }));
-});
-
-test('Login keeps onboarding visible when provisioning completes before its answers', async () => {
-    const source = await readFile(loginView, 'utf8');
-
-    const waitingBranch = source.indexOf('{:else if tenantStatus && !provisioningFailed}');
-    const onboarding = source.indexOf('{#if !onboardingDone}');
-    assert.ok(waitingBranch >= 0 && onboarding > waitingBranch);
-    assert.match(source, /if \(patch\) await saveOnboarding\(patch\);/);
-    assert.doesNotMatch(source, /\{:else if tenantStatus === "ready"\}/);
-    assert.doesNotThrow(() => compile(source, { generate: 'ssr' }));
-});
-
-test('Login collects an optional three-part brief accepted by Auth and consumed by Agent onboarding', async () => {
-    const [login, auth, onboarding] = await Promise.all([
-        readFile(loginView, 'utf8'),
-        readFile(authEntry, 'utf8'),
-        readFile(new URL('../agent/hooks/onboarding.js', import.meta.url), 'utf8'),
-    ]);
-
-    assert.match(login, /Brief rápido e opcional/);
-    assert.match(login, /Qual resultado você quer alcançar primeiro\?/);
-    assert.match(login, /Qual é o contexto desse começo\?/);
-    assert.match(login, /Para quem você quer criar isso\?/);
-    assert.match(login, /Pular brief/);
-    assert.match(login, /async function skipOnboarding\(\) \{\s*await finishOnboarding\(\);/);
-    assert.doesNotMatch(login, /disabled=\{!context\}/);
-    assert.match(auth, /'briefContext'/);
-    assert.match(auth, /@register_router onboarding\/by-proxy-token/);
-    assert.match(auth, /return \{ status: 200, onboarding: user\.onboarding \|\| null \}/);
-    assert.match(onboarding, /@register_hook tenant:onboarding-received/);
-    assert.match(onboarding, /onboarding\.briefContext/);
-    assert.match(onboarding, /upsertSection\(next, 'Contexto', onboarding\.briefContext\)/);
 });
 
 test('Login keeps long onboarding steps reachable on small viewports', async () => {
@@ -125,27 +72,6 @@ test('Login submits the values present in the DOM, including password-manager au
     assert.match(source, /type="submit" class="submit"/);
 
     assert.doesNotThrow(() => compile(source, { generate: 'ssr' }));
-});
-
-test('the destination probe is server-side so cross-origin SSO status is observable', async () => {
-    const source = await readFile(authEntry, 'utf8');
-
-    assert.match(source, /async function probeTenantDestination\(/);
-    assert.match(source, /export async function destinationReady\(req, res\)/);
-    assert.match(source, /@register_router destination-ready/);
-    assert.match(source, /const probe = await probeTenantDestination\(user\.tenantDomain, user\.username\)/);
-    assert.match(source, /\{ status: 503, ready: false \}/);
-});
-
-test('provisioning readiness does not depend on destination cache warm-up', async () => {
-    const source = await readFile(authEntry, 'utf8');
-
-    assert.match(source, /const activeTenantWarmups = new Set\(\);/);
-    assert.match(source, /const WARMUP_MAX_ATTEMPTS =/);
-    assert.match(source, /attempt < WARMUP_MAX_ATTEMPTS/);
-    assert.match(source, /startTenantDestinationWarmup\(userId, result\.domain, username, destination\);/);
-    assert.match(source, /rec\.tenantStatus = 'ready';/);
-    assert.doesNotMatch(source, /while \(true\) \{[\s\S]*await probeTenantDestination/);
 });
 
 test('every browser session uses the protocol-aware cookie builder', async () => {

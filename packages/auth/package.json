@@ -26,10 +26,22 @@
             }
         },
         "settingsTab": [
-            { "id": "auth-users", "label": "Users", "view": "Index", "renderer": "schema", "surface": "auth-administration", "order": 10 },
-            { "id": "auth-roles", "label": "Roles", "view": "Index", "renderer": "schema", "surface": "auth-administration", "order": 11 },
-            { "id": "auth-registration", "label": "Registration", "view": "Index", "renderer": "schema", "surface": "auth-administration", "order": 12 },
-            { "id": "auth-invitations", "label": "Invitations", "view": "Index", "renderer": "schema", "surface": "auth-administration", "order": 13 }
+            {
+                "id": "auth-users",
+                "label": "Users",
+                "view": "Index",
+                "renderer": "schema",
+                "surface": "auth-administration",
+                "order": 10
+            },
+            {
+                "id": "auth-roles",
+                "label": "Roles",
+                "view": "Index",
+                "renderer": "schema",
+                "surface": "auth-administration",
+                "order": 11
+            }
         ]
     }
 }

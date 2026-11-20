@@ -1,7 +1,6 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 const { db } = vi.hoisted(() => ({ db: {} }));
 vi.mock('logos', () => ({ getProxy: () => db, dispatchEvent: vi.fn(), isPublicRoute: () => false, isPublicView: () => false }));
-vi.mock('./email_delivery.js', () => ({ queueVerificationEmail: vi.fn() }));
 vi.mock('./mcp-auth.js', () => ({ createMcpAuth: () => ({}) }));
 import { createInitialAdmin, initialSetupStatus, provisionInitialAdmin } from './index.js';
 import { verifyPasswordAsync } from './password-async.js';

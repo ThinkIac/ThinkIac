@@ -9,7 +9,7 @@ import {
     parseProxyToken,
     verifyProxyToken,
 } from './proxy_credentials.js';
-import { activeCredentialWithScope, npmGroupsFor } from './index.js';
+import { npmGroupsFor } from './index.js';
 
 test('tenant credential exposes an id but stores only a one-way hash', () => {
     let byte = 0;
@@ -35,16 +35,6 @@ test('credential verification is scoped and revoked credentials fail closed', ()
     assert.equal(credentialHasScope(record, 'billing:checkout'), false);
     assert.equal(verifyProxyToken(`${issued.token}x`, record), false);
     assert.equal(verifyProxyToken(issued.token, { ...record, revokedAt: new Date() }), false);
-});
-
-test('legacy tenant repair only accepts an active dedicated billing credential', () => {
-    const records = [
-        { id: 'llm', status: 'active', revokedAt: null, scopes: JSON.stringify(['llm:invoke']) },
-        { id: 'pending', status: 'pending', revokedAt: null, scopes: JSON.stringify(['billing:read']) },
-        { id: 'billing', status: 'active', revokedAt: null, scopes: JSON.stringify(['billing:read']) },
-    ];
-    assert.equal(activeCredentialWithScope(records, 'billing:read')?.id, 'billing');
-    assert.equal(activeCredentialWithScope(records, 'billing:upgrade')?.id, undefined);
 });
 
 test('npm credentials expose the reserved user scope and never grant another scope', () => {

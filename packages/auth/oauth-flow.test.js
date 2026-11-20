@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 const { state } = vi.hoisted(() => ({ state: { db: null } }));
 vi.mock('logos', () => ({ getProxy: () => state.db, dispatchEvent: vi.fn(async () => ({ granted: true })), isPublicRoute: () => false, isPublicView: () => false }));
 vi.mock('./mcp-auth.js', () => ({ createMcpAuth: () => ({}) }));
+import { dispatchEvent } from 'logos';
 import * as auth from './index.js';
 
 function table(rows = []) {
@@ -101,7 +102,7 @@ test('web callback exchanges PKCE only after deleting state, then creates cookie
     expect(res.setHeader).toHaveBeenCalledWith('Set-Cookie', expect.stringContaining('HttpOnly; Secure;'));
     expect(state.db.loginticket.push).not.toHaveBeenCalled();
     expect(state.db.user.u1.lastActivityAt).toBeInstanceOf(Date);
-    expect(state.db.user.u1.welcomeCreditStatus).toBe('granted');
+    expect(dispatchEvent).not.toHaveBeenCalled();
     expect(await auth.googleCallback(request({ code: 'code', state: 'state' }), response())).toBe(denied('google-estado-invalido'));
     expect(fetch).toHaveBeenCalledTimes(1);
 });
@@ -119,7 +120,7 @@ test.each([{ nonce: 'wrong' }, { aud: 'wrong' }, { iss: 'evil' }, { exp: 1 }, { 
     expect(state.db.user.findOne).not.toHaveBeenCalled();
     expect(state.db.session.push).not.toHaveBeenCalled();
 });
-test.each([{ registrationEnabled: false }, { invitationsEnabled: true }])('new Google identity respects registration policy %j', async settings => {
+test.each([{}, { registrationEnabled: true }, { registrationEnabled: false }, { invitationsEnabled: true }])('new Google identity respects registration policy %j', async settings => {
     Object.assign(state.db.authsettings.default, settings);
     state.db.user = table();
     expect(await auth.googleCallback(request({ code: 'code', state: 'state' }), response())).toBe(denied('google-registration-disabled'));
@@ -206,12 +207,12 @@ test('logout without a cookie clears the browser without deleting other sessions
     expect(state.db.session.delete).not.toHaveBeenCalled();
     expect(res.setHeader.mock.calls[0][1]).toContain('Max-Age=0');
 });
-test('callback preserves login when the credit event fails', async () => {
+test('callback never requests product credits', async () => {
     const { dispatchEvent } = await import('logos');
     dispatchEvent.mockRejectedValueOnce(new Error('credit unavailable'));
-    // Credit policy catches errors and marks pending, preserving successful login.
+    // No product event runs as a consequence of authentication.
     const res = response();
     expect(await auth.googleCallback(request({ code: 'code', state: 'state' }), res)).toBe('/redirect/home');
     expect(state.db.session.push).toHaveBeenCalledTimes(1);
-    expect(state.db.user.u1.welcomeCreditStatus).not.toBe('granted');
+    expect(dispatchEvent).not.toHaveBeenCalled();
 });

@@ -1,7 +1,7 @@
+import { dispatchEvent } from 'logos';
 import { beforeEach, afterEach, expect, test, vi } from 'vitest';
 const { state } = vi.hoisted(() => ({ state: { db: null } }));
 vi.mock('logos', () => ({ getProxy: () => state.db, dispatchEvent: vi.fn(), isPublicRoute: () => false, isPublicView: () => false }));
-vi.mock('./email_delivery.js', () => ({ queueVerificationEmail: vi.fn() }));
 vi.mock('./mcp-auth.js', () => ({ createMcpAuth: () => ({}) }));
 import * as auth from './index.js';
 import { issueProxyToken } from './proxy_credentials.js';
@@ -16,6 +16,7 @@ function table(rows = []) {
     return store;
 }
 beforeEach(() => {
+    vi.clearAllMocks();
     state.db = { user: table([{ id: 'u1', username: 'alice', email: 'alice@example.test', password: 'never-expose', role: 'user' }]),
         session: table([{ id: 's1', userId: 'u1', expiresAt: new Date(Date.now() + 60000) }]),
         proxyCredential: table(), permissionAudit: table(), npmPackage: table(), npmDeviceAuthorization: table() };
@@ -112,4 +113,40 @@ test('device flow waits for approval and consumes a code once', async () => {
 });
 test.each(['routerPermissionsOverview', 'routerPermissionsCreateGroup', 'routerPermissionsDeleteGroup', 'routerPermissionsCreateGrant', 'routerPermissionsDeleteGrant', 'routerPermissionsAudit'])('%s denies anonymous access before accessing administration data', async name => {
     await expect(auth[name]({ headers: {}, body: {}, query: {} })).rejects.toMatchObject({ status: 403 });
+});
+
+test.each(['auth.save-registration', 'auth.create-invite', 'auth.revoke-invite'])('retired System action %s cannot mutate state', async action => {
+    const result = await auth.systemAction({ user: { id: 'u1' }, body: { action, values: { registrationEnabled: true } } });
+    expect(result.status).toBe(404);
+    expect(state.db.user.push).not.toHaveBeenCalled();
+    expect(dispatchEvent).not.toHaveBeenCalled();
+});
+test('boot preserves legacy tenant records without timers, fetch or product events', async () => {
+    for (const name of ['INITIAL_AUTH_USER', 'INITIAL_AUTH_EMAIL', 'INITIAL_AUTH_PASSWORD']) vi.stubEnv(name, '');
+    Object.assign(state.db.user.u1, { tenantId: 'legacy', tenantStatus: 'pending', emailVerified: false, welcomeCreditStatus: 'pending', accountType: 'develop' });
+    const before = { ...state.db.user.u1 };
+    const timer = vi.spyOn(globalThis, 'setInterval');
+    const network = vi.spyOn(globalThis, 'fetch');
+    await auth.setupUser({});
+    expect(state.db.user.u1).toMatchObject(before);
+    expect(state.db.user.delete).not.toHaveBeenCalled();
+    expect(timer).not.toHaveBeenCalled();
+    expect(network).not.toHaveBeenCalled();
+    expect(dispatchEvent).not.toHaveBeenCalled();
+});
+test('distributed app entry uses shared destination even for a legacy ready tenant', async () => {
+    Object.assign(state.db.user.u1, { tenantId: 'legacy', tenantDomain: 'legacy.example.test', tenantStatus: 'ready' });
+    state.db.appentitlement = table();
+    const res = { redirect: vi.fn() };
+    const network = vi.spyOn(globalThis, 'fetch');
+    await auth.enterDistributedApp({ user: { id: 'u1' }, params: { app: 'lectio' } }, res);
+    const { getDistributedApp } = await import('./app_flow.js');
+    expect(res.redirect).toHaveBeenCalledWith(getDistributedApp('lectio').sharedView);
+    expect(state.db.user.u1.tenantStatus).toBe('ready');
+    expect(network).not.toHaveBeenCalled();
+    expect(dispatchEvent).not.toHaveBeenCalled();
+});
+test('legacy registration settings cannot reopen public registration', async () => {
+    state.db.authsettings = table([{ id: 'default', registrationEnabled: true, invitationsEnabled: true }]);
+    expect(await auth.initialSetupStatus({})).toEqual({ initialSetupRequired: false, settings: { registrationEnabled: false, invitationsEnabled: false } });
 });

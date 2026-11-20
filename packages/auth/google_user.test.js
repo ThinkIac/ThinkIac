@@ -25,38 +25,24 @@ const claims = {
 };
 
 describe('resolveGoogleUser', () => {
-    it('cria uma conta normal no primeiro login Google', async () => {
+    it('never creates a new identity, even when given creation credentials', async () => {
         const store = userStore();
-
-        const result = await resolveGoogleUser(store, claims, {
-            passwordHash: 'hash-interno-aleatorio',
-        });
-
-        expect(result.created).toBe(true);
-        expect(result.user).toMatchObject({
-            name: 'Maria Silva',
-            email: 'maria.silva@example.com',
-            username: 'maria-silva',
-            password: 'hash-interno-aleatorio',
-            googleSub: 'google-sub-1',
-            avatarUrl: 'https://example.com/maria.jpg',
-            emailVerified: true,
-            role: 'user',
-            accountType: 'normal',
-            inviteBalance: 0,
-            tenantStatus: 'pending',
-        });
-        expect(store.push).toHaveBeenCalledTimes(1);
+        expect(await resolveGoogleUser(store, claims, { passwordHash: 'hash' })).toEqual({ user: null, created: false });
+        expect(store.push).not.toHaveBeenCalled();
     });
-
-    it('adiciona sufixo ao username derivado quando ele já existe', async () => {
-        const store = userStore([{ id: 'existing', username: 'maria-silva' }]);
-
-        const result = await resolveGoogleUser(store, claims, { passwordHash: 'hash' });
-
-        expect(result.user.username).toBe('maria-silva-2');
+    it('does not link by email when autolink is disabled', async () => {
+        const store = userStore([{ id: 'existing', email: claims.email.toLowerCase() }]);
+        expect((await resolveGoogleUser(store, claims, { autolink: false })).user).toBeNull();
+        expect(store.users[0].googleSub).toBeUndefined();
+        expect(store.push).not.toHaveBeenCalled();
     });
-
+    it.each([{ disabled: true }, { accountType: 'local' }])('does not mutate blocked identity %j', async blocked => {
+        const store = userStore([{ id: 'existing', email: claims.email.toLowerCase(), ...blocked }]);
+        await resolveGoogleUser(store, claims);
+        expect(store.users[0].googleSub).toBeUndefined();
+        expect(store.users[0].emailVerified).toBeUndefined();
+        expect(store.push).not.toHaveBeenCalled();
+    });
     it('vincula por e-mail verificado uma conta existente', async () => {
         const existing = {
             id: 'existing',
