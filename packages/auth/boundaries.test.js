@@ -178,3 +178,22 @@ test('delegated session refuses unrelated routes even for an administrator', asy
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
 });
+
+test('System reports a denied mutation as an error without a success notice', async () => {
+    const result = await auth.systemAction({ user: { id: 'u1' }, body: { action: 'auth.delete-user', values: { userId: 'u1' } } });
+    expect(result.status).toBe(403);
+    expect(result.error).toMatch(/administradores/);
+    expect(result).not.toHaveProperty('notice');
+    expect(state.db.user.delete).not.toHaveBeenCalled();
+});
+test.each(['allow', 'deny'])('CNPJ gate applies the canonical %s permission decision', async effect => {
+    state.db.permissionMembership = table();
+    state.db.permissionGroup = table();
+    state.db.permissionGrant = table([{ subjectType: 'user', subjectId: 'u1', permission: 'cnpj-scraper.read', effect }]);
+    state.db.appentitlement = table();
+    const res = { redirect: vi.fn(), status: vi.fn().mockReturnThis(), send: vi.fn() };
+    const next = vi.fn();
+    await auth.accessGate({ ...request(), method: 'GET', path: '/cnpj-scraper/search' }, res, next);
+    expect(next).toHaveBeenCalledTimes(effect === 'allow' ? 1 : 0);
+    if (effect === 'deny') expect(res.redirect).toHaveBeenCalledWith('/');
+});
