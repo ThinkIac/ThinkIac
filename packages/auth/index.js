@@ -3,6 +3,7 @@ import { claimActivation, updateActivationLease, recoverActivations } from './ac
 import { createMcpAuth } from './mcp-auth.js';
 import { dispatchEvent, getProxy, isPublicRoute, isPublicView } from 'logos';
 import crypto from 'crypto';
+import { isIP } from 'node:net';
 import { credentialHasScope, DEFAULT_BILLING_SCOPES, DEFAULT_TENANT_SCOPES, issueProxyToken, parseProxyToken, parseScopes, verifyProxyToken } from './proxy_credentials.js';
 import fs from 'fs';
 import path from 'path';
@@ -744,12 +745,30 @@ export async function credentialVerify(payload, ctx) {
 
 // --- ROTEADORES (CONTROLLERS) ---
 
-// Per-process protection; use the socket peer, never an untrusted forwarded header.
+function normalizeLoginAddress(address) {
+    if (typeof address !== 'string' || address.includes('%')) return null;
+    const family = isIP(address);
+    if (family === 4) address = `::ffff:${address}`;
+    if (!family) return null;
+    return new URL(`http://[${address}]/`).hostname.slice(1, -1);
+}
+
+function loginClientAddress(req) {
+    const peer = normalizeLoginAddress(req.socket?.remoteAddress);
+    if (!peer) return 'unknown';
+    const trustedProxies = process.env.AUTH_LOGIN_TRUSTED_PROXY_IPS?.split(',') || [];
+    if (trustedProxies.some(address => normalizeLoginAddress(address.trim()) === peer)) {
+        return normalizeLoginAddress(req.headers?.['x-real-ip']) || peer;
+    }
+    return peer;
+}
+
+// Per-process protection applies to both direct and proxied login requests.
 const loginAttempts = new Map();
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 function allowLoginAttempt(req, now = Date.now()) {
     for (const [key, entry] of loginAttempts) if (entry.until <= now) loginAttempts.delete(key);
-    const key = req.socket?.remoteAddress || 'unknown';
+    const key = loginClientAddress(req);
     let entry = loginAttempts.get(key);
     if (!entry) {
         if (loginAttempts.size >= 10000) return false;

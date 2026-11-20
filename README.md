@@ -306,3 +306,26 @@ para:
 
 Os termos completos de licença e redistribuição serão publicados com a primeira
 versão estável.
+
+### Limite de tentativas de login atrás de proxy reverso
+
+Por padrão, o limite de login usa o IP da conexão TCP. Para separar clientes
+atrás de um proxy reverso, defina `AUTH_LOGIN_TRUSTED_PROXY_IPS` no processo do
+ThinkIac com os IPs exatos dos proxies imediatos, separados por vírgula. Use os
+endereços que o ThinkIac vê na conexão TCP e reserve-os para os proxies.
+
+No Nginx, configure o bloco que encaminha o login para substituir o cabeçalho
+recebido pelo endereço do cliente:
+
+```nginx
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+Se houver CDN ou outro proxy na frente do Nginx, configure o módulo Real IP do
+Nginx para resolver o endereço do cliente apenas a partir dos intermediários
+autorizados. Mantenha a porta do ThinkIac acessível apenas ao proxy nessa
+topologia e use uma rede em que outros serviços não compartilhem o IP confiável.
+
+O login usa o IP da conexão quando o proxy não está cadastrado ou quando
+`X-Real-IP` está ausente ou inválido. Os contadores ficam em cada processo do
+ThinkIac.

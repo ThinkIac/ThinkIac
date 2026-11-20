@@ -43,6 +43,45 @@ test('login normalizes email, returns HTTP errors and limits attempts per socket
  expect(blocked.setHeader).toHaveBeenCalledWith('Retry-After', '900');
  expect((await login({ ...req, socket: { remoteAddress: '192.0.2.43' } }, response())).success).toBe(true);
 });
+test('login uses separate client limits behind an explicitly trusted proxy', async () => {
+ const proxy = { remoteAddress: '::ffff:198.51.100.10' };
+ vi.stubEnv('AUTH_LOGIN_TRUSTED_PROXY_IPS', '198.51.100.10');
+ try {
+   const request = { socket: proxy, headers: { 'x-real-ip': '2001:db8::1' } };
+   for (let i = 0; i < 20; i++) await login(request, response());
+
+   const blocked = response();
+   await login({ ...request, headers: { 'x-real-ip': '2001:0DB8:0:0::1' } }, blocked);
+   expect(blocked.status).toHaveBeenCalledWith(429);
+
+   const otherClient = response();
+   await login({ ...request, headers: { 'x-real-ip': '2001:db8::2' } }, otherClient);
+   expect(otherClient.status).toHaveBeenCalledWith(400);
+
+   for (let i = 0; i < 20; i++) await login({ socket: proxy }, response());
+   const invalidHeader = response();
+   await login({ ...request, headers: { 'x-real-ip': '192.0.2.1, 192.0.2.2' } }, invalidHeader);
+   expect(invalidHeader.status).toHaveBeenCalledWith(429);
+ } finally {
+   vi.unstubAllEnvs();
+ }
+});
+
+test('login uses the socket limit for peers outside the trusted proxy list', async () => {
+ vi.stubEnv('AUTH_LOGIN_TRUSTED_PROXY_IPS', '198.51.100.10');
+ try {
+   const socket = { remoteAddress: '198.51.100.11' };
+   for (let i = 0; i < 20; i++) {
+     await login({ socket, headers: { 'x-real-ip': `192.0.2.${i + 1}` } }, response());
+   }
+   const blocked = response();
+   await login({ socket, headers: { 'x-real-ip': '192.0.2.21' } }, blocked);
+   expect(blocked.status).toHaveBeenCalledWith(429);
+ } finally {
+   vi.unstubAllEnvs();
+ }
+});
+
 test('confirmation requests credit for the authenticated account, never a supplied user ID', async () => {
  const user = await db.user.push({ id: 'u', email: 'new@example.test', emailVerified: false, tenantStatus: null });
  const verification = createEmailVerification({ userId: user.id, email: user.email });
