@@ -97,7 +97,8 @@
         "google_user.test.js",
         "mcp-routes.test.js",
         "signup-flow.test.js",
-        "user-commands.test.js"
+        "user-commands.test.js",
+        "boundaries.test.js"
       ],
       "timeoutMs": 120000
     },
