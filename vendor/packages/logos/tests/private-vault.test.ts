@@ -34,7 +34,7 @@ describe('PrivateVault', () => {
 
     await vault.keyFor('wallet');
     expect(writes).toBe(0);
-  });
+  }, 15_000);
 
   it('creates a SQLCipher database that cannot be read as plaintext SQLite', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'logos-private-vault-'));

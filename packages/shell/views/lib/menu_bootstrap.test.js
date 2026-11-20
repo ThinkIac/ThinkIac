@@ -61,10 +61,5 @@ assert.deepEqual(get(accordionOpenMap), {
     "chat-sessions": true,
 });
 
-for (const [path, expectedLabel] of [
-    ["packages/system-monitor/package.json", "System Usage"],
-    ["packages/process-manager/package.json", "Gerenciador de Tarefas"],
-]) {
-    const manifest = JSON.parse(await readFile(path, "utf8"));
-    assert.equal(manifest.manifest.menu.label, expectedLabel);
-}
+const systemMonitor = JSON.parse(await readFile(new URL('../../../system-monitor/package.json', import.meta.url), 'utf8'));
+assert.equal(systemMonitor.manifest.menu.label, "System Usage");

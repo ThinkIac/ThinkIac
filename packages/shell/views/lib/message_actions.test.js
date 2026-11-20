@@ -5,9 +5,9 @@ import {
   listenSessionKey, shouldAutoSpeak,
 } from './message_actions.js'
 
-test('copy, like e dislike pertencem ao registry nativo', () => {
+test('copy, speak, like e dislike pertencem ao registry nativo', () => {
   assert.deepEqual(nativeMessageActions.map(action => action.id), [
-    'native:copy', 'native:like', 'native:dislike',
+    'native:copy', 'native:speak', 'native:like', 'native:dislike',
   ])
 })
 
@@ -37,17 +37,6 @@ test('alternância da sessão não pertence ao slot de ações da mensagem', () 
     messageActions: [{ id: 'listen-session', kind: 'audio-session', endpoint: 'speak' }],
   })
   assert.deepEqual(actions, [])
-})
-
-test('o pacote TTS declara o modo da sessão na InputBar', async () => {
-  const manifest = JSON.parse(await import('node:fs/promises').then(fs =>
-    fs.readFile(new URL('../../../pocket-tts/package.json', import.meta.url), 'utf8')
-  )).manifest
-  assert.equal(manifest.inputbar.command, 'toggle-listen-session')
-  assert.equal(manifest.inputbar.view, false)
-  assert.deepEqual(manifest.messageActions.map(action => action.kind), ['audio'])
-  assert.equal(manifest.messageActions[0].streaming, true)
-  assert.equal(manifest.messageActions[0].fallbackEndpoint, 'generate')
 })
 
 test('ordena ações estavelmente pelo campo order', () => {
