@@ -1,12 +1,24 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { copyMessageTiming } from './message_time.js';
+import { createHistoryMessages } from './history_messages.js';
+import { extractStructuredInput } from './structured_input.js';
 
-// Execute the existing view functions before extraction, without browser globals.
-const source = readFileSync(new URL('../Index.svelte', import.meta.url), 'utf8');
-const block = source.slice(source.indexOf('    function contentToString('), source.indexOf('    // ── Mobile state'));
-const assistant = source.slice(source.indexOf('    function processAssistantMessage('), source.indexOf('    function handleOnline('));
-const createHistory = (resourceUrl = p => `active:${p}`) => new Function('agentRuntime', 'copyMessageTiming', 'extractStructuredInput', `${block}\n${assistant}\nreturn { contentToString, extractAttachmentRefs, mergeAttachments, sanitizeHistoryMessages };`)({ resourceUrl }, copyMessageTiming, content => ({ content, steps: [] }));
+const createHistory = (resourceUrl = p => `active:${p}`) => {
+  const history = createHistoryMessages({ resourceUrl, processAssistantMessage });
+  function processAssistantMessage(msg) {
+    if (msg.role === 'assistant' && msg.content) {
+      const structured = extractStructuredInput(msg.content);
+      msg._structuredData = structured.steps;
+      msg.content = structured.content;
+      const refs = history.extractAttachmentRefs(msg.content);
+      if (refs.attachments.length) {
+        msg.content = refs.content;
+        msg.attachments = history.mergeAttachments(msg.attachments, refs.attachments);
+      }
+    }
+    return msg;
+  }
+  return history;
+};
 const history = createHistory();
 const ref = (path = '/tmp/a b.png', type = 'image', mime = 'image/png', name = 'picture') => `[Attached reference: type=${type}; path=${path}; mime=${mime}; name=${name}]`;
 

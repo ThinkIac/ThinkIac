@@ -297,6 +297,15 @@
       "timeoutMs": 120000
     },
     {
+      "name": "shell-history:vitest",
+      "cwd": ".",
+      "runner": "vitest",
+      "files": [
+        "packages/shell/views/lib/history_messages.test.js"
+      ],
+      "timeoutMs": 120000
+    },
+    {
       "name": "desktop-control:vitest",
       "cwd": ".",
       "runner": "vitest",

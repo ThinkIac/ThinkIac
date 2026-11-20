@@ -1,4 +1,5 @@
 <script>
+    import { createHistoryMessages } from "./lib/history_messages.js";
     import { retryTurnInput } from './lib/retry-turn.js';
     import { onMount, tick } from "svelte";
     import Dialogs from "../../ui-dialogs/views/components/Dialogs.svelte";
@@ -43,7 +44,6 @@
     import { createSessionActivationGuard } from "./lib/session_activation.js";
     import { closeAllAppTabs } from "./lib/app_tabs.js";
     import { moveTab, normalizeTabOrder } from "./lib/tab_groups.js";
-    import { copyMessageTiming } from "./lib/message_time.js";
     import { adjacentTabId, desktopShortcutAction, isEditableShortcutTarget, isTextEditingShortcut } from "./lib/desktop_shortcuts.js";
     import { isHostedByDesktop } from "./lib/desktop-host.js";
     import { installShellControlBridge } from "./lib/shell-control-bridge.js";
@@ -594,200 +594,11 @@
             system = { ...system, connections: Object.entries(o.providers) };
     }
 
-    function contentToString(raw) {
-        if (!raw) return "";
-        if (typeof raw === "string") return raw;
-        if (Array.isArray(raw)) {
-            return raw
-                .filter((b) => b && b.type === "text" && b.text)
-                .map((b) => String(b.text))
-                .join("\n")
-                .trim();
-        }
-        if (typeof raw === "object" && raw.text) return String(raw.text);
-        return "";
-    }
-
-    // ── Anexos no texto ─────────────────────────────────────────────
-    // O histórico persistido só guarda o texto enviado ao LLM: o base64 do
-    // upload se perde. Ao reabrir uma sessão antiga, reconstruímos os anexos a
-    // partir dos marcadores do próprio texto e servimos o arquivo por
-    // O adapter resolve a rota de anexos do agente ativo.
-    // anexar um arquivo que ela gerou.
-    const ATTACH_RE =
-        /\[Attached reference:\s*type=([^;\]]*);\s*path=([^;\]]*);\s*mime=([^;\]]*);\s*name=([^\]]*)\]/g;
-    // Formato legado usado antes do marcador completo.
-    const IMAGE_PATH_RE = /\[Image Path:\s*([^\]]+)\]/g;
-
-    function attachmentUrl(p) {
-        return agentRuntime.resourceUrl(`/attachment?path=${encodeURIComponent(p)}`);
-    }
-
-    function attachmentFromRef(type, filePath, mime, name) {
-        const mimetype = (mime || "").trim() || "application/octet-stream";
-        const clean = (filePath || "").trim();
-        return {
-            name: (name || "").trim() || clean.split("/").pop() || "file",
-            path: clean,
-            mimetype,
-            isImage:
-                type === "image" || mimetype.startsWith("image/"),
-            isText: false,
-            base64: null,
-            textContent: null,
-            url: attachmentUrl(clean),
-            fromHistory: true,
-        };
-    }
-
-    // Extrai os marcadores de anexo do texto e devolve { content, attachments }
-    // com o texto já limpo (o marcador é ruído para o usuário).
-    function extractAttachmentRefs(content) {
-        const text = String(content ?? "");
-        if (!text.includes("[Attached reference:") && !text.includes("[Image Path:"))
-            return { content: text, attachments: [] };
-
-        const attachments = [];
-        let out = text.replace(ATTACH_RE, (_, type, p, mime, name) => {
-            attachments.push(
-                attachmentFromRef(type.trim(), p, mime, name),
-            );
-            return "";
+    const { extractAttachmentRefs, mergeAttachments, sanitizeHistoryMessages } =
+        createHistoryMessages({
+            resourceUrl: (path) => agentRuntime.resourceUrl(path),
+            processAssistantMessage,
         });
-        out = out.replace(IMAGE_PATH_RE, (_, p) => {
-            attachments.push(attachmentFromRef("image", p, "", ""));
-            return "";
-        });
-        return { content: out.replace(/\n{3,}/g, "\n\n").trim(), attachments };
-    }
-
-    // Anexos vindos do raw (upload recém-feito, com base64) têm prioridade;
-    // os do texto só entram se o mesmo path ainda não estiver presente.
-    function mergeAttachments(rawAtts, refAtts) {
-        const merged = [...(rawAtts ?? [])];
-        const seen = new Set(merged.map((a) => a?.path).filter(Boolean));
-        for (const a of refAtts) {
-            if (a.path && seen.has(a.path)) continue;
-            if (a.path) seen.add(a.path);
-            merged.push(a);
-        }
-        return merged;
-    }
-
-    function mergeAssistantGroup(items) {
-        const steps = [];
-        const reasoningParts = [];
-        let allReasoningText = null;
-        let lastContent = "";
-        // Modelo do último turno do grupo: é ele que assina a resposta visível.
-        let model = null, provider = null;
-        for (const item of items) {
-            const m = item.raw;
-            const content = item.content;
-            lastContent = content;
-            if (m.model) {
-                model = m.model;
-                provider = m.provider ?? null;
-            }
-            const toolCalls = m.tool_calls ?? [];
-            if (toolCalls.length > 0) {
-                for (const tc of toolCalls) {
-                    const name = tc.function?.name || tc.name || "tool";
-                    const args =
-                        tc.function?.arguments ??
-                        tc.arguments ??
-                        tc.args ??
-                        tc.input ??
-                        null;
-                    steps.push({
-                        label: name,
-                        reasoning: content || null,
-                        args,
-                        result: tc.result ?? tc.output ?? null,
-                    });
-                }
-            }
-            if (toolCalls.length > 0 && content.trim()) {
-                reasoningParts.push(content);
-            }
-            const rc = m.reasoning_content ?? m.reasoning ?? null;
-            if (rc) {
-                allReasoningText = allReasoningText
-                    ? allReasoningText + " " + rc
-                    : rc;
-            }
-        }
-        const msg = {
-            role: "assistant",
-            content: lastContent,
-            attachments: [],
-            streaming: false,
-            steps: steps,
-            allReasoning:
-                allReasoningText ||
-                (reasoningParts.length > 0 ? reasoningParts.join(" ") : null),
-            thinkingExpanded: false,
-            model,
-            provider,
-            ...copyMessageTiming(items[items.length - 1]?.raw),
-        };
-        return processAssistantMessage(msg);
-    }
-
-    function sanitizeHistoryMessages(raw) {
-        if (!Array.isArray(raw)) return [];
-        // Passo 1: intercalar user/assistant em ordem
-        const interleaved = [];
-        for (const m of raw) {
-            const role = m.role || (m.is_user ? "user" : "assistant");
-            if (role !== "user" && role !== "assistant") continue;
-            const content = contentToString(
-                m.content ?? m.message ?? m.text ?? "",
-            );
-            if (
-                role === "assistant" &&
-                !content.trim() &&
-                !m.steps?.length &&
-                (!Array.isArray(m.tool_calls) || m.tool_calls.length === 0)
-            )
-                continue;
-            if (role === "user" && !content.trim() && !m.attachments?.length)
-                continue;
-            interleaved.push({ raw: m, role, content });
-        }
-        // Passo 2: agrupar assistants consecutivos
-        const merged = [];
-        let assistantGroup = [];
-        function flushGroup() {
-            if (assistantGroup.length === 0) return;
-            merged.push(mergeAssistantGroup(assistantGroup));
-            assistantGroup = [];
-        }
-        for (const item of interleaved) {
-            if (item.role === "user") {
-                flushGroup();
-                const refs = extractAttachmentRefs(item.content);
-                merged.push({
-                    role: "user",
-                    content: refs.content,
-                    attachments: mergeAttachments(
-                        item.raw.attachments,
-                        refs.attachments,
-                    ),
-                    inputTrace: item.raw.inputTrace ?? null,
-                    streaming: false,
-                    steps: [],
-                    allReasoning: null,
-                    thinkingExpanded: false,
-                    ...copyMessageTiming(item.raw),
-                });
-            } else {
-                assistantGroup.push(item);
-            }
-        }
-        flushGroup();
-        return merged;
-    }
 
     // ── Mobile state ────────────────────────────────────────────────
     let isMobile = false;
