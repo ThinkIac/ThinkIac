@@ -1,6 +1,6 @@
 # ThinkIac
 
-ThinkIac é uma plataforma modular para executar agentes, automações e aplicações na sua própria infraestrutura. A interface web reúne chat, ferramentas, terminal e arquivos. Pacotes ampliam o ambiente com novas interfaces, serviços e integrações.
+ThinkIac é uma plataforma modular para executar agentes, automações e aplicações como infraestrutura. A interface web reúne chat, ferramentas, terminal e arquivos. Os pacotes e módulos ampliam o ambiente com novas interfaces, serviços e integrações.
 
 <img width="720" alt="Interface web do ThinkIac" src="https://github.com/user-attachments/assets/215e73db-7f0a-46fd-a081-0500156a83be" />
 
