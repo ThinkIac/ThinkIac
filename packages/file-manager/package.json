@@ -19,7 +19,7 @@
   "dependencies": {
     "adm-zip": "^0.6.1",
     "mime-types": "^2.1.35",
-    "tar": "^7.4.3",
+    "tar": "^7.5.23",
     "three": "^0.170.0"
   }
 }

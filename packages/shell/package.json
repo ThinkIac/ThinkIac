@@ -23,5 +23,8 @@
   },
   "scripts": {
     "test": "vitest run test/contract.test.js test/agent-runtime.test.js test/view-ssr.test.js test/desktop-handoff.test.js views/persistence.test.js views/lib/session_activation.test.js views/lib/mobile_browser_history.test.js"
+  },
+  "dependencies": {
+    "loudness": "^0.4.2"
   }
 }

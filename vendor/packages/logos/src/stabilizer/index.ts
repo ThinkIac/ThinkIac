@@ -487,28 +487,27 @@ export class Stabilizer {
    */
   async ensureDeps(pkgFolder: string): Promise<boolean> {
     const manifest = this.readManifest(pkgFolder);
-    this.depsFingerprint.set(pkgFolder, this.readDepsFingerprint(pkgFolder));
     if (!manifest) return false;
 
-    const declared = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
-    if (!declared.length) return false;
+    const dependencies = { ...manifest.dependencies, ...manifest.devDependencies };
+    const declared = Object.keys(dependencies);
 
     const missing = declared.filter(dep => {
       try { require.resolve(dep, { paths: [path.join(this.container.workspace, pkgFolder), process.cwd()] }); return false; }
       catch { return true; }
     });
-    if (!missing.length) return false;
-
-    this.container.log(`[stabilizer:deps] "${pkgFolder}" needs ${missing.join(', ')} — running npm install`);
-    await this.runInstall(pkgFolder);
-    return true;
+    if (missing.length) {
+      this.container.log(`[stabilizer:deps] "${pkgFolder}" needs ${missing.join(', ')}`);
+      await this.runInstall(pkgFolder);
+    }
+    this.depsFingerprint.set(pkgFolder, JSON.stringify(dependencies));
+    return missing.length > 0;
   }
 
   /** Global lock — never two npm installs on the same workspace at once. */
   private async maybeInstallDeps(pkgFolder: string): Promise<void> {
     const current = this.readDepsFingerprint(pkgFolder);
     const previous = this.depsFingerprint.get(pkgFolder);
-    this.depsFingerprint.set(pkgFolder, current);
     if (previous === undefined || previous === current) return;
     // Manifesto ilegível ou apagado (pacote removido, checkout no meio do
     // caminho): instalar não conserta nada e um npm install acidental na raiz
@@ -516,27 +515,33 @@ export class Stabilizer {
     if (current === '') return;
 
     await this.runInstall(pkgFolder);
+    this.depsFingerprint.set(pkgFolder, current);
   }
 
   private async runInstall(pkgFolder: string): Promise<void> {
-    while (this.installing) await this.installing; // queue behind a running install
-
-    this.installing = new Promise<void>((resolve) => {
-      this.container.log(`[stabilizer:deps] dependencies changed in "${pkgFolder}" — running npm install`);
-      const child = spawn('npm', ['install'], {
-        cwd: process.cwd(),
+    const previous = this.installing ?? Promise.resolve();
+    const install = previous.catch(() => undefined).then(() => new Promise<void>((resolve, reject) => {
+      const directory = path.resolve(this.container.workspace, pkgFolder);
+      this.container.log(`[stabilizer:deps] installing dependencies for "${pkgFolder}"`);
+      // Installing dependencies must leave the source candidate and its lockfile intact.
+      const args = ['--prefix', '.', 'install', '--workspaces=false', '--legacy-peer-deps', '--no-save'];
+      const child = spawn('npm', args, {
+        cwd: directory,
         stdio: 'inherit',
         shell: process.platform === 'win32',
       });
-      child.on('error', (err) => { appendLog(pkgFolder, 'stabilizer:deps', err); resolve(); });
-      child.on('exit', (code) => {
-        if (code !== 0) appendLog(pkgFolder, 'stabilizer:deps', new Error(`npm install exited ${code}`));
-        resolve();
+      child.once('error', reject);
+      child.once('close', (code, signal) => {
+        if (code === 0) resolve();
+        else reject(new Error(`npm install failed for "${pkgFolder}" (${signal ?? code})`));
       });
-    });
-    await this.installing;
-    this.installing = null;
-    await new Promise(r => setTimeout(r, 500)); // let node_modules settle
+    }));
+    this.installing = install;
+    try {
+      await install;
+    } finally {
+      if (this.installing === install) this.installing = null;
+    }
   }
 
   // ── Schema protocol ───────────────────────────────────────────────────────

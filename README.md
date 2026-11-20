@@ -261,7 +261,9 @@ os decorators ativos e o contrato de eventos do Harness.
 
 ## Desenvolvimento local
 
-Requer Node.js 22+.
+Requer Node.js 22.12+. O CI verifica o setup no Linux e no macOS. No macOS,
+instale o Xcode Command Line Tools (`xcode-select --install`) e o Python 3
+caso o npm precise compilar módulos nativos.
 
 ```bash
 git clone https://github.com/ThinkIac/ThinkIac.git
@@ -273,9 +275,14 @@ npm run start:runtime
 
 O comando de inicialização carrega o arquivo `.env`, sem substituir variáveis
 já definidas no ambiente. Execute `npm test` para rodar as suítes do projeto
-(também disponíveis por `npm run test:all`). As dependências dos pacotes do
-runtime devem ser declaradas também no `package.json` raiz para que `npm ci`
-as instale.
+(também disponíveis por `npm run test:all`).
+
+Declare bibliotecas npm em `dependencies` no `package.json` do pacote e
+ferramentas de desenvolvimento em `devDependencies`. Os pacotes de
+`packages/*` são workspaces. Depois de alterar uma dependência, rode
+`npm install --legacy-peer-deps` na raiz e versione o `package-lock.json`.
+Na ativação de um pacote adicionado ao runtime, o Lógos instala as
+dependências faltantes no diretório do pacote antes de carregá-lo.
 
 ## Segurança
 
