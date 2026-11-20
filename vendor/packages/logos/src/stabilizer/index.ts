@@ -26,6 +26,7 @@
 import fs from 'fs';
 import { candidateHash, createCandidate, candidateContributors } from './candidate';
 import path from 'path';
+import { createRequire } from 'node:module';
 import { spawn, spawnSync } from 'child_process';
 import { Container } from '../kernel/container';
 import { CheckpointStore } from './checkpoint';
@@ -476,25 +477,19 @@ export class Stabilizer {
     return JSON.stringify({ ...manifest.dependencies, ...manifest.devDependencies });
   }
 
-  /**
-   * Dependências de um pacote RECÉM-CRIADO. O caminho normal (maybeInstallDeps)
-   * compara a impressão digital com a anterior e, num pacote novo, não existe
-   * anterior — nada era instalado e o pacote quebrava no primeiro require.
-   *
-   * Só chama o npm se alguma dependência declarada realmente não estiver
-   * resolvível: um npm install de ~20s por pacote novo (a esmagadora maioria só
-   * usa o que já está na raiz) tornaria "criou, já funciona" uma promessa vazia.
-   */
+  /** Ensure declared packages are installed before loading the package entrypoint. */
   async ensureDeps(pkgFolder: string): Promise<boolean> {
     const manifest = this.readManifest(pkgFolder);
     if (!manifest) return false;
 
     const dependencies = { ...manifest.dependencies, ...manifest.devDependencies };
-    const declared = Object.keys(dependencies);
-
-    const missing = declared.filter(dep => {
-      try { require.resolve(dep, { paths: [path.join(this.container.workspace, pkgFolder), process.cwd()] }); return false; }
-      catch { return true; }
+    const required = process.env.NODE_ENV === 'production' ? manifest.dependencies ?? {} : dependencies;
+    const manifestPath = path.resolve(this.container.workspace, pkgFolder, 'package.json');
+    const lookup = createRequire(manifestPath).resolve;
+    // Check package presence without assuming it exports a CommonJS entrypoint.
+    const missing = Object.keys(required).filter(dep => {
+      const directories = lookup.paths(dep) ?? [];
+      return !directories.some(directory => fs.existsSync(path.join(directory, dep, 'package.json')));
     });
     if (missing.length) {
       this.container.log(`[stabilizer:deps] "${pkgFolder}" needs ${missing.join(', ')}`);

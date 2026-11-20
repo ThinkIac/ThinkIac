@@ -281,8 +281,10 @@ Declare bibliotecas npm em `dependencies` no `package.json` do pacote e
 ferramentas de desenvolvimento em `devDependencies`. Os pacotes de
 `packages/*` são workspaces. Depois de alterar uma dependência, rode
 `npm install --legacy-peer-deps` na raiz e versione o `package-lock.json`.
-Na ativação de um pacote adicionado ao runtime, o Lógos instala as
-dependências faltantes no diretório do pacote antes de carregá-lo.
+Declare outros pacotes do Lógos em `logosDependencies`. Durante a
+inicialização, o Lógos resolve esses pacotes pelo catálogo quando necessário.
+Na inicialização e na ativação de novos pacotes, instala as dependências
+npm faltantes no diretório de cada pacote antes de carregá-lo.
 
 ## Segurança
 
