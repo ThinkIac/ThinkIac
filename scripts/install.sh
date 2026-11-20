@@ -52,9 +52,21 @@ fi
 if [ ! -f "$INSTALL_DIR/.env" ]; then
   note "criando .env inicial"
   as_app_user cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
-  admin_email="${THINKIAC_ADMIN_EMAIL:-admin@localhost}"
+  admin_email="${THINKIAC_ADMIN_EMAIL:-admin@localhost.test}"
   admin_password="${THINKIAC_ADMIN_PASSWORD:-$(openssl rand -base64 24 | tr -d '\n')}"
-  as_app_user sed -i "s|^AUTH_ENV_ADMIN_EMAIL=.*|AUTH_ENV_ADMIN_EMAIL=$admin_email|; s|^AUTH_ENV_ADMIN_PASSWORD=.*|AUTH_ENV_ADMIN_PASSWORD=$admin_password|" "$INSTALL_DIR/.env"
+  case "$admin_email$admin_password" in *[!a-zA-Z0-9_@.+/=-]*) fail "credenciais iniciais contêm caracteres não suportados" ;; esac
+  tmp_env="$(mktemp)"
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      INITIAL_AUTH_USER=*) printf 'INITIAL_AUTH_USER=%s\n' 'admin-user' ;;
+      INITIAL_AUTH_EMAIL=*) printf 'INITIAL_AUTH_EMAIL=%s\n' "$admin_email" ;;
+      INITIAL_AUTH_PASSWORD=*) printf 'INITIAL_AUTH_PASSWORD=%s\n' "$admin_password" ;;
+      *) printf '%s\n' "$line" ;;
+    esac
+  done < "$INSTALL_DIR/.env" > "$tmp_env"
+  as_root install -o "$RUN_USER" -m 600 "$tmp_env" "$INSTALL_DIR/.env"
+  rm -f "$tmp_env"
+  as_app_user chmod 600 "$INSTALL_DIR/.env"
   generated_credentials=1
 else
   generated_credentials=0
@@ -93,5 +105,5 @@ note "serviço ativo. Acesse: http://SEU_IP:5040/view/auth/Login"
 note "status: sudo systemctl status $SERVICE_NAME"
 note "logs:   sudo journalctl -u $SERVICE_NAME -f"
 if [ "$generated_credentials" -eq 1 ]; then
-  printf '\n[thinkiac] credenciais iniciais (guarde e troque após entrar):\n  e-mail: %s\n  senha: %s\n\n' "$admin_email" "$admin_password"
+  note "credenciais iniciais salvas em $INSTALL_DIR/.env com acesso restrito"
 fi

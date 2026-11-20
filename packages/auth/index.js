@@ -61,7 +61,7 @@ const NOTIFY_SUBSCRIBE_SCOPE = 'notify:subscribe';
 // A entrada autenticada é decidida pelo pacote Redirect. Ele aplica a regra
 // do cargo, quando houver, e usa a tela inicial como destino padrão.
 const AUTHENTICATED_HOME = '/redirect/home';
-let initialAdminCreationInProgress = false;
+
 
 function uniqueConflict(error, field) {
     if (error?.code !== 'SQLITE_CONSTRAINT_UNIQUE') return null;
@@ -706,6 +706,7 @@ export async function setupUser(payload, context) {
      * @register_hook boot
      */
     const db = getProxy('auth');
+    await provisionInitialAdmin(db, process.env);
 
     // Scriba retorna '' (não undefined) pra colunas novas em registros
     // antigos que nunca tiveram esse campo — precisa checar os dois casos,
@@ -819,9 +820,38 @@ export async function getUser(req, res) {
     }
 }
 
-async function hasUsers(db) {
-    const users = db.user.all ? await db.user.all() : [];
-    return (users || []).length > 0;
+// Provisioning is local to the operator: credentials never enter an HTTP request.
+export async function provisionInitialAdmin(db, env = process.env) {
+    const rawUsername = env.INITIAL_AUTH_USER;
+    const password = env.INITIAL_AUTH_PASSWORD;
+    if (!rawUsername && !password && !env.INITIAL_AUTH_EMAIL) return { created: false };
+    if (!rawUsername || !password || !env.INITIAL_AUTH_EMAIL) {
+        throw new Error('Set INITIAL_AUTH_USER, INITIAL_AUTH_EMAIL and INITIAL_AUTH_PASSWORD together.');
+    }
+    const users = await db.user.all();
+    if (users.some(user => user.role === 'admin')) return { created: false };
+    const { valid, username, reason } = validateUsername(rawUsername);
+    if (!valid) throw new Error(reason);
+    const email = String(env.INITIAL_AUTH_EMAIL).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof password !== 'string' || password.length < 12) {
+        throw new Error('A valid INITIAL_AUTH_EMAIL and a password of at least 12 characters are required.');
+    }
+    if (users.some(user => String(user.email || '').toLowerCase() === email || String(user.username || '').toLowerCase() === username)) {
+        throw new Error('The configured initial administrator email or username is already in use.');
+    }
+    await db.user.push({ name: String(env.INITIAL_AUTH_NAME || username).trim(), email, username,
+        password: await hashPasswordAsync(password), role: 'admin', inviteBalance: 0,
+        emailVerified: true, tenantStatus: null });
+    return { created: true };
+}
+
+export async function createUserCommand() {
+    /**
+     * @register_command create-user
+     * @description Provisiona um administrador inicial usando variáveis de ambiente, sem passar senha em argumentos.
+     * @cli_runtime full
+     */
+    return provisionInitialAdmin(getProxy('auth'), process.env);
 }
 
 export async function initialSetupStatus(req) {
@@ -832,13 +862,10 @@ export async function initialSetupStatus(req) {
      */
     const db = getProxy('auth');
     const settings = db.authsettings?.findOne?.({ id: 'default' });
-    return {
-        initialSetupRequired: !(await hasUsers(db)),
-        settings: {
-            registrationEnabled: settings?.registrationEnabled !== false,
-            invitationsEnabled: settings?.invitationsEnabled !== false,
-        },
-    };
+    return { initialSetupRequired: false, settings: {
+        registrationEnabled: settings?.registrationEnabled !== false,
+        invitationsEnabled: settings?.invitationsEnabled !== false,
+    } };
 }
 
 export async function createInitialAdmin(req, res) {
@@ -847,40 +874,7 @@ export async function createInitialAdmin(req, res) {
      * @public true
      * @method POST
      */
-    if (initialAdminCreationInProgress) {
-        return res.status(409).send({ error: 'Initial setup is already in progress.' });
-    }
-
-    initialAdminCreationInProgress = true;
-    try {
-        const { name, email, password, username: rawUsername } = req.body || {};
-        const normalizedEmail = String(email || '').trim().toLowerCase();
-        const db = getProxy('auth');
-
-        if (await hasUsers(db)) {
-            return res.status(403).send({ error: 'Initial setup is no longer available.' });
-        }
-        if (!String(name || '').trim() || !normalizedEmail || !password) {
-            return res.status(400).send({ error: 'Name, email, username, and password are required.' });
-        }
-        const { valid, username, reason } = validateUsername(rawUsername);
-        if (!valid) return res.status(400).send({ error: reason });
-
-        const user = await db.user.push({
-            name: String(name).trim(),
-            email: normalizedEmail,
-            username,
-            password: await hashPasswordAsync(password),
-            role: 'admin',
-            inviteBalance: 0,
-            emailVerified: true,
-            tenantStatus: null,
-        });
-        await startSession(req, res, user.id);
-        return { success: true, role: user.role, initialSetup: true };
-    } finally {
-        initialAdminCreationInProgress = false;
-    }
+    return res.status(403).send({ error: 'Initial setup is no longer available. Provision an administrator locally.' });
 }
 
 export async function register(req, res) {

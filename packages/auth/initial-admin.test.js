@@ -1,48 +1,36 @@
 import { beforeEach, expect, test, vi } from 'vitest';
-
 const { db } = vi.hoisted(() => ({ db: {} }));
 vi.mock('logos', () => ({ getProxy: () => db, dispatchEvent: vi.fn(), isPublicRoute: () => false, isPublicView: () => false }));
 vi.mock('./email_delivery.js', () => ({ queueVerificationEmail: vi.fn() }));
 vi.mock('./mcp-auth.js', () => ({ createMcpAuth: () => ({}) }));
-
-import { createInitialAdmin, initialSetupStatus } from './index.js';
-
-function collection() {
-    const rows = [];
-    const store = {
-        rows,
-        all: () => rows,
-        findOne: (query) => rows.find((row) => Object.entries(query).every(([key, value]) => row[key] === value)),
-        async push(value) { const row = { id: String(rows.length + 1), ...value }; rows.push(row); store[row.id] = row; return row; },
-    };
-    return store;
-}
-
-function response() {
-    const res = { setHeader: vi.fn(), status: vi.fn(() => res), send: vi.fn() };
-    return res;
-}
-
+import { createInitialAdmin, initialSetupStatus, provisionInitialAdmin } from './index.js';
+import { verifyPasswordAsync } from './password-async.js';
+const env = { INITIAL_AUTH_USER: 'ada-admin', INITIAL_AUTH_EMAIL: 'ada@example.test', INITIAL_AUTH_PASSWORD: 'a secure password' };
 beforeEach(() => {
-    db.user = collection();
-    db.session = collection();
+    const rows = [];
+    db.user = { rows, all: () => rows, push: async value => { rows.push(value); return value; } };
 });
-
-test('empty Runtime exposes setup and creates one signed-in administrator', async () => {
-    await expect(initialSetupStatus({})).resolves.toEqual({ initialSetupRequired: true });
-    const res = response();
-    await expect(createInitialAdmin({ body: { name: 'Ada Admin', email: 'ada@example.test', username: 'ada-admin', password: 'a secure password' } }, res)).resolves.toMatchObject({ success: true, role: 'admin', initialSetup: true });
+test('public endpoint always rejects, including after users are deleted', async () => {
+    const res = { status: vi.fn().mockReturnThis(), send: vi.fn() };
+    for (const rows of [[], [{ role: 'admin' }], []]) {
+        db.user.rows.splice(0, db.user.rows.length, ...rows);
+        await createInitialAdmin({ body: env }, res);
+        expect(res.status).toHaveBeenLastCalledWith(403);
+    }
+    expect((await initialSetupStatus({})).initialSetupRequired).toBe(false);
+});
+test('local provisioning hashes password and never overwrites an admin', async () => {
+    expect(await provisionInitialAdmin(db, env)).toEqual({ created: true });
+    expect(db.user.rows[0]).toMatchObject({ role: 'admin', username: 'ada-admin', emailVerified: true });
+    expect(db.user.rows[0].password).not.toBe(env.INITIAL_AUTH_PASSWORD);
+    expect(await verifyPasswordAsync(env.INITIAL_AUTH_PASSWORD, db.user.rows[0].password)).toBe(true);
+    expect(await provisionInitialAdmin(db, env)).toEqual({ created: false });
     expect(db.user.rows).toHaveLength(1);
-    expect(db.user.rows[0]).toMatchObject({ role: 'admin', emailVerified: true, tenantStatus: null });
-    expect(db.session.rows).toHaveLength(1);
-    expect(res.setHeader).toHaveBeenCalledWith('Set-Cookie', expect.any(String));
-    await expect(initialSetupStatus({})).resolves.toEqual({ initialSetupRequired: false });
 });
-
-test('initial administrator endpoint closes as soon as a user exists', async () => {
-    await db.user.push({ id: 'existing', role: 'user' });
-    const res = response();
-    await createInitialAdmin({ body: { name: 'Ada', email: 'ada@example.test', username: 'ada-admin', password: 'a secure password' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.send).toHaveBeenCalledWith({ error: 'Initial setup is no longer available.' });
+test('partial credentials, invalid values and existing accounts fail closed', async () => {
+    await expect(provisionInitialAdmin(db, { INITIAL_AUTH_USER: 'ada' })).rejects.toThrow();
+    await expect(provisionInitialAdmin(db, { ...env, INITIAL_AUTH_PASSWORD: 'short' })).rejects.toThrow();
+    db.user.rows.push({ email: env.INITIAL_AUTH_EMAIL, role: 'user' });
+    await expect(provisionInitialAdmin(db, env)).rejects.toThrow(/already in use/);
+    expect(db.user.rows).toHaveLength(1);
 });
