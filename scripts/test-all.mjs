@@ -59,7 +59,12 @@ export function loadSuites() {
       if (!suite.files?.length) throw new Error('Empty mandatory file selection');
       const args = suite.runner === 'vitest'
         ? [resolve(dirname(require.resolve('vitest/package.json')), 'vitest.mjs'), 'run', '--config', resolve(root, 'scripts/test-vitest.config.mjs'), '--root', cwd, ...suite.files]
-        : suite.runner === 'npm' ? ['test'] : ['--test', '--test-concurrency=1', ...suite.files];
+        : suite.runner === 'npm' ? ['test'] : [
+          ...(suite.setup ? ['--import', resolve(root, `scripts/test-${suite.setup}-setup.mjs`)] : []),
+          '--test', '--test-concurrency=1',
+          ...(suite.setup === 'runtime' ? ['--test-force-exit'] : []),
+          ...suite.files,
+        ];
       return { ...suite, cwd, command: suite.runner === 'npm' ? 'npm' : process.execPath, args };
     } catch (error) {
       return { ...suite, cwd: root, command: '', error: error.message };

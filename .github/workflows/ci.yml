@@ -23,5 +23,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
+      - run: npm run test:all
       - run: npm run test:runner
       - run: npm exec -- vitest run --root vendor/packages/logos tests/logos-dependencies.test.ts tests/scriba-reactivity.browser.test.ts

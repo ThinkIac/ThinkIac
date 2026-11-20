@@ -64,6 +64,7 @@ describe('kernelTools', () => {
   // sem pacote crítico pendurado, reiniciar é liberado.
   it('runtime_reboot_impact responde com o custo do reset global', async () => {
     const c = new Container({ workspace: ws.root });
+    c.state('external-api').set('ws', { getHub: () => ({ connections: new Map() }) });
     const tool = kernelTools(c).find(t => t.name === 'runtime_reboot_impact')!;
     const impact: any = await tool.handler({});
     expect(impact.rebootAdvised).toBe(true);

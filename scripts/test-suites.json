@@ -70,20 +70,21 @@
     },
     {
       "name": "auth:node",
-      "cwd": "packages/auth",
+      "cwd": ".",
       "runner": "node",
+      "setup": "runtime",
       "files": [
-        "access-gate.test.js",
-        "app_flow.test.js",
-        "email-verification-access.test.js",
-        "email_delivery.test.js",
-        "email_verification.test.js",
-        "login-public-view.test.js",
-        "login-session-gate.test.js",
-        "mcp-auth.test.js",
-        "npm_registry.test.js",
-        "permissions.test.js",
-        "proxy_credentials.test.js"
+        "packages/auth/access-gate.test.js",
+        "packages/auth/app_flow.test.js",
+        "packages/auth/email-verification-access.test.js",
+        "packages/auth/email_delivery.test.js",
+        "packages/auth/email_verification.test.js",
+        "packages/auth/login-public-view.test.js",
+        "packages/auth/login-session-gate.test.js",
+        "packages/auth/mcp-auth.test.js",
+        "packages/auth/npm_registry.test.js",
+        "packages/auth/permissions.test.js",
+        "packages/auth/proxy_credentials.test.js"
       ],
       "timeoutMs": 120000
     },
@@ -95,7 +96,8 @@
         "google_oauth.test.js",
         "google_user.test.js",
         "mcp-routes.test.js",
-        "signup-flow.test.js"
+        "signup-flow.test.js",
+        "user-commands.test.js"
       ],
       "timeoutMs": 120000
     },
@@ -103,6 +105,7 @@
       "name": "agent:node",
       "cwd": "packages/agent",
       "runner": "node",
+      "setup": "db",
       "files": [
         "core/activity_registry.test.js",
         "core/chat_bus.test.js",

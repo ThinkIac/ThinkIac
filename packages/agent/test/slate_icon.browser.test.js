@@ -9,7 +9,7 @@ import puppeteer from 'puppeteer';
 
 const require = createRequire(import.meta.url);
 const logosRequire = createRequire(require.resolve('logos/package.json'));
-const { SvelteEngine } = logosRequire('./dist/src/modules/views/engine.js');
+const { SvelteEngine } = logosRequire('./../modules/svelte/index.cjs');
 const express = logosRequire('express');
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const packages = path.join(repository, 'packages');

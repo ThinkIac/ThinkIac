@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
+import { installExternalModules } from '../src/kernel/external-modules';
 import { Container } from '../src/kernel/container';
 import { normalizePackageContract } from '../src/kernel/package-contract';
 import { stagePackage } from '../src/stabilizer/staging';
@@ -49,8 +50,10 @@ describe('stabilizer authority diff', () => {
         decisionId: 'decision-1', package: 'pilot', beforeHash: before.hash, afterHash: after.hash,
         expanded: ['permissions.tools.invoke:target.new'],
       });
+      installExternalModules(container, ['http', 'hooks']);
+      await container.installPhase('wire');
       const accepted = await stagePackage(container, 'pilot');
-      expect(accepted.ok).toBe(true);
+      expect(accepted.ok, accepted.error).toBe(true);
       expect(container.registry.getActiveContract('pilot')?.hash).toBe(after.hash);
     } finally {
       ws.cleanup();

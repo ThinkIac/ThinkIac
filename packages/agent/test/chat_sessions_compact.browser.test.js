@@ -8,17 +8,17 @@ import puppeteer from 'puppeteer';
 
 const require = createRequire(import.meta.url);
 const logosRequire = createRequire(require.resolve('logos/package.json'));
-const { SvelteEngine } = logosRequire('./dist/src/modules/views/engine.js');
+const { SvelteEngine } = logosRequire('./../modules/svelte/index.cjs');
 const express = logosRequire('express');
 const packages = path.resolve('packages');
 const screenshotDirectory = process.env.CHAT_SESSIONS_SCREENSHOT_DIR;
 
 const implementations = [
-  ['shell', path.join(packages, 'shell/views/ChatSessionsCompact.svelte')],
-  ['agent', path.join(packages, 'agent/views/ChatSessionsCompact.svelte')],
+  ['shell', 'Next page', path.join(packages, 'shell/views/ChatSessionsCompact.svelte')],
+  ['agent', 'Próxima página', path.join(packages, 'agent/views/ChatSessionsCompact.svelte')],
 ];
 
-for (const [surface, componentPath] of implementations) {
+for (const [surface, nextPageLabel, componentPath] of implementations) {
   test(`${surface}: ChatSessionsCompact preserves states, paging and keyboard actions`, { timeout: 60_000 }, async () => {
     const directory = await mkdtemp(path.join(tmpdir(), `chat-sessions-${surface}-`));
     let browser;
@@ -121,7 +121,7 @@ for (const [surface, componentPath] of implementations) {
       await page.keyboard.press('Space');
       assert.equal(await page.$eval('#events', (node) => node.textContent), 'select:s2,pin:s1,close:s1');
 
-      await page.click('[aria-label="Próxima página"]');
+      await page.click(`[aria-label="${nextPageLabel}"]`);
       assert.equal(await page.$$eval('.csc-item', (nodes) => nodes.length), 2);
       assert.equal(await page.$eval('[aria-current="page"]', (node) => node.textContent), '2 de 2');
 
