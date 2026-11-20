@@ -150,3 +150,31 @@ test('legacy registration settings cannot reopen public registration', async () 
     state.db.authsettings = table([{ id: 'default', registrationEnabled: true, invitationsEnabled: true }]);
     expect(await auth.initialSetupStatus({})).toEqual({ initialSetupRequired: false, settings: { registrationEnabled: false, invitationsEnabled: false } });
 });
+
+test.each(['POST', 'DELETE', 'PUT'])('gate refuses anonymous %s API calls without redirect or continuation', async method => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn(), redirect: vi.fn() };
+    const next = vi.fn();
+    await auth.accessGate({ method, path: '/private/api', headers: {} }, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'UNAUTHENTICATED' }));
+    expect(res.redirect).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+});
+test('retired identities cannot use public routes', async () => {
+    state.db.user.u1.accountType = 'local';
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+    await auth.accessGate({ ...request(), method: 'GET', path: '/auth/login' }, res, next);
+    expect(res.status).toHaveBeenCalledWith(410);
+    expect(next).not.toHaveBeenCalled();
+});
+test('delegated session refuses unrelated routes even for an administrator', async () => {
+    state.db.user.u1.role = 'admin';
+    state.db.session.s1.delegatedSubject = 'limited';
+    state.db.session.s1.delegatedCapabilities = '["machines.view"]';
+    const res = { status: vi.fn().mockReturnThis(), send: vi.fn() };
+    const next = vi.fn();
+    await auth.accessGate({ ...request(), method: 'POST', path: '/private/admin' }, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+});
