@@ -1,4 +1,12 @@
 <script>
+    import { createWorkspacePersistence } from './controllers/workspace_persistence.js';
+    import { createRecentSessions } from './controllers/recent_sessions.js';
+    import { createSessionTabs } from './controllers/session_tabs.js';
+    import { createMobileNavigation } from './controllers/mobile_navigation.js';
+    import { createAppNavigation } from './controllers/app_navigation.js';
+    import { createAppTabs } from './controllers/app_tabs.js';
+    import { createDesktopIntegration } from './controllers/desktop_integration.js';
+    import { createWidgetBus } from './controllers/widget_bus.js';
     import { createChatEvents } from './controllers/chat_events.js';
     import { createSessionLoading } from './controllers/session_loading.js';
     import { createChatCommands } from './controllers/chat_commands.js';
@@ -71,6 +79,305 @@
     import { applyThemeToDocument, getTheme, setTheme, THEME_KEY } from "./theme.js";
     import { registerProfileScope } from "./lib/profiles_bootstrap.js";
     import { extractStructuredInput } from "./lib/structured_input.js";
+
+    // Controllers own behavior; accessors keep Svelte responsible for rendering.
+    const workspacePersistenceController = createWorkspacePersistence({
+        state: {
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get activeTab() { return activeTab; },
+            set activeTab(value) { activeTab = value; },
+            get appTabs() { return appTabs; },
+            set appTabs(value) { appTabs = value; },
+            get mobileNavigation() { return mobileNavigation; },
+            set mobileNavigation(value) { mobileNavigation = value; },
+            get sessionCache() { return sessionCache; },
+            set sessionCache(value) { sessionCache = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get shellScope() { return shellScope; },
+            set shellScope(value) { shellScope = value; },
+            get tabOrder() { return tabOrder; },
+            set tabOrder(value) { tabOrder = value; },
+            get tabs() { return tabs; },
+            set tabs(value) { tabs = value; },
+            get unreadMap() { return unreadMap; },
+            set unreadMap(value) { unreadMap = value; },
+        },
+        deps: {
+            get normalizeTabOrder() { return normalizeTabOrder; },
+            get restoreSessionState() { return restoreSessionState; },
+            get saveSessionState() { return saveSessionState; },
+        },
+    });
+
+    const recentSessionsController = createRecentSessions({
+        state: {
+            get RECENT_SESSIONS_BATCH_SIZE() { return RECENT_SESSIONS_BATCH_SIZE; },
+            get activeAgentId() { return activeAgentId; },
+            set activeAgentId(value) { activeAgentId = value; },
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get activeTab() { return activeTab; },
+            set activeTab(value) { activeTab = value; },
+            get history() { return history; },
+            set history(value) { history = value; },
+            get initialId() { return initialId; },
+            get recentSessions() { return recentSessions; },
+            set recentSessions(value) { recentSessions = value; },
+            get recentSessionsLoading() { return recentSessionsLoading; },
+            set recentSessionsLoading(value) { recentSessionsLoading = value; },
+            get recentSessionsRequested() { return recentSessionsRequested; },
+            set recentSessionsRequested(value) { recentSessionsRequested = value; },
+            get recentSessionsVisibleCount() { return recentSessionsVisibleCount; },
+            set recentSessionsVisibleCount(value) { recentSessionsVisibleCount = value; },
+            get sessionCache() { return sessionCache; },
+            set sessionCache(value) { sessionCache = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get tabs() { return tabs; },
+            set tabs(value) { tabs = value; },
+        },
+        deps: {
+            get activateSession() { return activateSession; },
+            get agentRuntime() { return agentRuntime; },
+            get fullSaveSessionState() { return fullSaveSessionState; },
+            get markChatRead() { return markChatRead; },
+            get recordMobileNavigation() { return recordMobileNavigation; },
+        },
+    });
+
+    const sessionTabsController = createSessionTabs({
+        state: {
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get activeTab() { return activeTab; },
+            set activeTab(value) { activeTab = value; },
+            get appTabs() { return appTabs; },
+            set appTabs(value) { appTabs = value; },
+            get history() { return history; },
+            set history(value) { history = value; },
+            get isMobile() { return isMobile; },
+            set isMobile(value) { isMobile = value; },
+            get loadingMap() { return loadingMap; },
+            set loadingMap(value) { loadingMap = value; },
+            get refreshTrigger() { return refreshTrigger; },
+            set refreshTrigger(value) { refreshTrigger = value; },
+            get sessionCache() { return sessionCache; },
+            set sessionCache(value) { sessionCache = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get sessionPreferences() { return sessionPreferences; },
+            set sessionPreferences(value) { sessionPreferences = value; },
+            get tabOrder() { return tabOrder; },
+            set tabOrder(value) { tabOrder = value; },
+            get tabs() { return tabs; },
+            set tabs(value) { tabs = value; },
+            get unreadMap() { return unreadMap; },
+            set unreadMap(value) { unreadMap = value; },
+        },
+        deps: {
+            get activateSession() { return activateSession; },
+            get agentRuntime() { return agentRuntime; },
+            get closeAllChatTabs() { return closeAllChatTabs; },
+            get closeChatTab() { return closeChatTab; },
+            get closePanel() { return closePanel; },
+            get createNewTopicWorkspace() { return createNewTopicWorkspace; },
+            get fetch() { return fetch; },
+            get fullSaveSessionState() { return fullSaveSessionState; },
+            get markChatRead() { return markChatRead; },
+            get moveTab() { return moveTab; },
+            get recordMobileNavigation() { return recordMobileNavigation; },
+        },
+    });
+
+    const mobileNavigationController = createMobileNavigation({
+        state: {
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get activeTab() { return activeTab; },
+            set activeTab(value) { activeTab = value; },
+            get appLoadingMap() { return appLoadingMap; },
+            set appLoadingMap(value) { appLoadingMap = value; },
+            get appMenuOpen() { return appMenuOpen; },
+            set appMenuOpen(value) { appMenuOpen = value; },
+            get appTabs() { return appTabs; },
+            set appTabs(value) { appTabs = value; },
+            get canGoBackMobile() { return canGoBackMobile; },
+            set canGoBackMobile(value) { canGoBackMobile = value; },
+            get chatMenuOpen() { return chatMenuOpen; },
+            set chatMenuOpen(value) { chatMenuOpen = value; },
+            get history() { return history; },
+            set history(value) { history = value; },
+            get isMobile() { return isMobile; },
+            set isMobile(value) { isMobile = value; },
+            get loadingMap() { return loadingMap; },
+            set loadingMap(value) { loadingMap = value; },
+            get mobileForwardNavigation() { return mobileForwardNavigation; },
+            set mobileForwardNavigation(value) { mobileForwardNavigation = value; },
+            get mobileNavigation() { return mobileNavigation; },
+            set mobileNavigation(value) { mobileNavigation = value; },
+            get sessionCache() { return sessionCache; },
+            set sessionCache(value) { sessionCache = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get tabOrder() { return tabOrder; },
+            set tabOrder(value) { tabOrder = value; },
+            get tabs() { return tabs; },
+            set tabs(value) { tabs = value; },
+            get unreadMap() { return unreadMap; },
+            set unreadMap(value) { unreadMap = value; },
+        },
+        deps: {
+            get activateSession() { return activateSession; },
+            get closePanel() { return closePanel; },
+            get dismissMobileMenus() { return dismissMobileMenus; },
+            get fullSaveSessionState() { return fullSaveSessionState; },
+            get historyStateWithMobileDestination() { return historyStateWithMobileDestination; },
+            get mobileDestinationFromHistoryState() { return mobileDestinationFromHistoryState; },
+            get window() { return window; },
+        },
+    });
+
+    const appNavigationController = createAppNavigation({
+        state: {
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get activeTab() { return activeTab; },
+            set activeTab(value) { activeTab = value; },
+            get appTabs() { return appTabs; },
+            set appTabs(value) { appTabs = value; },
+            get isMobile() { return isMobile; },
+            set isMobile(value) { isMobile = value; },
+            get tabs() { return tabs; },
+            set tabs(value) { tabs = value; },
+        },
+        deps: {
+            get activateSession() { return activateSession; },
+            get api() { return api; },
+            get closePanel() { return closePanel; },
+            get filePreviewUrl() { return filePreviewUrl; },
+            get handleOpenApp() { return handleOpenApp; },
+            get recordMobileNavigation() { return recordMobileNavigation; },
+        },
+    });
+
+    const appTabsController = createAppTabs({
+        state: {
+            get APP_LOAD_FALLBACK_MS() { return APP_LOAD_FALLBACK_MS; },
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get activeTab() { return activeTab; },
+            set activeTab(value) { activeTab = value; },
+            get appLoadTimers() { return appLoadTimers; },
+            get appLoadingMap() { return appLoadingMap; },
+            set appLoadingMap(value) { appLoadingMap = value; },
+            get appMenuOpen() { return appMenuOpen; },
+            set appMenuOpen(value) { appMenuOpen = value; },
+            get appRefreshingMap() { return appRefreshingMap; },
+            set appRefreshingMap(value) { appRefreshingMap = value; },
+            get appReloadKeys() { return appReloadKeys; },
+            set appReloadKeys(value) { appReloadKeys = value; },
+            get appTabs() { return appTabs; },
+            set appTabs(value) { appTabs = value; },
+            get iframeRefs() { return iframeRefs; },
+            get isMobile() { return isMobile; },
+            set isMobile(value) { isMobile = value; },
+            get sessionCache() { return sessionCache; },
+            set sessionCache(value) { sessionCache = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get tabs() { return tabs; },
+            set tabs(value) { tabs = value; },
+        },
+        deps: {
+            get activateSession() { return activateSession; },
+            get closeAllAppTabs() { return closeAllAppTabs; },
+            get closePanel() { return closePanel; },
+            get fullSaveSessionState() { return fullSaveSessionState; },
+            get reconcileSession() { return reconcileSession; },
+            get recordMobileNavigation() { return recordMobileNavigation; },
+        },
+    });
+
+    const desktopIntegrationController = createDesktopIntegration({
+        state: {
+            get activeAgentId() { return activeAgentId; },
+            set activeAgentId(value) { activeAgentId = value; },
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get activeTab() { return activeTab; },
+            set activeTab(value) { activeTab = value; },
+            get agentId() { return agentId; },
+            set agentId(value) { agentId = value; },
+            get appTabs() { return appTabs; },
+            set appTabs(value) { appTabs = value; },
+            get desktopHost() { return desktopHost; },
+            set desktopHost(value) { desktopHost = value; },
+            get desktopSession() { return desktopSession; },
+            set desktopSession(value) { desktopSession = value; },
+            get handoff() { return handoff; },
+            set handoff(value) { handoff = value; },
+            get history() { return history; },
+            set history(value) { history = value; },
+            get loadingMap() { return loadingMap; },
+            set loadingMap(value) { loadingMap = value; },
+            get refreshTrigger() { return refreshTrigger; },
+            set refreshTrigger(value) { refreshTrigger = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get shellControlApps() { return shellControlApps; },
+            set shellControlApps(value) { shellControlApps = value; },
+            get tabs() { return tabs; },
+            set tabs(value) { tabs = value; },
+            get unreadMap() { return unreadMap; },
+            set unreadMap(value) { unreadMap = value; },
+        },
+        deps: {
+            get agentRuntime() { return agentRuntime; },
+            get api() { return api; },
+            get applyDefaultModelToNewSession() { return applyDefaultModelToNewSession; },
+            get createNewTopicWorkspace() { return createNewTopicWorkspace; },
+            get generateSessionId() { return generateSessionId; },
+            get handleOpenApp() { return handleOpenApp; },
+            get installShellControlBridge() { return installShellControlBridge; },
+            get localStorage() { return localStorage; },
+            get send() { return send; },
+            get tick() { return tick; },
+            get window() { return window; },
+            get writeSessionAgent() { return writeSessionAgent; },
+        },
+    });
+
+    const widgetBusController = createWidgetBus({
+        state: {
+            get busOffs() { return busOffs; },
+            set busOffs(value) { busOffs = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get statusModal() { return statusModal; },
+            set statusModal(value) { statusModal = value; },
+        },
+        deps: {
+            get FILE_MANAGER_PREVIEW_EVENT() { return FILE_MANAGER_PREVIEW_EVENT; },
+            get abrirAppComPath() { return abrirAppComPath; },
+            get abrirAppPorDeepLink() { return abrirAppPorDeepLink; },
+            get abrirAppPorPacote() { return abrirAppPorPacote; },
+            get abrirChatPorDeepLink() { return abrirChatPorDeepLink; },
+            get abrirIframe() { return abrirIframe; },
+            get abrirPreviewNoFileManager() { return abrirPreviewNoFileManager; },
+            get abrirResultadoPorDeepLink() { return abrirResultadoPorDeepLink; },
+            get agentRuntime() { return agentRuntime; },
+            get bootstrapMessageActions() { return bootstrapMessageActions; },
+            get bootstrapPackageWidgets() { return bootstrapPackageWidgets; },
+            get busOn() { return busOn; },
+            get handleOpenCanvas() { return handleOpenCanvas; },
+            get send() { return send; },
+            get setGlobalLoading() { return setGlobalLoading; },
+            get setServerForwarder() { return setServerForwarder; },
+            get window() { return window; },
+        },
+    });
 
     // ── GET params ───────────────────────────────────────────────────
     export let open; // "chat" | "app" | "result" | "path" — deep-link vindo de notificação push (ver packages/ntfy/AGENT.md)
@@ -284,51 +591,9 @@
     }
 
     // ── Persistência de sessão ────────────────────────────────────────
-    function fullSaveSessionState() {
-        const state = {
-            tabs,
-            appTabs,
-            activeTab,
-            sessionId,
-            sessionCache,
-            unreadMap,
-            activeIsApp,
-            tabOrder,
-            mobileNavigation,
-        };
-        // O servidor é a fonte de verdade do histórico. Nunca o coloque no
-        // snapshot: uma conversa pode carregar anexos, resultados de tools e
-        // cards estruturados, multiplicando o uso de localStorage em cada
-        // janela aberta. O cache em memória continua deixando a troca de abas
-        // instantânea; após recarregar, activateSession busca o histórico.
-        delete state.sessionCache;
-        saveSessionState(state, shellScope);
-    }
+    function fullSaveSessionState(...args) { return workspacePersistenceController.fullSaveSessionState(...args); }
 
-    function fullRestoreSessionState() {
-        const state = restoreSessionState(shellScope);
-        if (!state) return false;
-        try {
-            if (state.tabs && state.tabs.length > 0) {
-                tabs = state.tabs;
-            }
-            if (state.appTabs) appTabs = state.appTabs;
-            if (state.activeTab) activeTab = state.activeTab;
-            if (state.sessionId) sessionId = state.sessionId;
-            // Snapshots antigos podem conter megabytes de histórico. Não os
-            // reidratamos: o backend já é canônico e evita um parse custoso no
-            // boot. A próxima gravação substitui o snapshot antigo e o reduz.
-            if (state.unreadMap) unreadMap = state.unreadMap;
-            if (state.activeIsApp !== undefined) activeIsApp = state.activeIsApp;
-            if (Array.isArray(state.mobileNavigation)) mobileNavigation = state.mobileNavigation;
-            const persistedTabs = [...tabs, ...appTabs.map((tab) => ({ sessionId: tab.id }))];
-            tabOrder = normalizeTabOrder(state.tabOrder, persistedTabs);
-            return true;
-        } catch (e) {
-            console.warn("[Shell] Failed to restore state:", e.message);
-            return false;
-        }
-    }
+    function fullRestoreSessionState(...args) { return workspacePersistenceController.fullRestoreSessionState(...args); }
 
     function startReconnectLoop() {
         if (reconnectTimer) return;
@@ -384,91 +649,21 @@
 
     $: visibleRecentSessions = recentSessions.slice(0, recentSessionsVisibleCount);
 
-    function recentSessionLabel(session) {
-        return session?.title || session?.summary || "Untitled conversation";
-    }
+    function recentSessionLabel(...args) { return recentSessionsController.recentSessionLabel(...args); }
 
-    function recentSessionMeta(session) {
-        const timestamp = session?.updated_at || session?.created_at;
-        if (!timestamp) return "Conversation";
-        const date = new Date(timestamp);
-        if (Number.isNaN(date.getTime())) return "Conversation";
-        const elapsed = Date.now() - date.getTime();
-        if (elapsed < 60_000) return "just now";
-        if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
-        if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
-        return date.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
-    }
+    function recentSessionMeta(...args) { return recentSessionsController.recentSessionMeta(...args); }
 
-    async function loadRecentSessions() {
-        recentSessionsLoading = true;
-        try {
-            const response = await agentRuntime.requestForAgent(activeAgentId, "/sessions/list");
-            const result = await response.json();
-            const sessions = result?.data ?? result;
-            recentSessions = Array.isArray(sessions)
-                ? sessions.filter((item) => item?.id && item.id !== initialId)
-                : [];
-            recentSessionsVisibleCount = RECENT_SESSIONS_BATCH_SIZE;
-        } catch {
-            recentSessions = [];
-        } finally {
-            recentSessionsLoading = false;
-        }
-    }
+    function loadRecentSessions(...args) { return recentSessionsController.loadRecentSessions(...args); }
 
-    function maybeLoadRecentSessions() {
-        if (recentSessionsRequested) return;
-        recentSessionsRequested = true;
-        loadRecentSessions();
-    }
+    function maybeLoadRecentSessions(...args) { return recentSessionsController.maybeLoadRecentSessions(...args); }
 
-    function loadMoreRecentSessions() {
-        if (recentSessionsVisibleCount >= recentSessions.length) return;
-        recentSessionsVisibleCount = Math.min(
-            recentSessionsVisibleCount + RECENT_SESSIONS_BATCH_SIZE,
-            recentSessions.length,
-        );
-    }
+    function loadMoreRecentSessions(...args) { return recentSessionsController.loadMoreRecentSessions(...args); }
 
-    function handleRecentSessionsScroll(event) {
-        const list = event.currentTarget;
-        if (list.scrollTop + list.clientHeight >= list.scrollHeight - 12) {
-            loadMoreRecentSessions();
-        }
-    }
+    function handleRecentSessionsScroll(...args) { return recentSessionsController.handleRecentSessionsScroll(...args); }
 
-    function recentSessionInfiniteScroll(node) {
-        if (typeof IntersectionObserver === "undefined") return;
-        const sentinel = node.querySelector(".recent-sessions-sentinel");
-        if (!sentinel) return;
-        const observer = new IntersectionObserver((entries) => {
-            if (entries.some((entry) => entry.isIntersecting)) loadMoreRecentSessions();
-        }, { root: node, threshold: 0.1 });
-        observer.observe(sentinel);
-        return { destroy: () => observer.disconnect() };
-    }
+    function recentSessionInfiniteScroll(...args) { return recentSessionsController.recentSessionInfiniteScroll(...args); }
 
-    async function openRecentSession(sid) {
-        if (!sid) return;
-        recordMobileNavigation({ kind: "chat", id: sid });
-        if (sessionId) sessionCache[sessionId] = [...history];
-        const existing = tabs.find((tab) => tab.sessionId === sid);
-        if (!existing) {
-            const session = recentSessions.find((item) => item.id === sid);
-            tabs = [...tabs, {
-                sessionId: sid,
-                name: recentSessionLabel(session),
-                pinned: false,
-            }];
-        }
-        activeTab = sid;
-        activeIsApp = false;
-        sessionId = sid;
-        markChatRead(sid);
-        fullSaveSessionState();
-        await activateSession(sid);
-    }
+    function openRecentSession(...args) { return recentSessionsController.openRecentSession(...args); }
 
     function historyPath(...args) { return sessionLoading.historyPath(...args); }
 
@@ -502,40 +697,11 @@
     let reconcileGeneration = {};
     const sessionActivation = createSessionActivationGuard();
 
-    function generateSessionId() {
-        const rand = Math.random().toString(36).slice(2, 10);
-        const ts = Date.now().toString(36).slice(-4);
-        const randomId = `${rand}${ts}`;
-        const prefix = String(sessionPreferences?.idPrefix || "").trim().toLowerCase();
-        return /^[a-z][a-z0-9_-]{0,24}$/.test(prefix) ? `${prefix}-${randomId}` : randomId;
-    }
+    function generateSessionId(...args) { return sessionTabsController.generateSessionId(...args); }
 
-    async function loadSessionPreferences() {
-        try {
-            const response = await agentRuntime.request("/system/view");
-            const payload = await response.json();
-            const state = payload?.state ?? payload?.data?.state;
-            if (response.ok && state) sessionPreferences = {
-                idPrefix: state.idPrefix || "",
-                defaultModel: state.defaultModel || null,
-            };
-        } catch {
-            // Compatível com runtimes que ainda não oferecem a surface.
-        }
-    }
+    function loadSessionPreferences(...args) { return sessionTabsController.loadSessionPreferences(...args); }
 
-    async function applyDefaultModelToNewSession(id) {
-        if (!sessionPreferences?.defaultModel) return;
-        try {
-            await agentRuntime.request("/session/model", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ session_id: id, model: sessionPreferences.defaultModel }),
-            });
-        } catch (error) {
-            console.warn("Could not apply the session default model", error);
-        }
-    }
+    function applyDefaultModelToNewSession(...args) { return sessionTabsController.applyDefaultModelToNewSession(...args); }
 
     async function loadSystem() {
         const [p, o] = await Promise.all([
@@ -591,160 +757,26 @@
     function closePanel() { mobilePanel = null; }
     function dismissMobileMenus() { chatMenuOpen = false; appMenuOpen = false; }
 
-    function currentMobileDestination() {
-        if (!activeTab) return null;
-        return activeIsApp ? { kind: "app", id: activeTab } : { kind: "chat", id: activeTab };
-    }
+    function currentMobileDestination(...args) { return mobileNavigationController.currentMobileDestination(...args); }
 
-    function isMobileDestinationAvailable(destination) {
-        if (!destination?.id) return false;
-        return destination.kind === "app"
-            ? appTabs.some((tab) => tab.id === destination.id)
-            : tabs.some((tab) => tab.sessionId === destination.id);
-    }
+    function isMobileDestinationAvailable(...args) { return mobileNavigationController.isMobileDestinationAvailable(...args); }
 
-    function recordMobileNavigation(next) {
-        if (!isMobile || !next?.id) return;
-        const current = currentMobileDestination();
-        if (!current || (current.kind === next.kind && current.id === next.id)) return;
-        mobileNavigation = [...mobileNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        mobileForwardNavigation = [];
-        // O Android/WebView só conhece history.pushState. Espelhar cada troca
-        // interna faz o botão físico voltar para a aba anterior, sem sair do
-        // Shell ou recarregar a página.
-        window.history.pushState(
-            historyStateWithMobileDestination(window.history.state, next),
-            "",
-            window.location.href,
-        );
-    }
+    function recordMobileNavigation(...args) { return mobileNavigationController.recordMobileNavigation(...args); }
 
-    function replaceMobileBrowserHistoryEntry() {
-        if (!isMobile) return;
-        const current = currentMobileDestination();
-        if (!current) return;
-        window.history.replaceState(
-            historyStateWithMobileDestination(window.history.state, current),
-            "",
-            window.location.href,
-        );
-    }
+    function replaceMobileBrowserHistoryEntry(...args) { return mobileNavigationController.replaceMobileBrowserHistoryEntry(...args); }
 
-    async function handleMobileBrowserBack(event) {
-        if (!isMobile) return;
-        const destination = mobileDestinationFromHistoryState(event.state);
-        if (!destination || !isMobileDestinationAvailable(destination)) return;
-        const current = currentMobileDestination();
-        if (current?.kind === destination.kind && current.id === destination.id) return;
-
-        const isSameDestination = (entry) => entry?.kind === destination.kind && entry.id === destination.id;
-        // Mantém os botões do Header coerentes depois do gesto/botão físico.
-        // Uma volta consome o último item da pilha anterior; um avanço consome
-        // o da pilha seguinte. O navegador já decidiu a direção para nós.
-        if (isSameDestination(mobileNavigation[mobileNavigation.length - 1])) {
-            mobileNavigation = mobileNavigation.slice(0, -1);
-            if (current) mobileForwardNavigation = [...mobileForwardNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        } else if (isSameDestination(mobileForwardNavigation[mobileForwardNavigation.length - 1])) {
-            mobileForwardNavigation = mobileForwardNavigation.slice(0, -1);
-            if (current) mobileNavigation = [...mobileNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        }
-
-        // popstate já moveu o cursor do navegador. Não chamamos
-        // recordMobileNavigation aqui, pois isso criaria uma nova entrada e
-        // quebraria o avançar nativo.
-        dismissMobileMenus();
-        closePanel();
-        await activateMobileDestination(destination);
-    }
+    function handleMobileBrowserBack(...args) { return mobileNavigationController.handleMobileBrowserBack(...args); }
 
     $: canGoBackMobile = mobileNavigation.some(isMobileDestinationAvailable);
     $: canGoForwardMobile = mobileForwardNavigation.some(isMobileDestinationAvailable);
 
-    async function activateMobileDestination(destination) {
-        if (!destination || !isMobileDestinationAvailable(destination)) return;
-        activeTab = destination.id;
-        activeIsApp = destination.kind === "app";
-        if (destination.kind === "chat") sessionId = destination.id;
-        fullSaveSessionState();
-        if (destination.kind === "chat") await activateSession(destination.id);
-    }
+    function activateMobileDestination(...args) { return mobileNavigationController.activateMobileDestination(...args); }
 
-    async function goBackMobile() {
-        const history = [...mobileNavigation];
-        let destination = null;
-        while (history.length && !destination) {
-            const candidate = history.pop();
-            if (isMobileDestinationAvailable(candidate)) destination = candidate;
-        }
-        mobileNavigation = history;
-        chatMenuOpen = false;
-        appMenuOpen = false;
-        if (!destination) return;
-        const current = currentMobileDestination();
-        if (current) mobileForwardNavigation = [...mobileForwardNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        await activateMobileDestination(destination);
-    }
+    function goBackMobile(...args) { return mobileNavigationController.goBackMobile(...args); }
 
-    async function goForwardMobile() {
-        const history = [...mobileForwardNavigation];
-        let destination = null;
-        while (history.length && !destination) {
-            const candidate = history.pop();
-            if (isMobileDestinationAvailable(candidate)) destination = candidate;
-        }
-        mobileForwardNavigation = history;
-        chatMenuOpen = false;
-        appMenuOpen = false;
-        if (!destination) return;
-        const current = currentMobileDestination();
-        if (current) mobileNavigation = [...mobileNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        await activateMobileDestination(destination);
-    }
+    function goForwardMobile(...args) { return mobileNavigationController.goForwardMobile(...args); }
 
-    async function closeActiveMobileTab() {
-        const current = currentMobileDestination();
-        if (!current) return;
-
-        // A aba é removida antes da troca. Assim ela não pode reaparecer nos
-        // controles de voltar ou avançar, mesmo que seja o único destino salvo.
-        mobileNavigation = mobileNavigation.filter((item) => item.kind !== current.kind || item.id !== current.id);
-        mobileForwardNavigation = mobileForwardNavigation.filter((item) => item.kind !== current.kind || item.id !== current.id);
-        const previous = [...mobileNavigation].reverse().find(isMobileDestinationAvailable) ?? null;
-
-        if (current.kind === "app") {
-            appTabs = appTabs.filter((tab) => tab.id !== current.id);
-            appLoadingMap = Object.fromEntries(Object.entries(appLoadingMap).filter(([id]) => id !== current.id));
-        } else {
-            tabs = tabs.filter((tab) => tab.sessionId !== current.id);
-            tabOrder = tabOrder.filter((id) => id !== current.id);
-            loadingMap = { ...loadingMap, [current.id]: false };
-            unreadMap = { ...unreadMap, [current.id]: false };
-            delete sessionCache[current.id];
-        }
-
-        chatMenuOpen = false;
-        appMenuOpen = false;
-        if (previous && isMobileDestinationAvailable(previous)) {
-            await activateMobileDestination(previous);
-            return;
-        }
-
-        const fallbackChat = tabs[0]?.sessionId;
-        if (fallbackChat) {
-            await activateMobileDestination({ kind: "chat", id: fallbackChat });
-            return;
-        }
-        const fallbackApp = appTabs[0]?.id;
-        if (fallbackApp) {
-            await activateMobileDestination({ kind: "app", id: fallbackApp });
-            return;
-        }
-        activeTab = "";
-        sessionId = "";
-        activeIsApp = false;
-        history = [];
-        fullSaveSessionState();
-    }
+    function closeActiveMobileTab(...args) { return mobileNavigationController.closeActiveMobileTab(...args); }
 
     // O sistema é o fallback de menor prioridade: um app ativo que declarar
     // `gesture:register` recebe a chance de consumir antes deste handler.
@@ -794,14 +826,7 @@
     // store `menuEditMode` dentro do Sidebar, sem modal aqui.
 
     // Toque no título volta ao chat quando um app está em tela cheia
-    function mobileHome() {
-        if (canGoBackMobile) return goBackMobile();
-        if (activeIsApp && sessionId) {
-            activeIsApp = false;
-            activeTab = sessionId;
-            appMenuOpen = false;
-        }
-    }
+    function mobileHome(...args) { return mobileNavigationController.mobileHome(...args); }
 
     async function refreshMobileChat() {
         if (activeIsApp || chatRefreshing) return;
@@ -965,11 +990,7 @@
 
     function markChatUnread(...args) { return chatEvents.markChatUnread(...args); }
 
-    async function loadWorkspace() {
-        if (tabs.length > 0) {
-            await activateSession(tabs[0].sessionId);
-        }
-    }
+    function loadWorkspace(...args) { return sessionTabsController.loadWorkspace(...args); }
 
     function activateSession(...args) { return sessionLoading.activateSession(...args); }
 
@@ -978,158 +999,27 @@
     function apiForAgent(...args) { return sessionLoading.apiForAgent(...args); }
 
     // ── Tab event handlers ───────────────────────────────────────────
-    async function handleSelectTab(e) {
-        const sid = typeof e === "string" ? e : e?.detail ?? e;
-        if (sessionId) sessionCache[sessionId] = [...history];
-        const isApp = appTabs.some((t) => t.id === sid);
-        recordMobileNavigation({ kind: isApp ? "app" : "chat", id: sid });
-        activeTab = sid;
-        activeIsApp = isApp;
-        if (!isApp) sessionId = sid;
-        fullSaveSessionState();
-        if (!isApp) {
-            markChatRead(sid);
-            await activateSession(sid);
-        }
-        if (isMobile) closePanel();
-    }
+    function handleSelectTab(...args) { return sessionTabsController.handleSelectTab(...args); }
 
-    export async function handleNewTab() {
-        const newId = generateSessionId();
-        await applyDefaultModelToNewSession(newId);
-        recordMobileNavigation({ kind: "chat", id: newId });
-        const next = createNewTopicWorkspace(newId, {
-            tabs,
-            appTabs,
-            loadingMap,
-            unreadMap,
-        });
-        tabs = next.tabs;
-        appTabs = next.appTabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        loadingMap = next.loadingMap;
-        unreadMap = next.unreadMap;
-        fullSaveSessionState();
-        refreshTrigger++;
-        if (isMobile) closePanel();
-    }
+    export function handleNewTab(...args) { return sessionTabsController.handleNewTab(...args); }
 
-    async function handleNewSpecialistSession(event) {
-        const specialistId = event?.detail?.specialistId;
-        if (!specialistId) return;
-        const newId = generateSessionId();
-        try {
-            const response = await fetch("/specialists/session", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ session_id: newId, specialist_id: specialistId }),
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        } catch (error) {
-            console.error("Failed to create specialist conversation:", error);
-            return;
-        }
-        recordMobileNavigation({ kind: "chat", id: newId });
+    function handleNewSpecialistSession(...args) { return sessionTabsController.handleNewSpecialistSession(...args); }
 
-        const next = createNewTopicWorkspace(newId, {
-            tabs,
-            appTabs,
-            loadingMap,
-            unreadMap,
-        });
-        tabs = next.tabs;
-        appTabs = next.appTabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        loadingMap = next.loadingMap;
-        unreadMap = next.unreadMap;
-        fullSaveSessionState();
-        refreshTrigger++;
-        if (isMobile) closePanel();
-    }
+    function handleRenameTab(...args) { return sessionTabsController.handleRenameTab(...args); }
 
-    function handleRenameTab(e) {
-        const payload = typeof e === "object" && e?.detail ? e.detail : e;
-        const { sessionId: sid, name } = payload;
-        tabs = tabs.map((t) => (t.sessionId === sid ? { ...t, name } : t));
-        fullSaveSessionState();
-    }
+    function handleTogglePin(...args) { return sessionTabsController.handleTogglePin(...args); }
 
-    function handleTogglePin(e) {
-        const sid = typeof e === "string" ? e : e?.detail ?? e;
-        tabs = tabs.map((t) =>
-            t.sessionId === sid ? { ...t, pinned: !t.pinned } : t,
-        );
-        fullSaveSessionState();
-    }
+    function handleMoveTab(...args) { return sessionTabsController.handleMoveTab(...args); }
 
-    function handleMoveTab(e) {
-        const { sourceId, targetId, after = false } = e?.detail ?? e ?? {};
-        if (!sourceId || !targetId) return;
-        tabOrder = moveTab(tabOrder, sourceId, targetId, after);
-        fullSaveSessionState();
-    }
+    function handleCloseTab(...args) { return sessionTabsController.handleCloseTab(...args); }
 
-    async function handleCloseTab(e) {
-        const sid = typeof e === "string" ? e : e?.detail ?? e;
-        tabOrder = tabOrder.filter((id) => id !== sid);
-        const isApp = appTabs.find((t) => t.id === sid);
-        if (isApp) {
-            appTabs = appTabs.filter((t) => t.id !== sid);
-            if (activeTab === sid) {
-                activeTab = sessionId;
-                activeIsApp = false;
-            }
-            fullSaveSessionState();
-            return;
-        }
-        // Fechar a aba NÃO cancela o turno: a geração segue no servidor e a
-        // sessão reata via reconcileSession quando for reaberta.
-        loadingMap = { ...loadingMap, [sid]: false };
-        unreadMap = { ...unreadMap, [sid]: false };
-        const next = closeChatTab(sid, { tabs, activeTab, sessionId, history, activeIsApp });
-        tabs = next.tabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        fullSaveSessionState();
-        if (next.sessionId && next.sessionId !== sid) await activateSession(next.sessionId);
-        delete sessionCache[sid];
-        refreshTrigger++;
-    }
+    function reloadApp(...args) { return appTabsController.reloadApp(...args); }
 
-    function reloadApp(id, recreate = false) {
-        const frame = iframeRefs[id];
-        if (recreate) {
-            appReloadKeys = { ...appReloadKeys, [id]: (appReloadKeys[id] || 0) + 1 };
-        } else if (frame) {
-            appLoadingMap = { ...appLoadingMap, [id]: true };
-            frame.src = frame.src;
-        }
-    }
+    function refreshChat(...args) { return appTabsController.refreshChat(...args); }
 
-    async function refreshChat(sid, recreate = false) {
-        if (!sid) return;
-        if (recreate) delete sessionCache[sid];
-        if (sid === sessionId) await activateSession(sid);
-        else reconcileSession(sid);
-    }
+    function refreshActive(...args) { return appTabsController.refreshActive(...args); }
 
-    async function refreshActive(recreate = false) {
-        if (activeIsApp) reloadApp(activeTab, recreate);
-        else await refreshChat(activeTab, recreate);
-    }
-
-    async function refreshAllTabs() {
-        for (const tab of appTabs) reloadApp(tab.id, false);
-        for (const tab of tabs) await refreshChat(tab.sessionId, false);
-    }
+    function refreshAllTabs(...args) { return appTabsController.refreshAllTabs(...args); }
 
     async function handleDesktopShortcut(event) {
         if (event.isComposing) return;
@@ -1172,21 +1062,7 @@
         }
     }
 
-    function handleCloseAllChats() {
-        const next = closeAllChatTabs({ tabs, activeTab, sessionId, history, activeIsApp, loadingMap, unreadMap });
-        const retainedIds = new Set(next.tabs.map((tab) => tab.sessionId));
-        const closedIds = tabs.filter((tab) => !retainedIds.has(tab.sessionId)).map((tab) => tab.sessionId);
-        tabs = next.tabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        loadingMap = next.loadingMap;
-        unreadMap = next.unreadMap;
-        fullSaveSessionState();
-        for (const sid of closedIds) delete sessionCache[sid];
-        refreshTrigger++;
-    }
+    function handleCloseAllChats(...args) { return sessionTabsController.handleCloseAllChats(...args); }
 
     function updateSessionHistory(...args) { return chatEvents.updateSessionHistory(...args); }
 
@@ -1260,95 +1136,17 @@
         });
     }
 
-    async function openDesktopComposition(payload) {
-        const detail = typeof payload === "object" && payload ? payload : { text: payload };
-        const text = String(detail.text ?? "").trim();
-        if (!text) return;
-
-        const suppliedId = String(detail.sessionId ?? desktopSession ?? "").trim();
-        const newId = /^[A-Za-z0-9_-]{1,200}$/.test(suppliedId) ? suppliedId : generateSessionId();
-        if (!suppliedId) await applyDefaultModelToNewSession(newId);
-        const next = createNewTopicWorkspace(newId, {
-            tabs,
-            appTabs,
-            loadingMap,
-            unreadMap,
-        });
-        tabs = next.tabs;
-        appTabs = next.appTabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        loadingMap = next.loadingMap;
-        unreadMap = next.unreadMap;
-        refreshTrigger++;
-        if (detail.agentId) {
-            activeAgentId = writeSessionAgent(localStorage, newId, detail.agentId);
-            agentRuntime.activateAgent(activeAgentId);
-        }
-        await send({ detail: { ...detail, text } });
-    }
+    function openDesktopComposition(...args) { return desktopIntegrationController.openDesktopComposition(...args); }
 
     // O handoff inicial chega pela URL somente quando o Desktop ainda não tem
     // uma janela do Shell. Ele precisa ser consumido antes do envio: caso a
     // janela seja recriada (hot reload, restauração do Desktop ou navegação),
     // manter `handoff` na URL faria a mesma mensagem ser enviada novamente.
-    function consumeDesktopHandoff() {
-        const text = String(handoff ?? "").trim();
-        if (!text) return null;
+    function consumeDesktopHandoff(...args) { return desktopIntegrationController.consumeDesktopHandoff(...args); }
 
-        const detail = { text, sessionId: desktopSession, agentId };
-        handoff = undefined;
-        desktopSession = undefined;
-        agentId = undefined;
+    function handleSelectSession(...args) { return sessionTabsController.handleSelectSession(...args); }
 
-        const url = new URL(window.location.href);
-        url.searchParams.delete("handoff");
-        url.searchParams.delete("desktopSession");
-        url.searchParams.delete("agentId");
-        window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-
-        return detail;
-    }
-
-    async function handleSelectSession(e) {
-        const { sessionId: newId, history: newHistory } = e.detail;
-        recordMobileNavigation({ kind: "chat", id: newId });
-        if (sessionCache[sessionId]) sessionCache[sessionId] = [...history];
-        const existing = tabs.find((t) => t.sessionId === newId);
-        if (!existing) {
-            tabs = [
-                ...tabs,
-                { sessionId: newId, name: "New Mission", pinned: false },
-            ];
-        }
-        activeTab = newId;
-        activeIsApp = false;
-        sessionId = newId;
-        fullSaveSessionState();
-        await activateSession(newId);
-        if (isMobile) closePanel();
-    }
-
-    async function handleSessionDelete(e) {
-        const payload = e?.detail ?? e;
-        const sid =
-            typeof payload === "string"
-                ? payload
-                : payload?.sessionId ?? payload;
-        tabs = tabs.filter((t) => t.sessionId !== sid);
-        appTabs = appTabs.filter((t) => t.id !== sid);
-        delete sessionCache[sid];
-        if (activeTab === sid) {
-            const fallback = tabs[0]?.sessionId;
-            activeTab = fallback;
-            activeIsApp = false;
-            fullSaveSessionState();
-            await activateSession(fallback);
-        }
-        fullSaveSessionState();
-    }
+    function handleSessionDelete(...args) { return sessionTabsController.handleSessionDelete(...args); }
 
     function handleClearSession(...args) { return chatCommands.handleClearSession(...args); }
 
@@ -1371,22 +1169,9 @@
     const appLoadTimers = {};
     const APP_LOAD_FALLBACK_MS = 1200;
 
-    function finishAppLoad(id) {
-        if (!id) return;
-        if (appLoadTimers[id]) {
-            clearTimeout(appLoadTimers[id]);
-            delete appLoadTimers[id];
-        }
-        if (appLoadingMap[id]) appLoadingMap = { ...appLoadingMap, [id]: false };
-        if (appRefreshingMap[id]) appRefreshingMap = { ...appRefreshingMap, [id]: false };
-    }
+    function finishAppLoad(...args) { return appTabsController.finishAppLoad(...args); }
 
-    function startAppLoad(id) {
-        if (!id) return;
-        finishAppLoad(id);
-        appLoadingMap = { ...appLoadingMap, [id]: true };
-        appLoadTimers[id] = setTimeout(() => finishAppLoad(id), APP_LOAD_FALLBACK_MS);
-    }
+    function startAppLoad(...args) { return appTabsController.startAppLoad(...args); }
     let statusModal = null;
     let notificationCenterOpen = false;
     let notificationCount = 0;
@@ -1499,101 +1284,15 @@
     }
     $: allTabs = tabOrder.map((id) => rawTabs.find((tab) => tab.sessionId === id)).filter(Boolean);
 
-    function handleOpenApp(e) {
-        const app = e.detail;
-        const existing = appTabs.find((t) => t.id === app.id);
-        recordMobileNavigation({ kind: "app", id: app.id });
-        if (existing) {
-            activeTab = app.id;
-            activeIsApp = true;
-            finishAppLoad(app.id);
-            appMenuOpen = false;
-            fullSaveSessionState();
-            if (isMobile) closePanel();
-            return;
-        }
-        const newAppTab = { ...app, type: "app" };
-        appTabs = [...appTabs, newAppTab];
-        activeTab = app.id;
-        activeIsApp = true;
-        appMenuOpen = false;
-        startAppLoad(app.id);
-        fullSaveSessionState();
-        if (isMobile) closePanel();
-    }
+    function handleOpenApp(...args) { return appTabsController.handleOpenApp(...args); }
 
-    function shellControlState() {
-        const windows = appTabs.map((tab) => {
-            const catalogApp = shellControlApps.find((item) => item.id === tab.id || item.url === tab.url);
-            return {
-                id: tab.id,
-                appId: catalogApp?.appId || tab.id,
-                title: tab.name || catalogApp?.name || "App",
-                workspace: "shell",
-                isMinimized: false,
-                isMaximized: false,
-                isFocused: activeIsApp && activeTab === tab.id,
-            };
-        });
-        return {
-            activeWorkspace: "shell",
-            workspaces: [{ id: "shell", name: "Shell" }],
-            activeWindowId: activeIsApp ? activeTab : null,
-            windows,
-            apps: shellControlApps.map((item) => ({
-                appId: item.appId,
-                name: item.name,
-                description: item.description,
-                isOpen: windows.some((win) => win.appId === item.appId),
-                windowIds: windows.filter((win) => win.appId === item.appId).map((win) => win.id),
-            })),
-        };
-    }
+    function shellControlState(...args) { return desktopIntegrationController.shellControlState(...args); }
 
-    async function loadShellControlApps() {
-        const response = await api("/apps/list", "GET", null, "shell");
-        const list = Array.isArray(response) ? response : [];
-        shellControlApps = list
-            .filter((item) => item?.url && item.default === true)
-            .map((item) => ({
-                appId: item.packageName || item.id || item.url,
-                id: item.id || item.url,
-                name: item.name || item.packageName || "App",
-                description: item.description || "",
-                url: item.url,
-                source: item,
-            }));
-        return shellControlApps;
-    }
+    function loadShellControlApps(...args) { return desktopIntegrationController.loadShellControlApps(...args); }
 
-    async function shellControlCommand(action, payload) {
-        if (action === "list_apps" || action === "list_windows" || action === "get_state") return shellControlState();
-        if (action !== "open_app") throw new Error("Action is not supported by Shell");
-        const appId = String(payload?.appId || "").trim();
-        // O Desktop pode pedir uma aba assim que o WebSocket abre, antes de a
-        // consulta inicial do catálogo terminar. Resolve o catálogo aqui para
-        // que esse primeiro comando não seja descartado como "não encontrado".
-        if (!shellControlApps.length) await loadShellControlApps();
-        const target = shellControlApps.find((item) => item.appId === appId);
-        if (!target) throw new Error("App was not found in the Shell catalog");
-        handleOpenApp({ detail: target.source });
-        await tick();
-        return shellControlState();
-    }
+    function shellControlCommand(...args) { return desktopIntegrationController.shellControlCommand(...args); }
 
-    function installShellDesktopControl() {
-        const bridge = installShellControlBridge({
-            sessionId: () => sessionId,
-            state: shellControlState,
-            execute: shellControlCommand,
-        });
-        // Não bloqueia a conexão da ponte: o primeiro comando ainda pode
-        // carregar o catálogo via shellControlCommand.
-        loadShellControlApps().catch((error) => {
-            console.warn("[desktop-control] Shell could not load the catalog", error);
-        });
-        return bridge;
-    }
+    function installShellDesktopControl(...args) { return desktopIntegrationController.installShellDesktopControl(...args); }
 
     $: {
         sessionId;
@@ -1607,273 +1306,54 @@
     // ── Deep-link (notificação push — ver packages/ntfy/AGENT.md) ────
     // Abre (criando a aba se preciso) a sessão de chat de um sessionId que
     // pode nem estar entre as abas já abertas neste device.
-    async function abrirChatPorDeepLink(sid) {
-        if (!sid) return;
-        recordMobileNavigation({ kind: "chat", id: sid });
-        const existing = tabs.find((t) => t.sessionId === sid);
-        if (!existing) {
-            tabs = [
-                ...tabs,
-                { sessionId: sid, name: "New Mission", pinned: false },
-            ];
-        }
-        activeTab = sid;
-        activeIsApp = false;
-        await activateSession(sid);
-        if (isMobile) closePanel();
-    }
+    function abrirChatPorDeepLink(...args) { return appNavigationController.abrirChatPorDeepLink(...args); }
 
     // Resolve o app pelo id (mesma fonte que alimenta Apps.svelte/Sidebar:
     // getActiveApps()/getPackageViews()) e reusa handleOpenApp para abrir a
     // aba. Se o id for desconhecido, não faz nada (a Home abre normal).
-    async function abrirAppPorDeepLink(appTargetId) {
-        if (!appTargetId) return;
-        const existing = appTabs.find((t) => t.id === appTargetId);
-        if (existing) {
-            handleOpenApp({ detail: existing });
-            return;
-        }
-        const apps = await api("/apps/list", "GET", null, "shell");
-        const found = Array.isArray(apps)
-            ? apps.find((a) => a.id === appTargetId)
-            : null;
-        if (!found) {
-            console.warn(`[deep-link] app "${appTargetId}" not found`);
-            return;
-        }
-        handleOpenApp({ detail: found });
-    }
+    function abrirAppPorDeepLink(...args) { return appNavigationController.abrirAppPorDeepLink(...args); }
 
     // open=result: abre o resultado de um job de pacote. Se há `file` e o File
     // Manager está instalado, abre-o com o arquivo selecionado; senão cai pro
     // app do próprio pacote (`pkg`) na sua tela de resultado.
-    async function abrirResultadoPorDeepLink({ pkg: sourcePkg, file: resultFile }) {
-        const apps = await api("/apps/list", "GET", null, "shell");
-        const list = Array.isArray(apps) ? apps : [];
-        const fileApp = resultFile
-            ? list.find((a) => a?.url?.includes("/view/file-manager/"))
-            : null;
-        if (fileApp) {
-            const parts = resultFile.split("/");
-            const name = parts.pop();
-            const folder = parts.join("/");
-            const sep = fileApp.url.includes("?") ? "&" : "?";
-            const url = `${fileApp.url}${sep}path=${encodeURIComponent(folder)}&select=${encodeURIComponent(name)}`;
-            const id = `open:${url}`;
-            const existing = appTabs.find((t) => t.id === id);
-            if (existing) return handleOpenApp({ detail: existing });
-            return handleOpenApp({ detail: { id, name: fileApp.name || "Files", url, icon: fileApp.icon } });
-        }
-        // Fallback: abre o app do pacote de origem (mostra sua tela de resultado).
-        const pkgApp = sourcePkg
-            ? list.find((a) => a?.url?.includes(`/view/${sourcePkg}/`))
-            : null;
-        if (pkgApp) return handleOpenApp({ detail: pkgApp });
-        console.warn(`[deep-link] open=result: nem file-manager nem "${sourcePkg}" encontrados`);
-    }
+    function abrirResultadoPorDeepLink(...args) { return appNavigationController.abrirResultadoPorDeepLink(...args); }
 
     // ── Bus de UI: open:app / open:iframe / open:canvas (ver views/lib/bus.js) ──
     // Permite que qualquer widget/app dispare `$("open:app", pkg)` para um
     // app abrir outro, `$("open:iframe", { url, title })` para abrir uma
     // aba iframe arbitrária (o título vira o nome da aba), ou
     // `$("open:canvas", { html })` para abrir o Canvas de verdade com HTML.
-    async function abrirAppPorPacote(pkg) {
-        if (!pkg) return;
-        // pkg pode ser o nome do pacote, o id do app, ou a própria url.
-        const existing = appTabs.find(
-            (t) => t.id === pkg || t.name === pkg || t.url === pkg,
-        );
-        if (existing) return handleOpenApp({ detail: existing });
-        const apps = await api("/apps/list", "GET", null, "shell");
-        const list = Array.isArray(apps) ? apps : [];
-        const target = String(pkg).toLowerCase();
-        const found =
-            list.find((a) => a.id === pkg || a.url === pkg) ||
-            list.find((a) => a?.url?.includes(`/view/${pkg}/`)) ||
-            list.find((a) => (a.name || "").toLowerCase() === target);
-        if (!found) {
-            console.warn(`[bus] open:app: "${pkg}" not found`);
-            return;
-        }
-        handleOpenApp({ detail: found });
-    }
+    function abrirAppPorPacote(...args) { return appNavigationController.abrirAppPorPacote(...args); }
 
-    function abrirIframe(d = {}) {
-        const { url, title } = d;
-        if (!url) return;
-        const id = `iframe:${url}`;
-        const existing = appTabs.find((t) => t.id === id);
-        if (existing) return handleOpenApp({ detail: existing });
-        handleOpenApp({ detail: { id, name: title || "App", url } });
-    }
+    function abrirIframe(...args) { return appNavigationController.abrirIframe(...args); }
 
     // Abre um arquivo como aba de App real — bridge do File Manager "Abrir em…".
     // `d = { pkg?, url, title?, path? }`. A `url` já traz o path num query param,
     // que a camada de views entrega como `export let` da página do App (ex.
     // /view/code-editor/Embed?path=foo.js → `export let path`).
-    async function abrirAppComPath(d = {}) {
-        const { pkg, url, title } = d;
-        if (!url) return;
-        const id = `open:${url}`; // url inclui o path → uma aba por arquivo
-        const existing = appTabs.find((t) => t.id === id);
-        if (existing) return handleOpenApp({ detail: existing });
-        // Tenta herdar nome/ícone do App a partir de /apps/list (mesma fonte de
-        // abrirAppPorPacote); se não achar, usa só o título do opener.
-        let name = title || "App";
-        let icon;
-        try {
-            const apps = await api("/apps/list", "GET", null, "shell");
-            const list = Array.isArray(apps) ? apps : [];
-            const found = pkg
-                ? list.find((a) => a?.url?.includes(`/view/${pkg}/`))
-                : null;
-            if (found) {
-                name = title || found.name || name;
-                icon = found.icon;
-            }
-        } catch {
-            /* segue sem ícone/nome do catálogo */
-        }
-        handleOpenApp({ detail: { id, name, url, icon } });
-    }
+    function abrirAppComPath(...args) { return appNavigationController.abrirAppComPath(...args); }
 
-    function abrirCaminhoInterno(path, label = "Page") {
-        if (typeof path !== "string" || !path.startsWith("/") || path.startsWith("//")) return;
-        return abrirAppComPath({ url: path, title: label });
-    }
+    function abrirCaminhoInterno(...args) { return appNavigationController.abrirCaminhoInterno(...args); }
 
-    function abrirPreviewNoFileManager(detail = {}) {
-        const url = filePreviewUrl(detail);
-        if (!url) return;
-        return abrirAppComPath({ pkg: "file-manager", url, title: detail.title || detail.name || "Preview" });
-    }
+    function abrirPreviewNoFileManager(...args) { return appNavigationController.abrirPreviewNoFileManager(...args); }
 
     let busOffs = [];
-    function setupWidgetBus() {
-        bootstrapPackageWidgets();
-        bootstrapMessageActions();
-        // Ponte front→back: eventos logos:/think: (ou {server:true}) viajam
-        // pelo WS e viram dispatchEvent no backend.
-        setServerForwarder((event, detail) =>
-            agentRuntime.send({ type: "bus:emit", event, detail }),
-        );
-        busOffs.push(busOn("open:app", (pkg) => abrirAppPorPacote(pkg)));
-        busOffs.push(busOn("shell:loading", (detail) => setGlobalLoading(detail)));
-        busOffs.push(busOn("shell:reload", () => {
-            // O widget vive em iframe; o Shell é quem pode resetar toda a
-            // página e reconstruir os widgets usando o cache já limpo.
-            window.location.reload();
-        }));
-        busOffs.push(busOn("agent:deep-link", (target) => {
-            if (target?.type === "chat") return abrirChatPorDeepLink(target.session);
-            if (target?.type === "app") return abrirAppPorDeepLink(target.app);
-            if (target?.type === "result") return abrirResultadoPorDeepLink(target);
-        }));
-        busOffs.push(busOn("open:iframe", (d) => abrirIframe(d)));
-        busOffs.push(busOn("open:with", (d) => abrirAppComPath(d)));
-        busOffs.push(busOn(FILE_MANAGER_PREVIEW_EVENT, (d) => abrirPreviewNoFileManager(d)));
-        // Um pacote ou controle local pode pedir uma view modal sem precisar
-        // conhecer o estado visual do Shell. URLs relativas evitam que esse
-        // canal vire uma abertura arbitrária de conteúdo externo.
-        busOffs.push(busOn("modal-ui", (modal) => {
-            if (!modal?.label || typeof modal.url !== "string" || !modal.url.startsWith("/")) return;
-            statusModal = { label: modal.label, url: modal.url };
-        }));
-        // Permite que um package (rodando em iframe) abra o Canvas de verdade
-        // via parent.postMessage({source:"aurora", type:"open:canvas", detail:{html}}),
-        // mesmo caminho que MessageList usa internamente (handleOpenCanvas).
-        busOffs.push(busOn("open:canvas", (d) => handleOpenCanvas({ detail: d || {} })));
-        busOffs.push(busOn("message-actions:refresh", () => bootstrapMessageActions()));
-        // A menu contribution runs one iframe below the Shell. Forward a
-        // selected central notification to the Desktop host, which owns the
-        // native governance approval overlay.
-        busOffs.push(busOn("notifications:activate", (notification) => {
-            if (window.parent === window) return;
-            window.parent.postMessage({
-                source: "thinkiac-shell",
-                type: "notifications:activate",
-                detail: notification,
-            }, window.location.origin);
-        }));
-        busOffs.push(busOn("structured-input:resolved", (detail) => {
-            if (!detail?.text || detail.sessionId !== sessionId) return;
-            send({ detail: { text: detail.text } });
-        }));
-        // Observabilidade da volta (back→front): loga o pong da demo.
-        busOffs.push(
-            busOn("logos:pong", (d) => console.log("[bus] logos:pong", d)),
-        );
-    }
+    function setupWidgetBus(...args) { return widgetBusController.setupWidgetBus(...args); }
 
     // ── Windows: handlers vindos do Sidebar / Windows ────────────────
-    function handleSelectApp(e) {
-        const id = typeof e === "string" ? e : e?.detail ?? e;
-        if (!appTabs.some((tab) => tab.id === id)) return;
-        activeTab = id;
-        activeIsApp = true;
-        // A tab can be selected again after its iframe load event was dropped
-        // while it was backgrounded. Never let that stale loading state cover
-        // the restored package view.
-        finishAppLoad(id);
-        fullSaveSessionState();
-        if (isMobile) closePanel();
-    }
+    function handleSelectApp(...args) { return appTabsController.handleSelectApp(...args); }
 
-    function handleCloseApp(e) {
-        const id = typeof e === "string" ? e : e?.detail ?? e;
-        finishAppLoad(id);
-        appTabs = appTabs.filter((t) => t.id !== id);
-        if (activeTab === id) {
-            activeTab = sessionId;
-            activeIsApp = false;
-        }
-        fullSaveSessionState();
-    }
+    function handleCloseApp(...args) { return appTabsController.handleCloseApp(...args); }
 
-    function handleCloseAllApps() {
-        Object.keys(appLoadTimers).forEach(finishAppLoad);
-        const next = closeAllAppTabs({ appTabs, activeTab, activeIsApp, sessionId });
-        appTabs = next.appTabs;
-        activeTab = next.activeTab;
-        activeIsApp = next.activeIsApp;
-        fullSaveSessionState();
-    }
+    function handleCloseAllApps(...args) { return appTabsController.handleCloseAllApps(...args); }
 
-    function handleReorderApps(event) {
-        const { id, targetId } = event?.detail || {};
-        const from = appTabs.findIndex((tab) => tab.id === id);
-        const to = appTabs.findIndex((tab) => tab.id === targetId);
-        if (from < 0 || to < 0 || from === to) return;
-        const next = [...appTabs];
-        const [tab] = next.splice(from, 1);
-        next.splice(to, 0, tab);
-        appTabs = next;
-        fullSaveSessionState();
-    }
+    function handleReorderApps(...args) { return appTabsController.handleReorderApps(...args); }
 
-    function handleOpenSeparateWindow(event) {
-        if (!desktopHost) return;
-        const tab = event?.detail;
-        if (!tab?.sessionId) return;
-        const detail = tab.type === "app"
-            ? { kind: "app", appId: tab.id || tab.sessionId }
-            : { kind: "chat", sessionId: tab.sessionId };
-        window.parent.postMessage({
-            source: "thinkiac-shell",
-            type: "open:shell-window",
-            detail,
-        }, window.location.origin);
-    }
+    function handleOpenSeparateWindow(...args) { return desktopIntegrationController.handleOpenSeparateWindow(...args); }
 
-    function handleSelectChat(e) {
-        const id = typeof e === "string" ? e : e?.detail ?? e;
-        handleSelectTab(id);
-    }
+    function handleSelectChat(...args) { return sessionTabsController.handleSelectChat(...args); }
 
-    function handleCloseChat(e) {
-        const id = typeof e === "string" ? e : e?.detail ?? e;
-        handleCloseTab(id);
-    }
+    function handleCloseChat(...args) { return sessionTabsController.handleCloseChat(...args); }
 
     // ── Nome da sessão ativa ─────────────────────────────────────────
     $: activeTabName = (() => {

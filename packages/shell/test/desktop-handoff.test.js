@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 
-const source = readFileSync(new URL('../views/Index.svelte', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../views/Index.svelte', import.meta.url), 'utf8') + readFileSync(new URL('../views/controllers/desktop_integration.js', import.meta.url), 'utf8');
 
 describe('Desktop composition handoff', () => {
   test('creates a new session for a Desktop composition and opens selected recent sessions', () => {

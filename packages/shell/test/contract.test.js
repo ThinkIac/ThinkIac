@@ -1,8 +1,12 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import { readPinnedApps } from '../views/lib/pinned_apps.js'
 
-const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
+const read = (path) => {
+  const source = readFileSync(new URL(path, import.meta.url), 'utf8')
+  if (path !== '../views/Index.svelte') return source
+  return source + readdirSync(new URL('../views/controllers/', import.meta.url)).filter(file => file.endsWith('.js')).map(file => readFileSync(new URL(`../views/controllers/${file}`, import.meta.url), 'utf8')).join('\n')
+}
 
 describe('contrato do ThinkIac Shell', () => {
   test('preferência legada inválida não interrompe a hidratação', () => {
@@ -73,7 +77,7 @@ describe('contrato do ThinkIac Shell', () => {
   test('não pinta o layout desktop do SSR antes da hidratação em mobile', () => { const shell = read('../views/Index.svelte'); expect(shell).toContain('let layoutReady = false;'); expect(shell).toContain('layoutReady = true;'); expect(shell).toContain('class:layout-ready={layoutReady}'); expect(shell).toContain('@media (max-width: 767px), (pointer: coarse)'); expect(shell).toContain('.shell:not(.layout-ready)') })
   test('mantém a composição inicial do chat no Android', () => {
     const shell = read('../views/Index.svelte')
-    expect(shell).toContain('function maybeLoadRecentSessions() {\n        if (recentSessionsRequested) return;')
+    expect(shell).toContain('function maybeLoadRecentSessions() {\n        if (contextState.recentSessionsRequested) return;')
     expect(shell).toContain('class:initial={history.length === 0}')
     expect(shell).toContain('initial={history.length === 0}')
     expect(shell).toContain('{#if !isMobile && history.length === 0 && (recentSessionsLoading || visibleRecentSessions.length)}')
@@ -93,9 +97,9 @@ describe('contrato do ThinkIac Shell', () => {
     expect(apps).toContain('.filter((app) => app.mobileSupported !== false || !mobileViewport)')
   })
   test('abre um chat vazio sem introdução ou tour automático', () => { const shell = read('../views/Index.svelte'); expect(shell).not.toContain('createShellWelcomeMessage'); expect(shell).not.toContain('showFirstVisitWelcome'); expect(shell).not.toContain('SHELL_ONBOARDING_START_EVENT'); expect(shell).not.toContain('onboarding-tour') })
-  test('persiste imediatamente a seleção e o fechamento de abas', () => { const shell = read('../views/Index.svelte'); expect(shell).toContain('activeIsApp,'); expect(shell).toContain('if (state.activeIsApp !== undefined) activeIsApp = state.activeIsApp;'); expect(shell).toContain('activeIsApp = isApp;\n        if (!isApp) sessionId = sid;\n        fullSaveSessionState();'); expect(shell).toContain('activeIsApp = next.activeIsApp;\n        fullSaveSessionState();') })
+  test('persiste imediatamente a seleção e o fechamento de abas', () => { const shell = read('../views/Index.svelte'); expect(shell).toContain('activeIsApp: contextState.activeIsApp,'); expect(shell).toContain('if (state.activeIsApp !== undefined) contextState.activeIsApp = state.activeIsApp;'); expect(shell).toContain('contextState.activeIsApp = isApp;\n        if (!isApp) contextState.sessionId = sid;\n        deps.fullSaveSessionState();'); expect(shell).toContain('contextState.activeIsApp = next.activeIsApp;\n        deps.fullSaveSessionState();') })
 })
-describe('contrato de entrega do chat', () => { test('preserva o eco otimista durante reconexão e exige aceite explícito', () => { const shell = read('../views/Index.svelte'); expect(shell).toMatch(/const hasLocalEcho = cached\?\.some/); expect(shell).toMatch(/\(staleStreaming \|\| loadingMap\[sid\]\) && !hasLocalEcho/); expect(shell).toMatch(/if \(!cached\?\.length\)/); expect(shell).toMatch(/!r\?\.accepted && !r\?\.queued && !r\?\.forwarded/) }) })
+describe('contrato de entrega do chat', () => { test('preserva o eco otimista durante reconexão e exige aceite explícito', () => { const shell = read('../views/Index.svelte'); expect(shell).toMatch(/const hasLocalEcho = cached\?\.some/); expect(shell).toMatch(/\(staleStreaming \|\| state.loadingMap\[sid\]\) && !hasLocalEcho/); expect(shell).toMatch(/if \(!cached\?\.length\)/); expect(shell).toMatch(/!r\?\.accepted && !r\?\.queued && !r\?\.forwarded/) }) })
 
 describe('controles externos do sidebar desktop', () => {
   test('mantém a seta externa acima da área principal', () => {
