@@ -21,6 +21,17 @@ Active packages live in `packages/`. Disabled releases are archived under
 (`shell`, `auth`, `agent`, `pkgmgr`, and `ui-dialogs`)
 cannot be disabled or removed because the runtime depends on it.
 
+## Instalação por origem
+
+O identificador portátil é compartilhado pela interface e pelos comandos do
+Runtime: `nome`, `git:owner/nome`, `npm:scope/nome`,
+`git@host:owner/nome` e `npm@host:scope/nome`. Para GitHub, o resolvedor usa
+primeiro o ZIP de release publicado pelo CI criado pelo Engineer. Se não houver
+release compatível, ele informa a branch padrão e disponibiliza a lista de
+branches em `GET /pkgmgr/sources/branches?package=...`; a interface pode então
+instalar uma branch explícita. Uma branch explicitamente solicitada sempre tem
+precedência sobre uma release.
+
 ## Tags de pacote
 
 Tags são declaradas no `package.json`, de preferência dentro de `manifest`:

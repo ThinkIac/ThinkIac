@@ -21,6 +21,7 @@ import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { createDisabledHistory } from './lib/disabled-history.js';
+import { listGitHubBranches, resolvePackageSource } from './lib/package-source.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -313,6 +314,14 @@ const GIT_STEPS = [
 const ZIP_STEPS = [
   ['receive', 'Receive archive'],
   ['extract', 'Extract archive'],
+  ['inspect', 'Read manifest'],
+  ['install', 'Install package'],
+];
+
+const NPM_STEPS = [
+  ['resolve', 'Resolve registry package'],
+  ['download', 'Download package tarball'],
+  ['extract', 'Extract package'],
   ['inspect', 'Read manifest'],
   ['install', 'Install package'],
 ];
@@ -640,6 +649,92 @@ async function runZipInstall(job, { buffer, filename }) {
   } finally {
     if (staging) rmSync(staging, { recursive: true, force: true });
   }
+}
+
+async function runReleaseZipInstall(job, source) {
+  const url = new URL(source.release.url);
+  if (url.protocol !== 'https:' || !/(^|\.)github\.com$/i.test(url.hostname)) {
+    throw new Error('Release ZIP must be served by GitHub over HTTPS');
+  }
+  const response = await fetch(url, { headers: { Accept: 'application/octet-stream' }, redirect: 'follow' });
+  if (!response.ok) throw new Error(`Could not download GitHub release ZIP (HTTP ${response.status})`);
+  const finalUrl = new URL(response.url);
+  if (finalUrl.protocol !== 'https:' || !/(^|\.githubusercontent\.com$|\.github\.com$)/i.test(finalUrl.hostname)) {
+    throw new Error('Release ZIP redirected to an untrusted host');
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return runZipInstall(job, { buffer, filename: source.release.asset });
+}
+
+async function runNpmInstall(job, source) {
+  let staging;
+  try {
+    stepStart(job, 'resolve');
+    stepDone(job, 'resolve', `${source.packageName} via ${source.registry}`);
+    staging = makeStagingDir('npm');
+
+    stepStart(job, 'download');
+    const { stdout } = await execFileAsync('npm', [
+      'pack', source.packageName, '--ignore-scripts', '--json', '--registry', source.registry, '--pack-destination', staging,
+    ], { env: GIT_ENV, timeout: CLONE_TIMEOUT_MS, maxBuffer: 1024 * 1024 });
+    const packed = JSON.parse(stdout);
+    const filename = packed?.[0]?.filename;
+    if (typeof filename !== 'string' || filename !== filename.split('/').pop()) throw new Error('Registry returned an invalid package tarball name');
+    const archive = join(staging, filename);
+    if (!existsSync(archive)) throw new Error('Registry did not produce a package tarball');
+    stepDone(job, 'download', filename);
+
+    stepStart(job, 'extract');
+    const unpacked = join(staging, 'unpacked');
+    mkdirSync(unpacked, { recursive: true });
+    await execFileAsync('tar', ['-xzf', archive, '-C', unpacked, '--strip-components=1'], { timeout: 30_000 });
+    if (!existsSync(join(unpacked, 'package.json'))) throw new Error('Registry tarball has no package.json');
+    stepDone(job, 'extract');
+
+    const pkg = promoteStagedPackage(job, unpacked, { origin: `${source.registry}/${source.packageName}` });
+    completeJob(job, pkg);
+    return pkg;
+  } catch (err) {
+    failJob(job, err.message);
+    throw err;
+  } finally {
+    if (staging) rmSync(staging, { recursive: true, force: true });
+  }
+}
+
+/** Resolves the shared Git/NPM package syntax before any installation begins. */
+export async function resolvePackageInstall(input) {
+  const { package: identifier, branch } = normalizeInput(input);
+  if (!identifier) throw new Error('Field "package" is required');
+  return resolvePackageSource(identifier, { branch });
+}
+
+/** Lists GitHub branches for the branch picker used when there is no CI release. */
+export async function listPackageBranches(input) {
+  const { package: identifier } = normalizeInput(input);
+  if (!identifier) throw new Error('Field "package" is required');
+  return { package: identifier, branches: await listGitHubBranches(identifier) };
+}
+
+export async function installPackage(input) {
+  /**
+   * @register_command install
+   * @description Instala um pacote por identificador portátil. Prefere o ZIP de release da CI do Engineer; sem release instala a branch escolhida ou a branch padrão. Uso: think pkgmgr:install --package nome [--branch main]
+   * @param {string} package - name, git:owner/name, npm:scope/name, git@host:owner/name ou npm@host:scope/name
+   * @param {string?} branch - Branch Git explícita; ignora a release quando fornecida
+   */
+  const source = await resolvePackageInstall(input);
+  const job = createJob(
+    source.kind === 'npm' ? 'npm' : source.kind === 'release-zip' ? 'release-zip' : 'git',
+    source.kind === 'npm' ? NPM_STEPS : source.kind === 'release-zip' ? ZIP_STEPS : GIT_STEPS,
+    source.registry || source.release?.url || source.cloneUrl,
+  );
+  const pkg = source.kind === 'release-zip'
+    ? await runReleaseZipInstall(job, source)
+    : source.kind === 'npm'
+      ? await runNpmInstall(job, source)
+    : await runGitInstall(job, { url: source.cloneUrl, branch: source.branch });
+  return { source, package: pkg, job: publicJob(job) };
 }
 
 function formatBytes(bytes) {
@@ -1128,6 +1223,42 @@ export function routerListPackages() {
    * @register_router packages @method GET
    */
   return listPackages();
+}
+
+export async function routerResolvePackageSource(req, res) {
+  /**
+   * @register_router sources/resolve @method GET
+   * @description Resolves a portable package identifier. GitHub CI release ZIPs are preferred; without one, the selected or default branch is returned.
+   */
+  try {
+    return await resolvePackageInstall({ package: req.query?.package, branch: req.query?.branch });
+  } catch (err) {
+    return fail(res, 400, err.message);
+  }
+}
+
+export async function routerInstallPackage(req, res) {
+  /**
+   * @register_router install @method POST
+   * @description Instala um pacote usando a mesma sintaxe do comando pkgmgr:install. Releases geradas pelo CI têm prioridade; sem release, instala a branch selecionada ou padrão.
+   */
+  try {
+    return await installPackage(req.body || {});
+  } catch (err) {
+    return fail(res, /not found/.test(err.message) ? 404 : 400, err.message);
+  }
+}
+
+export async function routerListPackageBranches(req, res) {
+  /**
+   * @register_router sources/branches @method GET
+   * @description Lists selectable GitHub branches for a portable git package identifier.
+   */
+  try {
+    return await listPackageBranches({ package: req.query?.package });
+  } catch (err) {
+    return fail(res, /not found/.test(err.message) ? 404 : 400, err.message);
+  }
 }
 
 async function routerInspectRepo(req, res) {
