@@ -30,10 +30,9 @@ Packages podem ser revisados e instalados separadamente no workspace ativo.
 | --- | --- |
 | [Calendar](https://github.com/ThinkIac/calendar) | Calendários, eventos, lembretes e ferramentas MCP para o ThinkIac. |
 | [Tasks](https://github.com/ThinkIac/tasks) | Kanban, rotas HTTP, ferramentas MCP e eventos de tarefas para o ThinkIac. |
-| [WhatsApp Manager](https://github.com/ThinkIac/whatsapp-manager) | Sessões, QR code, conversas e mensagens pelo WhatsApp. |
+| [WhatsApp Manager](https://github.com/ThinkIac/whatsapp-manager) | Sessões, QR code, inbox, contatos, modelos e provedores WhatsApp para o ThinkIac. |
 | [Flows](https://github.com/ThinkIac/flows) | Editor visual de automações, gatilhos por evento, cron e webhook, com execução durável. |
 | [Telegram](https://github.com/ThinkIac/telegram) | Bot do Telegram com sessões, atendimento público controlado, progresso de reasoning e tool MCP para envio de mensagens. |
-| [WhatsApp Manager](https://github.com/ThinkIac/whatsapp-manager) | Inbox, contatos, modelos e provedores WhatsApp para o ThinkIac. |
 | [Instagram Bridge](https://github.com/ThinkIac/instagram-bridge) | Integração de conteúdo para Instagram, com geração, agendamento e publicação por Graph API. |
 | [GitHub](https://github.com/ThinkIac/github) | Repositórios, branches, Git autenticado, issues e pull requests com credenciais gerenciadas pelo ThinkIac. |
 | [Cloudflare](https://github.com/ThinkIac/cloudflare) | Integração Cloudflare para OAuth, catálogo de capacidades, chamadas nativas e auditoria. |
@@ -354,3 +353,33 @@ Registros vencidos são removidos na próxima tentativa com e-mail.
 Processos que usam o mesmo banco de autenticação compartilham o contador.
 Réplicas com bancos separados têm limites independentes. Se o armazenamento
 do contador falhar, o login por senha retorna HTTP 503.
+
+## Validar vulnerabilidades de dependências
+
+Na raiz do repositório, use Node.js 22.12 ou superior e o `package-lock.json`
+versionado. Consulte o registro npm sem instalar dependências nem executar scripts:
+
+```bash
+# Dependências de produção
+npm --prefix "$PWD" audit --package-lock-only --omit=dev
+
+# Todas as dependências, incluindo desenvolvimento
+npm --prefix "$PWD" audit --package-lock-only
+```
+
+O `--prefix` fixa o projeto auditado, inclusive em um clone dentro de outro
+workspace. Para guardar evidência legível por ferramentas, acrescente `--json`
+e redirecione a saída para um arquivo fora do repositório. Registre também a data,
+o commit (`git rev-parse HEAD`) e as versões (`node --version` e
+`npm --prefix "$PWD" --version`).
+
+Código de saída zero indica ausência de vulnerabilidades conhecidas no escopo
+consultado. Se houver falha, diferencie os alertas de vulnerabilidade de erros de
+rede ou do registro; uma consulta incompleta não comprova segurança. Analise os
+caminhos de dependência e valide as correções antes de atualizar o lockfile.
+Evite aplicar `npm audit fix --force` automaticamente.
+
+Em 2026-11-20, o lockfile do commit `0fd355f0` retornou **0 vulnerabilidades**
+em produção e no total, com Node.js 22.22.2 e npm 10.9.7. Esse resultado depende
+dos alertas disponíveis no momento da consulta e não cobre segredos, código da
+aplicação ou instalações com versões diferentes do lockfile.

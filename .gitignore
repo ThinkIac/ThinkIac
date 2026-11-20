@@ -173,3 +173,6 @@ public/downloads/
 public/tiktok-talking-host/
 public/thinkiac.exe
 public/thinkiac.aab
+
+# Legacy Auth database export; may contain user data and password hashes
+/packages/auth/snapshot.json
