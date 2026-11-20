@@ -17,7 +17,7 @@ it('publishes a valid nonempty module for an empty dynamic import', async () => 
     const chunk = fs.readdirSync(engine.cacheDir).find(file => file.includes('.chunk.') && file.endsWith('.mjs'));
     expect(chunk).toBeDefined();
     expect(fs.readFileSync(path.join(engine.cacheDir, chunk!), 'utf8')).toContain('export {};');
-    expect(JSON.parse(fs.readFileSync(path.join(engine.cacheDir, 'pkg__Home.manifest.json'), 'utf8')).format).toBe(3);
+    expect(JSON.parse(fs.readFileSync(path.join(engine.cacheDir, 'pkg__Home.manifest.json'), 'utf8')).format).toBe(4);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

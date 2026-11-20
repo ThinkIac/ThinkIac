@@ -72,14 +72,12 @@ test('Agent accepts the ephemeral Runtime credential without a browser session',
     assert.equal(continued, true);
 });
 
-test('every regular asset outside public/private is accessible without a login session', () => {
-    assert.equal(isPublicPath('/thinkiac.exe'), true);
-    // The old root APK alias was removed. Missing files fail closed.
+test('tracked public assets are accessible without a login session', () => {
+    assert.equal(isPublicPath('/favicon-16.png'), true);
+    // Build artifacts are not tracked in a fresh checkout. Missing files fail
+    // closed instead of becoming public merely because of their extension.
+    assert.equal(isPublicPath('/thinkiac.exe'), false);
     assert.equal(isPublicPath('/thinkiac.apk'), false);
-    assert.equal(isPublicPath('/thinkiac-app.png'), true);
-    assert.equal(isPublicPath('/android/thinkiac/thinkiac.apk'), true);
-    assert.equal(isPublicPath('/android/thinkiac/manifest.json'), true);
-    assert.equal(isPublicPath('/edge/runtime/thinkiac-base-0.1.0.tar.gz'), true);
     assert.equal(isPublicPath('/flutter-studio/download/thinkiac-edge/thinkiac-edge.apk'), true);
 });
 
@@ -161,7 +159,7 @@ test('uma view declarada exige a mesma permission mesmo por URL direta', () => {
     assert.equal(denied.permission, 'auth.users.read');
 });
 
-test('CNPJ Scraper operator pode abrir sua Home declarada', () => {
+test('a missing package never grants a declared role permission', () => {
     const root = path.join(process.cwd(), 'packages');
     const rows = (values) => ({ query: (where = {}) => values.filter((row) => Object.entries(where).every(([key, value]) => row[key] === value)) });
     const database = {
@@ -171,8 +169,8 @@ test('CNPJ Scraper operator pode abrir sua Home declarada', () => {
         permissionGrant: rows([]),
     };
     const access = authorizeViewRequest({ requestPath: '/view/cnpj-scraper/Home', userId: 'trial', database, root });
-    assert.equal(access.allowed, true);
-    assert.equal(access.permission, 'cnpj-scraper.read');
+    assert.equal(access.allowed, false);
+    assert.equal(access.permission, null);
 });
 
 test('view negada volta ao resolvedor de homepage da role', async () => {

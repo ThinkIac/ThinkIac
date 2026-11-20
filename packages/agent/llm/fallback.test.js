@@ -16,11 +16,9 @@ import {
 } from './llm.js'
 
 test('roteador streaming troca A limitada por B sem aviso e respeita noRetry', async () => {
-  
-  
   const source = readFileSync(new URL('./llm.js', import.meta.url), 'utf8')
   const start = source.indexOf('export async function callLLMStream(')
-  const end = source.indexOf('// ── Fallback helpers', start)
+  const end = source.indexOf('\n/**', start)
   assert.ok(start >= 0 && end > start)
   const body = source.slice(start, end).replace('export async function', 'async function')
   for (const noRetry of [false, true]) {

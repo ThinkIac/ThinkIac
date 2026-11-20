@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -11,8 +11,9 @@ let root
 let outside
 
 test.before(async () => {
-  root = await mkdtemp(join(tmpdir(), 'agent-workspace-root-'))
-  outside = await mkdtemp(join(tmpdir(), 'agent-workspace-outside-'))
+  const tempRoot = await realpath(tmpdir())
+  root = await mkdtemp(join(tempRoot, 'agent-workspace-root-'))
+  outside = await mkdtemp(join(tempRoot, 'agent-workspace-outside-'))
   await mkdir(join(root, 'apps', 'thinkiac'), { recursive: true })
   await symlink(outside, join(root, 'outside-link'))
 })

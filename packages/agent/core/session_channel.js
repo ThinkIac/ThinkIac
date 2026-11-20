@@ -22,7 +22,6 @@
 
 
 import { randomUUID } from 'crypto'
-import { pushMessage } from '../memory/session.js'
 
 
 
@@ -63,6 +62,10 @@ export async function sendToSession(sessionId, content, role = 'assistant') {
   const out = { persisted: false, live: false }
 
   try {
+    // Persistência é opcional para o canal. Carregá-la aqui, em vez de no
+    // módulo, permite que integrações que só usam o token efêmero funcionem
+    // antes de a capability de banco do Runtime estar instalada.
+    const { pushMessage } = await import('../memory/session.js')
     pushMessage(sid, { role: kind, content: text })
     out.persisted = true
   } catch { /* segue pro render ao vivo — uma metade ainda é melhor que nenhuma */ }

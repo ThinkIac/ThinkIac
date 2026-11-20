@@ -13,7 +13,7 @@ const viewPath = new URL("../views/Approval.svelte", import.meta.url);
 const enginePath = new URL("../lib/engine.js", import.meta.url);
 const require = createRequire(import.meta.url);
 const logosRoot = path.dirname(require.resolve("logos/package.json"));
-const svelteEngineUrl = pathToFileURL(path.join(logosRoot, "dist/src/modules/views/engine.js")).href;
+const svelteEngineUrl = pathToFileURL(path.join(logosRoot, "../modules/svelte/index.cjs")).href;
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workspaceRoot = path.resolve(packageRoot, "../..");
 

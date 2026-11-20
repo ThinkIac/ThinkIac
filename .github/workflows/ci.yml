@@ -23,5 +23,23 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
+      - name: Run test suites
+        shell: bash
+        run: |
+          if npm run test:all 2>&1 | tee "$RUNNER_TEMP/thinkiac-tests.log"; then
+            exit 0
+          fi
+          {
+            echo '### Failed test suites'
+            echo
+            echo '```text'
+            grep -E -A 18 '^(not ok|FAIL[[:space:]]|TIMEOUT[[:space:]]|Suite summary)' "$RUNNER_TEMP/thinkiac-tests.log" | tail -180 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^(not ok|FAIL[[:space:]]|TIMEOUT[[:space:]])' "$RUNNER_TEMP/thinkiac-tests.log" |
+            while IFS= read -r failure; do
+              echo "::error::${failure//%/%25}"
+            done || true
+          exit 1
       - run: npm run test:runner
       - run: npm exec -- vitest run --root vendor/packages/logos tests/logos-dependencies.test.ts tests/scriba-reactivity.browser.test.ts

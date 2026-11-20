@@ -10,7 +10,7 @@ const runners: IsolatedRunner[] = [];
 afterEach(async () => { await Promise.all(runners.splice(0).map(runner => runner.stop('test_finished'))); });
 
 function isolatedPackage(source: string) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logos-isolated-'));
+  const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'logos-isolated-'));
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'isolated-demo', isolated: true }));
   fs.writeFileSync(path.join(dir, 'entry.js'), source);
   return dir;

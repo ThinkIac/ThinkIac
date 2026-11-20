@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const logosRoot = path.dirname(require.resolve('logos/package.json'))
-const engineUrl = pathToFileURL(path.join(logosRoot, 'dist/src/modules/views/engine.js')).href
+const engineUrl = pathToFileURL(path.join(logosRoot, '../modules/svelte/index.cjs')).href
 const auroraRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const packagesRoot = path.dirname(auroraRoot)
 const workspaceRoot = path.dirname(packagesRoot)
@@ -27,7 +27,7 @@ test('ações de mensagem compilam e renderizam sem globais do navegador', async
       { message: { role: 'assistant', content: 'Resposta' }, index: 0, assistantOrdinal: 0 },
       packagesRoot,
     )
-    assert.match(html, /Copiar resposta/)
+    assert.match(html, /aria-label="Copy response"/)
   } finally {
     process.chdir(originalCwd)
     rmSync(cacheDir, { recursive: true, force: true })

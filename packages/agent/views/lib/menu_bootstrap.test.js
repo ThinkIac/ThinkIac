@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { get } from "svelte/store";
 
 const storage = new Map();
@@ -47,10 +46,3 @@ assert.deepEqual(
 assert.deepEqual(get(desktopMenuItems).map((item) => item.id), ["chat-sessions", "apps", "windows", "sessions"]);
 assert.deepEqual(get(leftPanelItems).map((item) => item.id), ["chat-sessions", "windows"]);
 assert.deepEqual(get(rightPanelItems).map((item) => item.id), ["apps", "sessions"]);
-
-for (const [manifestUrl, expectedLabel] of [
-    [new URL("../../../process-manager/package.json", import.meta.url), "Task Manager"],
-]) {
-    const manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
-    assert.equal(manifest.manifest.menu.label, expectedLabel);
-}

@@ -44,7 +44,7 @@ describe('installShellControlBridge', () => {
     });
     const socket = sockets[0]; socket.readyState = 1; socket.emit('open');
     socket.emit('message', { data: JSON.stringify({ type: 'desktop:command', requestId: 'r1', action: 'open_app', payload: { appId: 'terminal' } }) });
-    await Promise.resolve(); await Promise.resolve();
+    await vi.waitFor(() => expect(socket.send).toHaveBeenCalledTimes(2));
     expect(socket.url).toContain('session=orbit-a');
     expect(execute).toHaveBeenCalledWith('open_app', { appId: 'terminal' });
     expect(JSON.parse(socket.send.mock.calls[1][0])).toMatchObject({ requestId: 'r1', ok: true });

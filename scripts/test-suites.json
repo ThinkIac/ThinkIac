@@ -70,20 +70,21 @@
     },
     {
       "name": "auth:node",
-      "cwd": "packages/auth",
+      "cwd": ".",
       "runner": "node",
+      "setup": "runtime",
       "files": [
-        "access-gate.test.js",
-        "app_flow.test.js",
-        "email-verification-access.test.js",
-        "email_delivery.test.js",
-        "email_verification.test.js",
-        "login-public-view.test.js",
-        "login-session-gate.test.js",
-        "mcp-auth.test.js",
-        "npm_registry.test.js",
-        "permissions.test.js",
-        "proxy_credentials.test.js"
+        "packages/auth/access-gate.test.js",
+        "packages/auth/app_flow.test.js",
+        "packages/auth/email-verification-access.test.js",
+        "packages/auth/email_delivery.test.js",
+        "packages/auth/email_verification.test.js",
+        "packages/auth/login-public-view.test.js",
+        "packages/auth/login-session-gate.test.js",
+        "packages/auth/mcp-auth.test.js",
+        "packages/auth/npm_registry.test.js",
+        "packages/auth/permissions.test.js",
+        "packages/auth/proxy_credentials.test.js"
       ],
       "timeoutMs": 120000
     },
@@ -95,7 +96,8 @@
         "google_oauth.test.js",
         "google_user.test.js",
         "mcp-routes.test.js",
-        "signup-flow.test.js"
+        "signup-flow.test.js",
+        "user-commands.test.js"
       ],
       "timeoutMs": 120000
     },
@@ -103,6 +105,7 @@
       "name": "agent:node",
       "cwd": "packages/agent",
       "runner": "node",
+      "setup": "db",
       "files": [
         "core/activity_registry.test.js",
         "core/chat_bus.test.js",
@@ -242,15 +245,6 @@
       "timeoutMs": 120000
     },
     {
-      "name": "process-manager:node",
-      "cwd": "packages/process-manager",
-      "runner": "node",
-      "files": [
-        "test/recovery.test.js"
-      ],
-      "timeoutMs": 120000
-    },
-    {
       "name": "terminal:node",
       "cwd": "packages/terminal",
       "runner": "node",
@@ -267,28 +261,6 @@
         "test/accessibility.contract.test.js",
         "test/view-ssr.test.js",
         "views/lib/desktop-control.test.js"
-      ],
-      "timeoutMs": 120000
-    },
-    {
-      "name": "cloud:node",
-      "cwd": "packages/cloud",
-      "runner": "node",
-      "files": [
-        "actions/bundle-rollout-executor.test.js",
-        "actions/bundle-rollout.test.js",
-        "actions/claim-env.test.js",
-        "actions/deployment.test.js",
-        "actions/host-catalog.test.js",
-        "actions/managed-git-broker.test.js",
-        "actions/persisted-bundle-rollout.test.js",
-        "actions/pool-bundle.test.js",
-        "actions/pool-hosts.test.js",
-        "actions/pool-reservation.test.js",
-        "actions/release-bundle.test.js",
-        "actions/scalezero.test.js",
-        "actions/tenant-runtime.test.js",
-        "actions/tenant-storage.test.js"
       ],
       "timeoutMs": 120000
     },

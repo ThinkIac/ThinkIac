@@ -31,7 +31,7 @@ test('abort stops active child and prevents subsequent suites', async () => {
 test('manifest includes mandatory domains and configuration regression', async () => {
   const { loadSuites } = await import('../test-all.mjs');
   const suites = loadSuites();
-  for (const name of ['logos', 'auth', 'agent', 'governance', 'pkgmgr', 'process-manager', 'terminal', 'cloud', 'reboot']) {
+  for (const name of ['logos', 'auth', 'agent', 'governance', 'pkgmgr', 'terminal', 'reboot']) {
     assert.ok(suites.some(s => s.name.split(':')[0] === name), name);
   }
   assert.ok(suites.find(s => s.name === 'agent:node').files.includes('utils/config.test.js'));

@@ -26,6 +26,6 @@
     "logos": "*"
   },
   "scripts": {
-    "test": "node test/engine.test.js && node test/service.test.js && node test/hooks.test.js && node test/view.test.js"
+    "test": "node --import ../../scripts/test-db-setup.mjs --test --test-concurrency=1 test/engine.test.js test/service.test.js test/hooks.test.js test/view.test.js"
   }
 }
