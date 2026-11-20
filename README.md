@@ -271,6 +271,12 @@ npm ci --legacy-peer-deps
 npm run start:runtime
 ```
 
+O comando de inicialização carrega o arquivo `.env`, sem substituir variáveis
+já definidas no ambiente. Execute `npm test` para rodar as suítes do projeto
+(também disponíveis por `npm run test:all`). As dependências dos pacotes do
+runtime devem ser declaradas também no `package.json` raiz para que `npm ci`
+as instale.
+
 ## Segurança
 
 ThinkIac pode acessar terminal, arquivos e credenciais. Não versione `.env`,
