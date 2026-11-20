@@ -81,7 +81,7 @@ function validNotifyDeviceId(appId) {
 
 export function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString('hex');
-    const iterations = 10000;
+    const iterations = 210000;
     const keylen = 64;
     const digest = 'sha512';
 
@@ -744,6 +744,21 @@ export async function credentialVerify(payload, ctx) {
 
 // --- ROTEADORES (CONTROLLERS) ---
 
+// Per-process protection; use the socket peer, never an untrusted forwarded header.
+const loginAttempts = new Map();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+function allowLoginAttempt(req, now = Date.now()) {
+    for (const [key, entry] of loginAttempts) if (entry.until <= now) loginAttempts.delete(key);
+    const key = req.socket?.remoteAddress || 'unknown';
+    let entry = loginAttempts.get(key);
+    if (!entry) {
+        if (loginAttempts.size >= 10000) return false;
+        entry = { count: 0, until: now + LOGIN_WINDOW_MS };
+        loginAttempts.set(key, entry);
+    }
+    return ++entry.count <= 20;
+}
+
 export async function login(req, res) {
     /**
      * @register_router login
@@ -751,9 +766,14 @@ export async function login(req, res) {
      * @method POST
      */
     const { email, password } = req.body || {};
+    if (!allowLoginAttempt(req)) {
+        res.setHeader('Retry-After', '900');
+        return res.status(429).send({ error: 'Too many login attempts. Try again later.' });
+    }
     const db = getProxy('auth');
 
-    const user = await db.user.findOne({ email });
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const user = normalizedEmail ? await db.user.findOne({ email: normalizedEmail }) : null;
 
     if (user && !user.disabled && !isRetiredLocalAccount(user) && await verifyPassword(password, user.password) && !user.disabled) {
         // Sinal de "acesso real" pro reaper de contas develop (ver
@@ -779,7 +799,7 @@ export async function login(req, res) {
         };
     }
 
-    return { status: 400, error: 'Credentials not found.' };
+    return res.status(400).send({ error: 'Credentials not found.' });
 }
 
 /** Encerra a sessão atual e impede que o navegador a reutilize. */

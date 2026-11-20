@@ -10,6 +10,7 @@ test('verifies legacy password records and rejects plaintext/invalid hashes', as
     assert.equal(await verifyPasswordAsync('wrong', hash), false);
     for (const invalid of ['', 'secret', 'salt:NaN:abc', 'salt:0:abc']) assert.equal(await verifyPasswordAsync('', invalid), false);
     const fresh = await hashPasswordAsync('new password');
+    assert.equal(Number(fresh.split(':')[1]), 210000);
     assert.equal(await verifyPasswordAsync('new password', fresh), true);
 });
 test('concurrent password work yields to the event loop', async () => {

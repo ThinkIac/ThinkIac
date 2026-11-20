@@ -28,6 +28,21 @@ test('registration starts a usable session before email delivery finishes', asyn
  expect(signedIn.redirectUrl).toBe('/redirect/home');
  expect(dispatch).not.toHaveBeenCalledWith('billing:grant-trial', expect.anything());
 });
+test('login normalizes email, returns HTTP errors and limits attempts per socket peer', async () => {
+ const { hashPasswordAsync } = await import('./password-async.js');
+ await db.user.push({ email: 'admin@example.test', password: await hashPasswordAsync('test-password'), role: 'admin' });
+ const req = { socket: { remoteAddress: '192.0.2.42' }, body: { email: ' Admin@Example.Test ', password: 'test-password' } };
+ expect((await login(req, response())).success).toBe(true);
+ const invalid = response();
+ await login({ ...req, body: { email: 'missing@example.test', password: 'wrong' } }, invalid);
+ expect(invalid.status).toHaveBeenCalledWith(400);
+ for (let i = 0; i < 18; i++) await login({ ...req, body: {} }, response());
+ const blocked = response();
+ await login(req, blocked);
+ expect(blocked.status).toHaveBeenCalledWith(429);
+ expect(blocked.setHeader).toHaveBeenCalledWith('Retry-After', '900');
+ expect((await login({ ...req, socket: { remoteAddress: '192.0.2.43' } }, response())).success).toBe(true);
+});
 test('confirmation requests credit for the authenticated account, never a supplied user ID', async () => {
  const user = await db.user.push({ id: 'u', email: 'new@example.test', emailVerified: false, tenantStatus: null });
  const verification = createEmailVerification({ userId: user.id, email: user.email });
