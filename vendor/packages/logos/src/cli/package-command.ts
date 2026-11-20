@@ -35,8 +35,8 @@ export async function discoverPackageCommands(workspace: string, folder: string)
   return { packagePath, commands: await registerCommands(packagePath) };
 }
 
-export async function runMinimalPackageCommand(workspace: string, folder: string, name: string, args: any) {
-  const { packagePath, commands } = await discoverPackageCommands(workspace, folder);
+export async function runMinimalPackageCommand(workspace: string, folder: string, name: string, args: any, discovered?: Awaited<ReturnType<typeof discoverPackageCommands>>) {
+  const { packagePath, commands } = discovered ?? await discoverPackageCommands(workspace, folder);
   const command = commands.find((item: any) => item.name === name);
   if (!command) throw new Error(`Command not found: ${folder}:${name}`);
   if (command.cliRuntime === 'full') return { requiresFullRuntime: true, packagePath, command };

@@ -167,7 +167,9 @@ apenas observam normalmente não devem retornar valor. Wildcards como
 /**
  * @register_command seed
  * @description Cria dados locais de desenvolvimento.
+ * @order count
  * @param {number?} count - Quantidade
+ * @alias c
  */
 export async function seed({ count = 10 }) {}
 ```
@@ -175,6 +177,28 @@ export async function seed({ count = 10 }) {}
 Comandos usam as mesmas tags de parâmetros e condições das tools. O modo
 padrão é `@cli_runtime minimal`; use `@cli_runtime full` somente em código
 legado que realmente dependa do host todo inicializado.
+
+Para um pacote chamado `demo`, `logos demo seed 3`, `logos demo seed -c 3` e
+`logos demo:seed --count 3` passam `{ count: 3 }` ao mesmo handler. Use
+`logos demo seed --help` para consultar a ordem posicional, as opções e seus aliases.
+
+Declare `@order` com os nomes dos parâmetros separados por vírgulas. Cada
+posicional ocupa o primeiro parâmetro dessa ordem ainda sem valor. Para pular
+um opcional, use uma flag para o parâmetro seguinte. Uma flag que repete um
+parâmetro já preenchido gera erro. `--` trata os tokens seguintes como
+posicionais literais, inclusive valores iniciados por hífen.
+
+Declare `@alias` imediatamente após o `@param` correspondente ou após
+`@parameter nome` para selecionar um parâmetro já declarado. Separe aliases
+por vírgulas ou espaços. Um caractere gera uma flag curta, como `-c`;
+nomes maiores geram flags longas. Os aliases devem ser únicos no comando.
+Flags booleanas aceitam presença simples ou um valor explícito `true` ou
+`false`.
+
+Comandos existentes que não declaram `@alias` ou `@order` preservam o
+encaminhamento legado de opções e de argumentos extras em `_` quando chamados
+como `pacote:comando`. Na forma `pacote comando`, declare `@order` para
+receber posicionais.
 
 ## Predicates e middleware
 

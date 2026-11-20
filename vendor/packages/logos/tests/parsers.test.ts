@@ -167,6 +167,15 @@ describe('parseCommand', () => {
     expect(parseCommand(() => {}, '@register_command')!.name).toBe('anonymousCommand');
   });
 
+  it('rejects conflicting aliases and invalid positional declarations', () => {
+    const doc = '@register_command run\n@param {string} package - Package\n@param {boolean?} force - Force';
+    expect(() => parseCommand(fn, doc + '\n@alias package')).toThrow('Conflicting command alias: package');
+    expect(() => parseCommand(fn, doc + '\n@alias f\n@parameter package\n@alias f')).toThrow('Conflicting command alias: f');
+    expect(() => parseCommand(fn, doc + '\n@alias h')).toThrow('Conflicting command alias: h');
+    expect(() => parseCommand(fn, doc + '\n@order missing')).toThrow('Unknown parameter in @order: missing');
+    expect(() => parseCommand(fn, doc + '\n@order package, package')).toThrow('Duplicate parameter in @order: package');
+  });
+
   it('defaults to minimal CLI execution and accepts an explicit full-runtime opt-in', () => {
     expect(parseCommand(fn, '@register_command quick')!.cliRuntime).toBe('minimal');
     expect(parseCommand(fn, '@register_command legacy\n@cli_runtime full')!.cliRuntime).toBe('full');
