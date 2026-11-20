@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const root = new URL('.', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('./package.json', root), 'utf8'));
-const source = ['./index.js', './services/permissions.js'].map(file => readFileSync(new URL(file, root), 'utf8')).join('\n');
+const source = ['./index.js', './services/permissions.js', './services/user-administration.js', './services/administration-ui.js', './adapters/administration.js'].map(file => readFileSync(new URL(file, root), 'utf8')).join('\n');
 const require = createRequire(import.meta.url);
 const { authorize } = require('./permissions.cjs');
 const { defaultPermissionCatalog } = require('./permission_catalog.cjs');

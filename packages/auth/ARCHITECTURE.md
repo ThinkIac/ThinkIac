@@ -47,11 +47,23 @@ os comandos locais continuam protegidos pela fronteira de acesso ao host.
 | `services/browser-sessions.js` | Criação e encerramento da sessão e atributos do cookie |
 | `services/google-auth.js` | OAuth Google, PKCE, callback, limpeza e emissão de deep link |
 | `services/login-tickets.js` | Troca de ticket de login por sessão e redirect seguro |
-| `index.js` | Composição, adaptadores HTTP, acesso e administração local |
+| `services/access-gate.js` | Política explícita do portão HTTP, views e delegação |
+| `services/account-policy.js` | Contas descontinuadas e entitlements de apps |
+| `services/password-login.js` | Login por senha, limites por conta e logout |
+| `services/delegated-sessions.js` | Emissão e troca de tickets delegados |
+| `services/user-administration.js` | Operações administrativas de usuários |
+| `services/administration-ui.js` | Surface System e despacho de ações aguardando o resultado |
+| `services/mcp-administration.js` | Credenciais MCP e autorização administrativa |
+| `services/lifecycle.js` | Boot, verificação de credenciais e consulta de identidade |
+| `services/app-entry.js`, `services/onboarding.js` | Entrada de apps e preferências de onboarding |
+| `services/google-provider.js` | Composição OAuth com políticas explícitas |
+| `adapters/` | Registros HTTP, hooks e comandos, separados por área |
+| `runtime/config.js` | Carregamento local da configuração, inclusive em importação direta |
+| `index.js` | Fronteira pública de composição e exports de compatibilidade |
 
 Os serviços não importam o entrypoint. O scanner do Lógos percorre subdiretórios,
 portanto os serviços não possuem anotações de registro. As rotas e hooks legados
-mantêm adaptadores no entrypoint; cada operação é registrada uma única vez.
+mantêm adaptadores em `adapters/`; cada operação é registrada uma única vez.
 Caches de limite continuam em memória por processo, com as mesmas janelas.
 
 ## Remoção dos fluxos de produto
@@ -119,5 +131,19 @@ Os demais contratos continuam comparados ao baseline anterior.
 O clone utiliza Vitest 1.6.1 preexistente, embora o lockfile declare uma versão
 mais recente. Não houve reinstalação de dependências nem validação em produção.
 
-Validação desta etapa: 83 testes Node e 151 testes Vitest de Auth, além de seis
-testes do runner. As três views alteradas compilam para SSR e DOM.
+Validação da separação final: 84 testes Node e 159 testes Vitest de Auth, além de
+seis testes do runner e dois de UI Schema. As três views alteradas compilam para SSR e DOM.
+
+## Revisão da separação final
+
+Serviços não importam o entrypoint ou os adaptadores. As anotações do scanner
+ficam em adapters/ e events.js, com uma única inscrição de cada contrato.
+O portão mantém a ordem de decisão anterior: conta descontinuada, autenticação
+da ponte, exposição pública, sessão, delegação, administrador e permissões.
+Não se transforma o resultado de um evento de notificação em autorização.
+
+A extração preserva corpos de operações, TTLs, cookies e caminhos de arquivos.
+Duas correções pontuais têm testes de regressão: o gate importa o autorizador
+canônico usado pelo CNPJ; System aguarda a mutação e devolve sua falha antes de
+montar estado ou anunciar sucesso. O consumo atômico de tickets permanece uma
+pendência, sem alegar que esta reorganização a resolveu.

@@ -176,7 +176,7 @@ test('a missing package never grants a declared role permission', () => {
 test('view negada volta ao resolvedor de homepage da role', async () => {
     // O gate entrega a navegação ao Redirect. Ele aplica as regras de role e
     // evita mostrar o JSON técnico de autorização para quem está no browser.
-    const source = await import('node:fs/promises').then((fs) => fs.readFile(new URL('./index.js', import.meta.url), 'utf8'));
+    const source = await import('node:fs/promises').then((fs) => fs.readFile(new URL('./services/access-gate.js', import.meta.url), 'utf8'));
     assert.match(source, /if \(\['GET', 'HEAD'\]\.includes\(String\(req\.method \|\| 'GET'\)\.toUpperCase\(\)\)\) \{\s*return res\.redirect\(AUTHENTICATED_HOME\);/s);
 });
 
