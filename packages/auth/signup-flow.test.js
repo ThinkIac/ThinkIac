@@ -1,6 +1,10 @@
-import { test, expect, vi, beforeEach } from 'vitest';
-const { db, dispatch, mail } = vi.hoisted(() => ({ db: {}, dispatch: vi.fn(), mail: vi.fn() }));
-vi.mock('logos', () => ({ getProxy: () => db, dispatchEvent: dispatch, isPublicRoute: () => false, isPublicView: () => false }));
+import Database from 'better-sqlite3';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test, expect, vi, beforeEach, afterEach } from 'vitest';
+const { db, dispatch, mail, databaseState } = vi.hoisted(() => ({ db: {}, databaseState: {}, dispatch: vi.fn(), mail: vi.fn() }));
+vi.mock('logos', () => ({ getProxy: () => db, scriba: { instance: { _tenants: { auth: { get db() { return databaseState.connection; } } } } }, dispatchEvent: dispatch, isPublicRoute: () => false, isPublicView: () => false }));
 vi.mock('./email_delivery.js', () => ({ queueVerificationEmail: mail }));
 vi.mock('./mcp-auth.js', () => ({ createMcpAuth: () => ({}) }));
 import { register, login, identityProvider, confirmEmail, createAccount } from './index.js';
@@ -11,7 +15,9 @@ function collection() {
  return store;
 }
 const response = () => { const res = { setHeader: vi.fn(), status: vi.fn(() => res), send: vi.fn() }; return res; };
-beforeEach(() => { vi.clearAllMocks(); db.user = collection(); db.session = collection(); db.emailverification = collection(); db.appentitlement = collection(); db.permissionMembership = collection(); db.permissionGroup = collection(); db.permissionGrant = collection(); dispatch.mockResolvedValue({ granted: true }); mail.mockResolvedValue({}); });
+let localConnection;
+beforeEach(() => { localConnection = new Database(':memory:'); databaseState.connection = localConnection; vi.clearAllMocks(); db.user = collection(); db.session = collection(); db.emailverification = collection(); db.appentitlement = collection(); db.permissionMembership = collection(); db.permissionGroup = collection(); db.permissionGrant = collection(); dispatch.mockResolvedValue({ granted: true }); mail.mockResolvedValue({}); });
+afterEach(() => { if (localConnection.open) localConnection.close(); });
 test('registration starts a usable session before email delivery finishes', async () => {
  mail.mockReturnValue(new Promise(() => {}));
  // An app account exercises registration without calling real infrastructure.
@@ -158,4 +164,48 @@ test('paid account is created without provisioning a tenant during account creat
    expect(dispatch).not.toHaveBeenCalledWith('thinkiac:tenant:claim',expect.anything());
    expect(dispatch).not.toHaveBeenCalledWith('thinkiac:tenant:create',expect.anything());
  } finally { globalThis.fetch=originalFetch; }
+});
+
+test('login shares normalized account limits across IPs and database connections', async () => {
+ const directory = mkdtempSync(join(tmpdir(), 'thinkiac-login-'));
+ const filename = join(directory, 'auth.db');
+ const connections = [new Database(filename), new Database(filename)];
+ const clock = vi.spyOn(Date, 'now').mockReturnValue(120000);
+ try {
+   const { hashPasswordAsync } = await import('./password-async.js');
+   await db.user.push({ email: 'shared@example.test', password: await hashPasswordAsync('correct-password') });
+   const request = (i, email = 'shared@example.test', password = 'wrong') => {
+     databaseState.connection = connections[i % 2];
+     return { socket: { remoteAddress: `192.0.2.${100 + i}` }, body: { email, password } };
+   };
+   expect((await login(request(0, undefined, 'correct-password'), response())).success).toBe(true);
+   const attempts = await Promise.all(Array.from({ length: 12 }, async (_, i) => {
+     const res = response();
+     await login(request(i + 1, i % 2 ? ' SHARED@Example.Test ' : undefined), res);
+     return res.status.mock.calls[0][0];
+   }));
+   expect(attempts.filter(status => status === 400)).toHaveLength(10);
+   expect(attempts.filter(status => status === 429)).toHaveLength(2);
+   clock.mockReturnValue(179000);
+   const blocked = response();
+   await login(request(13, undefined, 'correct-password'), blocked);
+   expect(blocked.status).toHaveBeenCalledWith(429);
+   expect(blocked.setHeader).toHaveBeenCalledWith('Retry-After', '1');
+   const independent = response();
+   await login(request(14, 'other@example.test'), independent);
+   expect(independent.status).toHaveBeenCalledWith(400);
+   clock.mockReturnValue(180000);
+   expect((await login(request(15, undefined, 'correct-password'), response())).success).toBe(true);
+ } finally {
+   clock.mockRestore();
+   for (const connection of connections) connection.close();
+   rmSync(directory, { recursive: true, force: true });
+ }
+});
+
+test('login returns 503 when the account limiter cannot reserve an attempt', async () => {
+ databaseState.connection.close();
+ const res = response();
+ await login({ socket: { remoteAddress: '192.0.2.200' }, body: { email: 'admin@example.test' } }, res);
+ expect(res.status).toHaveBeenCalledWith(503);
 });

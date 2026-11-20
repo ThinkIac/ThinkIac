@@ -1,7 +1,8 @@
+import { loginAttemptStore } from './login-attempts.js';
 import { hashPasswordAsync, verifyPasswordAsync } from './password-async.js';
 import { claimActivation, updateActivationLease, recoverActivations } from './activation.js';
 import { createMcpAuth } from './mcp-auth.js';
-import { dispatchEvent, getProxy, isPublicRoute, isPublicView } from 'logos';
+import { dispatchEvent, getProxy, isPublicRoute, isPublicView, scriba } from 'logos';
 import crypto from 'crypto';
 import { isIP } from 'node:net';
 import { credentialHasScope, DEFAULT_BILLING_SCOPES, DEFAULT_TENANT_SCOPES, issueProxyToken, parseProxyToken, parseScopes, verifyProxyToken } from './proxy_credentials.js';
@@ -792,9 +793,28 @@ export async function login(req, res) {
     const db = getProxy('auth');
 
     const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    let accountAttempts;
+    let reservation;
+    if (normalizedEmail) {
+        try {
+            accountAttempts = loginAttemptStore(scriba.instance._tenants.auth.db);
+            reservation = accountAttempts.reserve(normalizedEmail);
+        } catch {
+            return res.status(503).send({ error: 'Login temporarily unavailable. Try again later.' });
+        }
+        if (reservation.retryAfter) {
+            res.setHeader('Retry-After', String(reservation.retryAfter));
+            return res.status(429).send({ error: 'Too many login attempts. Try again later.' });
+        }
+    }
     const user = normalizedEmail ? await db.user.findOne({ email: normalizedEmail }) : null;
 
     if (user && !user.disabled && !isRetiredLocalAccount(user) && await verifyPassword(password, user.password) && !user.disabled) {
+        try {
+            accountAttempts.refund(reservation);
+        } catch {
+            return res.status(503).send({ error: 'Login temporarily unavailable. Try again later.' });
+        }
         // Sinal de "acesso real" pro reaper de contas develop (ver
         // reapIdleDevAccounts) — o único ponto de login visível ao gateway
         // central, já que o container do tenant não reporta uso de volta.

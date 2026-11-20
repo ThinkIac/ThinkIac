@@ -327,5 +327,16 @@ autorizados. Mantenha a porta do ThinkIac acessível apenas ao proxy nessa
 topologia e use uma rede em que outros serviços não compartilhem o IP confiável.
 
 O login usa o IP da conexão quando o proxy não está cadastrado ou quando
-`X-Real-IP` está ausente ou inválido. Os contadores ficam em cada processo do
-ThinkIac.
+`X-Real-IP` está ausente ou inválido. O contador por IP fica em cada processo
+do ThinkIac.
+
+O login por senha também limita a 10 tentativas por e-mail normalizado em
+uma janela de 60 segundos, mesmo para endereços sem cadastro. O SQLite da
+autenticação reserva a tentativa antes de verificar a senha. Uma senha válida
+devolve sua própria reserva. Quando o limite é atingido, o login retorna
+HTTP 429 com `Retry-After` e novas requisições não estendem a janela.
+Registros vencidos são removidos na próxima tentativa com e-mail.
+
+Processos que usam o mesmo banco de autenticação compartilham o contador.
+Réplicas com bancos separados têm limites independentes. Se o armazenamento
+do contador falhar, o login por senha retorna HTTP 503.
