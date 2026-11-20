@@ -29,8 +29,8 @@ grants, recursos e negações. Sessões delegadas não podem usar a consulta gen
 para ampliar suas capabilities de rota; essa consulta retorna 403. Esses eventos são internos ao Runtime; não são novas
 rotas públicas nem autorizam operações locais de administração.
 
-Os hooks anteriores de credenciais, provisionamento, boot e runtime:ready continuam
-com os mesmos nomes e retornos. Não há eventos de mutação de usuários nesta etapa:
+Os hooks genéricos de identidade, credenciais e boot permanecem. Hooks de
+provisionamento e recuperação de ativação foram removidos. Não há eventos de mutação de usuários:
 os comandos locais continuam protegidos pela fronteira de acesso ao host.
 
 ## Componentes
@@ -47,25 +47,50 @@ os comandos locais continuam protegidos pela fronteira de acesso ao host.
 | `services/browser-sessions.js` | Criação e encerramento da sessão e atributos do cookie |
 | `services/google-auth.js` | OAuth Google, PKCE, callback, limpeza e emissão de deep link |
 | `services/login-tickets.js` | Troca de ticket de login por sessão e redirect seguro |
-| `index.js` | Composição e adaptadores públicos compatíveis; fluxos ainda não extraídos |
+| `index.js` | Composição, adaptadores HTTP, acesso e administração local |
 
 Os serviços não importam o entrypoint. O scanner do Lógos percorre subdiretórios,
 portanto os serviços não possuem anotações de registro. As rotas e hooks legados
 mantêm adaptadores no entrypoint; cada operação é registrada uma única vez.
 Caches de limite continuam em memória por processo, com as mesmas janelas.
 
-A extração é deliberadamente incremental. Login por senha, confirmação por email,
-provisionamento, catálogo de pacotes de tenants, onboarding e administração MCP
-permanecem no entrypoint nesta etapa. Eles já têm auxiliares existentes e podem
-ser extraídos em mudanças seguintes com a mesma proteção de compatibilidade.
-Não houve implantação nem substituição do pacote carregado pelo Runtime.
+## Remoção dos fluxos de produto
+
+A continuação da issue #28 remove explicitamente do Auth o cadastro público,
+convites, confirmação/reenvio de e-mail, bônus de ativação, provisionamento,
+SSO e warm-up de tenants, gestão de recursos/pacotes e reaper de contas develop.
+As rotas, hooks e exports retirados estão enumerados em
+`test/retired-contract.json`; não são substituídos por wrappers funcionais.
+O login por Google autentica apenas contas existentes, mesmo que as settings
+legadas permitam cadastro. O vínculo por e-mail segue a opção
+`AUTH_ENV_GOOGLE_AUTOLINK`; contas bloqueadas não são vinculadas.
+Entradas de apps usam o destino compartilhado, sem despertar ou alterar tenants.
+
+Login por senha, OAuth/PKCE e tickets para contas existentes, sessões, permissões,
+MCP, npm/devices, onboarding e criação administrativa/local de usuários continuam.
+A página pública de login oferece apenas autenticação. System/Settings oferece
+Users e Roles; cadastro e convites foram retirados dos dois renderizadores.
+`initial-setup` retorna cadastro/convites desativados; `initial-admin` continua
+recusando criação pública. O bootstrap administrativo é local.
+
+Não há migração destrutiva: schema, usuários, sessões, registros de tenants,
+credenciais e confirmações antigas permanecem armazenados. Eles não disparam
+infraestrutura, créditos nem exclusão automática no boot. Integrações externas
+que chamavam os contratos retirados precisam ser ajustadas antes da implantação;
+a lista explícita permite revisar esse impacto. A política própria de outros
+pacotes sobre e-mail verificado não é alterada por esta remoção.
+
+O futuro pacote opcional de confirmação por eventos com Auth e Inbox, com seção
+em Settings para ativar/configurar a caixa de e-mail, é acompanhado na
+[issue #33](https://github.com/ThinkIac/ThinkIac/issues/33).
+Nenhuma implantação ou substituição do Auth carregado pelo Runtime é feita aqui.
 
 ## Validação
 
 O commit `6d1aba1b` adiciona 36 testes de OAuth, callback, tickets e cookies antes
 da segunda extração. `google-auth.js` recebe callbacks de política do entrypoint,
-sem importá-lo. Os eventos existentes de crédito continuam no mesmo caminho;
-tokens, cookies, códigos OAuth e tickets não ganham novos eventos de divulgação.
+sem importá-lo. Os eventos de crédito foram retirados nesta continuação; tokens, cookies,
+códigos OAuth e tickets não ganham novos eventos de divulgação.
 As tabelas, TTLs, ordem de operações e tratamento de falhas foram preservados.
 Esta extração não adiciona consumo transacional de tickets/estados: a sequência
 legada de leitura e remoção não comprova exclusão mútua entre processos.
@@ -86,14 +111,13 @@ Todas as suítes Auth, incluindo as que antes não estavam no manifesto, constam
 node --input-type=module -e 'import {loadSuites,runSuites} from "./scripts/test-all.mjs"; const results=await runSuites(loadSuites().filter(s=>s.name.startsWith("auth:"))); process.exitCode=results.every(r=>r.status==="PASS")?0:1'
 ```
 
-Os testes que inspecionam código administrativo leem entrypoint e serviço de
-permissões. Expectativas antigas foram atualizadas após reproduzir suas falhas
-com o entrypoint original: idioma da mensagem de grupo inválido e dependência do
-catálogo do pacote externo cnpj-scraper. O teste de catálogo real agora verifica
-o grupo administrativo do próprio Auth, além de Redirect e Providers. Também foram
-ajustados três casos de cadastro já falhos no entrypoint original: configuração
-de convites contraditória e nomes de campos antigos na resposta das settings.
+Os testes de funcionalidades retiradas foram substituídos por verificações de
+remoção dos contratos, recusa de novos usuários Google, ausência de efeitos de
+infraestrutura no boot/entrada de apps e indisponibilidade das ações de cadastro.
+Os demais contratos continuam comparados ao baseline anterior.
 
-Resultado local: 97 testes Node e 150 testes Vitest de Auth; seis testes do runner.
 O clone utiliza Vitest 1.6.1 preexistente, embora o lockfile declare uma versão
 mais recente. Não houve reinstalação de dependências nem validação em produção.
+
+Validação desta etapa: 83 testes Node e 151 testes Vitest de Auth, além de seis
+testes do runner. As três views alteradas compilam para SSR e DOM.

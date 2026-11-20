@@ -7,10 +7,6 @@ import { listLegacySystemTabs } from '../../settings/lib/tabs.js';
 const { authorize, permissionsForUser, validateGrantInput } = permissionService;
 const { createPermissionCatalog, listSelectablePermissions, validateDeclaredGroupInput } = permissionCatalogService;
 
-export function canBeDefaultRegistrationRole(role) {
-    return !!role && !(role.permissions || []).some((permission) => /^auth\.(?:users|access|settings)\.(?:read|write)$/.test(permission));
-}
-
 export const permissionCatalog = createPermissionCatalog({ packagesDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..') });
 
 export function canManageAuth(db, user, permission) {
@@ -31,13 +27,6 @@ function requireGlobalPermissionAdmin(req, permission) {
         throw error;
     }
     return { db, actor };
-}
-
-export function canBeDefaultRoleGroup(db, group) {
-    if (!group) return false;
-    if (group.declaredPackage) return canBeDefaultRegistrationRole(permissionCatalog.get(group.declaredPackage, group.declaredGroup));
-    return !(db.permissionGrant.query({ subjectType: 'group', subjectId: group.id }) || [])
-        .some((grant) => /^auth\.(?:users|access|settings)\.(?:read|write)$/.test(grant.permission));
 }
 
 export async function resolveRoleSelection(db, value) {

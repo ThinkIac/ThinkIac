@@ -64,11 +64,10 @@ test('users are associated with roles and extra permissions without an account-t
 
 test('user role selectors use the full assignable catalog, independently of registration defaults', () => {
     assert.match(source, /assignableRoles: permissionCatalog\.list\(\)/);
-    assert.match(view, /assignableRoles=data\.assignableRoles\|\|availableRoles/);
-    assert.match(view, /roles=tab==="settings"\?availableRoles:assignableRoles/);
+    assert.match(view, /assignableRoles=data\.assignableRoles\|\|\[\]/);
+    assert.match(view, /roles=assignableRoles/);
     assert.match(schemaView, /assignableRoles = Array\.isArray\(data\.assignableRoles\)/);
     assert.match(schemaView, /roleOptions = optionsFor\(assignableRoles\)/);
-    assert.match(schemaView, /defaultRoleOptions = optionsFor\(availableRoles\)/);
     assert.match(schemaView, /declared:\$\{role\.packageName\}:\$\{role\.id\}/);
 });
 
@@ -86,22 +85,18 @@ test('user updates accept the optional legacy account role without referencing a
 test('individual permissions remain secondary in the user editor and the system view has no cloud controls', () => {
     assert.match(view, /Package roles/);
     assert.match(view, /<details><summary>Extra permissions<\/summary>/);
-    assert.match(view, /Allow registration/);
-    assert.match(view, /Enable invitations/);
-    assert.match(view, /\/auth\/settings/);
-    assert.match(view, />Invitations<\/button>/);
-    assert.match(view, /tab==="invitations"/);
-    assert.match(view, /settings\.registrationEnabled&&settings\.invitationsEnabled/);
+    assert.doesNotMatch(view, /Allow registration/);
+    assert.doesNotMatch(view, /Enable invitations/);
+    assert.doesNotMatch(view, /\/auth\/settings/);
+    assert.doesNotMatch(view, />Invitations<\/button>/);
+    assert.doesNotMatch(view, /tab==="invitations"/);
+    assert.doesNotMatch(view, /settings\.registrationEnabled&&settings\.invitationsEnabled/);
     assert.doesNotMatch(view, />Add user<\/button><\/nav>/);
     assert.doesNotMatch(view, /tenant-|tenantStatus|tenantDomain|\/cloud\//);
 });
 
-test('registration settings can select an available default role', () => {
-    assert.match(source, /function canBeDefaultRegistrationRole/);
-    assert.match(source, /defaultRoleGroupId/);
-    assert.match(source, /resolveRoleSelection\(db, defaultRoleSelection\)/);
-    assert.match(source, /permissionMembership\.push\(\{ userId: user\.id, groupId: group\.id \}\)/);
-    assert.match(view, /Default role/);
-    assert.match(view, /Default role for new registrations/);
-    assert.match(view, /settings\.defaultRoleSelection/);
+test('System surfaces expose only users and roles', () => {
+ const manifest = JSON.parse(readFileSync(new URL('./package.json', root), 'utf8'));
+ assert.deepEqual(manifest.manifest.settingsTab.map(tab => tab.id), ['auth-users', 'auth-roles']);
+ assert.doesNotMatch(schemaView, /auth-registration|auth-invitations|auth.save-registration|auth.create-invite|auth.revoke-invite/);
 });

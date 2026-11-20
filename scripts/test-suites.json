@@ -76,9 +76,6 @@
       "files": [
         "packages/auth/access-gate.test.js",
         "packages/auth/app_flow.test.js",
-        "packages/auth/email-verification-access.test.js",
-        "packages/auth/email_delivery.test.js",
-        "packages/auth/email_verification.test.js",
         "packages/auth/login-public-view.test.js",
         "packages/auth/login-session-gate.test.js",
         "packages/auth/mcp-auth.test.js",
@@ -86,7 +83,6 @@
         "packages/auth/permissions.test.js",
         "packages/auth/proxy_credentials.test.js",
         "packages/auth/registration-contract.test.js",
-        "packages/auth/activation.test.js",
         "packages/auth/auth-permission-contract.test.js",
         "packages/auth/authorization.test.js",
         "packages/auth/discovery_permissions.test.js",
@@ -112,7 +108,6 @@
         "boundaries.test.js",
         "events.test.js",
         "initial-admin.test.js",
-        "registration-settings.test.js",
         "oauth-flow.test.js"
       ],
       "timeoutMs": 120000

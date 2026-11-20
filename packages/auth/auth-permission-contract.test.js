@@ -27,8 +27,6 @@ test('auth administration uses the same authorization resolver it provides', () 
     assert.match(source, /authorize\(\{[\s\S]*?catalog: permissionCatalog/);
     assert.match(source, /canManageAuth\(db, me, 'auth\.users\.read'\)/);
     assert.match(source, /canManageAuth\(db, me, 'auth\.users\.write'\)/);
-    assert.match(source, /canManageAuth\(db, me, 'auth\.settings\.write'\)/);
-    assert.match(source, /canManageAuth\(db, user, 'auth\.settings\.write'\)/);
     assert.match(source, /requireGlobalPermissionAdmin\(req, 'auth\.access\.read'\)/);
     assert.match(source, /requireGlobalPermissionAdmin\(req, 'auth\.access\.write'\)/);
 });

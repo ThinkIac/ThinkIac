@@ -1,6 +1,5 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 vi.mock('logos', () => ({ getProxy: vi.fn(), dispatchEvent: vi.fn(), isPublicRoute: () => false, isPublicView: () => false }));
-vi.mock('./email_delivery.js', () => ({ queueVerificationEmail: vi.fn() }));
 vi.mock('./mcp-auth.js', () => ({ createMcpAuth: () => ({}) }));
 import { manageUserCommand } from './index.js';
 import { verifyPasswordAsync } from './password-async.js';

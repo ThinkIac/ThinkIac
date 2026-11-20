@@ -1,33 +1,9 @@
 <script>
   import { onMount } from "svelte";
-  let isLogin = true;
-
-  let email = "";
-  let password = "";
-  let name = "";
-  let username = "";
-  const usernamePattern = "[a-z0-9][a-z0-9-]{1,61}[a-z0-9]";
-
-  // Variáveis auxiliares para controle de estado da requisição
-  let loading = false;
-  let errorMessage = "";
-  let continueTo = null;
-  let appFlow = null;
-  let emailVerificationPending = false;
-  let verificationCode = "";
-  // O formulário só pode aparecer depois de confirmar que não há sessão. Sem
-  // isso, uma sessão já válida deixa a tela de login visível por alguns frames
-  // antes do redirect começar.
-  // sessionCheck: 'checking' | 'authenticated' | 'ready' | 'failed'
-  // 'authenticated' é a sessão já confirmada cuja instância ainda está sendo
-  // consultada; também não pode liberar o formulário.
+  let email = "", password = "", loading = false, errorMessage = "";
+  let continueTo = null, appFlow = null;
   let sessionCheck = "checking";
   let sessionCheckError = "";
-  let initialSetupRequired = false;
-  let registrationEnabled = true;
-  let invitationsEnabled = true;
-  let invitationCode = "";
-
   function continueTarget() {
     const query = new URLSearchParams(window.location.search);
     if (query.get("flow") === "app" && query.get("app") === "lectio") {
@@ -61,11 +37,11 @@
     "google-troca-falhou": "Não foi possível concluir o login com o Google.",
     "google-indisponivel": "O Google não respondeu. Tente de novo em instantes.",
     "google-token-invalido": "Não foi possível validar sua conta Google.",
-    "app-invalido": "Este aplicativo não está disponível para cadastro público.",
+    "app-invalido": "Este aplicativo não está disponível.",
     "google-sem-conta":
-      "Nenhuma conta ThinkIac usa esse e-mail do Google. O cadastro é por convite — crie a conta primeiro e depois entre com o Google.",
+      "Solicite uma conta ao administrador antes de entrar com Google.",
     "google-registration-disabled":
-      "Google sign-in is available only for existing accounts while registration or invitations are restricted.",
+      "Google sign-in is available only for existing accounts.",
     "ticket-ausente": "Link de acesso incompleto.",
     "ticket-invalido": "Link de acesso inválido.",
     "ticket-reusado": "Este link de acesso já foi usado.",
@@ -116,172 +92,6 @@
 
   // Estado de espera pela provisão (depois de cadastro/login sem ssoUrl
   // ainda — instância pessoal ainda não terminou de subir).
-  // tenantStatus: null | 'pending' | 'warming' | 'ready' | 'failed'
-  //   'pending' — container/domínio/certificado sendo criados.
-  //   'warming' — container no ar, mas a página de destino ainda não
-  //               renderizou uma vez sequer nesse processo (build sob
-  //               demanda) — o backend fica chamando até ela responder.
-  //   'ready'   — o gateway terminou o provisionamento; antes de navegar, a
-  //               própria tela toca o destino SSO até a primeira resposta 2xx.
-  let tenantStatus = null;
-  let provisioningFailed = false;
-  let ssoUrl = null;
-  let destinationPolling = false;
-  let isMounted = true;
-  const DESTINATION_WARMUP_BUDGET_MS = 6000;
-
-  const STEPS = [
-    { key: "pending", label: "Provisionando sua instância" },
-    { key: "warming", label: "Preparando seu workspace" },
-  ];
-  const STEP_ORDER = ["pending", "warming", "ready"];
-
-  // ── Onboarding Parte 1 — preenchido durante pending/warming ──────────────
-  // A Parte 2 (tom + instruções) só acontece dentro do tenant, na primeira
-  // conversa com o Agent — ver apps/thinkiac/packages/agent/hooks/onboarding.js.
-  let onboardingStep = 0;
-  let onboardingDone = false;
-  let purpose = "";
-  let briefContext = "";
-  let audience = "";
-
-  const PURPOSE_SUGGESTIONS = [
-    "Responder clientes mais rápido",
-    "Organizar tarefas do dia a dia",
-    "Analisar dados e planilhas",
-    "Escrever e revisar textos",
-    "Automatizar processos repetitivos",
-  ];
-  const AUDIENCE_SUGGESTIONS = ["Só eu", "Meus clientes", "Minha equipe"];
-
-  // Brief rápido: tudo é opcional e ocupa o tempo em que a instância sobe,
-  // sem criar uma etapa obrigatória antes do primeiro acesso.
-  const ONBOARDING_STEP_COUNT = 3;
-
-  // Salva incrementalmente — se a instância ficar pronta antes do usuário
-  // terminar, o que já foi respondido não se perde (a Parte 2 completa com o
-  // resto depois, dentro do tenant).
-  async function saveOnboarding(patch) {
-    try {
-      await fetch("/auth/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-    } catch (e) {
-      // best-effort — não bloqueia o fluxo de provisionamento por causa disso
-    }
-  }
-
-  // Terminou o onboarding e a instância já ficou pronta enquanto ele
-  // respondia: entra agora, sem exigir mais um clique.
-  async function finishOnboarding() {
-    onboardingDone = true;
-    if (ssoUrl) await pollDestinationUntilReady();
-  }
-
-  async function nextOnboardingStep(patch) {
-    // Só avança depois que a tentativa de persistência terminou. Assim, um
-    // tenant que ficou pronto muito rápido não redireciona no meio do save.
-    if (patch) await saveOnboarding(patch);
-    if (onboardingStep < ONBOARDING_STEP_COUNT - 1) {
-      onboardingStep += 1;
-    } else {
-      await finishOnboarding();
-    }
-  }
-
-  async function skipOnboarding() {
-    await finishOnboarding();
-  }
-
-  function stepState(stepKey, current) {
-    if (STEP_ORDER.indexOf(current) > STEP_ORDER.indexOf(stepKey)) return "done";
-    if (current === stepKey) return "active";
-    return "upcoming";
-  }
-
-  async function pollUntilReady() {
-    provisioningFailed = false;
-    errorMessage = "";
-    if (!tenantStatus) tenantStatus = "pending";
-
-    while (true) {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      let data;
-      try {
-        const res = await fetch("/auth/status");
-        data = await res.json();
-      } catch (e) {
-        continue; // rede falhou nessa tentativa — tenta de novo no próximo tick
-      }
-
-      tenantStatus = data.tenantStatus;
-
-      if (data.tenantStatus === "ready" && data.ssoUrl) {
-        ssoUrl = data.ssoUrl;
-        // Entra sozinho: criar conta e chegar no workspace é um movimento só.
-        // A única espera é o onboarding em andamento — arrancar o usuário do
-        // meio de uma resposta perderia o que ele estava digitando; nesse caso
-        // a primeira request ao destino sai quando ele termina.
-        if (onboardingDone) pollDestinationUntilReady();
-        return;
-      }
-      if (data.tenantStatus === "failed") {
-        provisioningFailed = true;
-        errorMessage = data.failureReason || "Falha ao provisionar sua instância.";
-        return;
-      }
-      // ainda "pending" ou "warming" — continua esperando
-    }
-  }
-
-  async function pollDestinationUntilReady() {
-    if (destinationPolling || !ssoUrl) return;
-    destinationPolling = true;
-
-    // Dá ao cache uma janela curta, mas nunca prende a entrada por causa dele.
-    // Ao esgotar o orçamento, /auth/enter acorda o tenant e emite SSO novo;
-    // a primeira renderização pode ser lenta, porém o usuário segue adiante.
-    const deadline = Date.now() + DESTINATION_WARMUP_BUDGET_MS;
-    while (isMounted && Date.now() < deadline) {
-      try {
-        const response = await fetch("/auth/destination-ready");
-        const result = await response.json();
-        if (!response.ok || !result.ready) {
-          throw new Error("Workspace ainda não está disponível.");
-        }
-        // /auth/enter emite um ticket novo para a navegação final. A view já
-        // foi aquecida pela request acima, portanto a segunda carga vem do
-        // cache do tenant em vez de pagar o primeiro build ao usuário.
-        window.location.assign("/auth/enter");
-        return;
-      } catch (error) {
-        // Falhas de rede ou uma resposta 502 do proxy mantêm a pessoa nesta
-        // tela e acionam uma nova tentativa, sem expor a página de erro.
-      }
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    }
-    if (isMounted) window.location.assign("/auth/enter");
-    destinationPolling = false;
-  }
-
-  async function retryProvisioning() {
-    errorMessage = "";
-    try {
-      const res = await fetch("/auth/retry-provisioning", { method: "POST" });
-      const data = await res.json();
-      if (data.status !== 200) {
-        errorMessage = data.message || "Falha ao tentar novamente.";
-        return;
-      }
-      pollUntilReady();
-    } catch (e) {
-      errorMessage = "Falha de conexão com o servidor.";
-    }
-  }
-
   async function handleAuthSubmit(event) {
     errorMessage = "";
 
@@ -291,49 +101,15 @@
     const formData = new FormData(event.currentTarget);
     const submittedEmail = String(formData.get("email") || "").trim();
     const submittedPassword = String(formData.get("password") || "");
-    const submittedName = String(formData.get("name") || "").trim();
-    const submittedUsername = String(formData.get("username") || "").trim();
-    const submittedInvitationCode = String(formData.get("invitationCode") || "").trim();
-
     if (!submittedEmail || !submittedPassword) {
       errorMessage = "Preencha o e-mail e a senha.";
       return;
     }
-    if (!isLogin && (!submittedName || !submittedUsername)) {
-      errorMessage = "Preencha o nome e o username.";
-      return;
-    }
-    if (!isLogin && !registrationEnabled && invitationsEnabled && !submittedInvitationCode) {
-      errorMessage = "Enter a valid invitation code.";
-      return;
-    }
-
     email = submittedEmail;
     password = submittedPassword;
-    name = submittedName;
-    username = submittedUsername;
-    invitationCode = submittedInvitationCode;
     loading = true;
-
-    // Define o endpoint correto baseado no estado atual (Login ou Cadastro)
-    // Se a API de cadastro for diferente, altere a URL do 'register'
-    const url = initialSetupRequired
-      ? "/auth/initial-admin"
-      : isLogin
-        ? "/auth/login"
-        : "/auth/register";
-
-    // Monta o corpo da requisição dependendo da tela
-    const bodyData = isLogin
-      ? { email: submittedEmail, password: submittedPassword }
-      : {
-          name: submittedName,
-          email: submittedEmail,
-          username: submittedUsername,
-          password: submittedPassword,
-          ...(submittedInvitationCode ? { invitationCode: submittedInvitationCode } : {}),
-          ...(appFlow ? { flow: "app", app: appFlow } : {}),
-        };
+    const url = "/auth/login";
+    const bodyData = { email: submittedEmail, password: submittedPassword };
 
     try {
       const response = await fetch(url, {
@@ -348,13 +124,7 @@
 
       // Aceita erros HTTP e respostas legadas com result.error.
       if (result.error || !response.ok) {
-        if (result.requiresEmailVerification) emailVerificationPending = true;
         throw new Error(result.error || result.message || "Ocorreu um erro na requisição.");
-      }
-
-      if (result.requiresEmailVerification) {
-        emailVerificationPending = true;
-        return;
       }
 
       if (continueTo) {
@@ -365,38 +135,6 @@
       window.location.href = result.redirectUrl || "/redirect/home";
     } catch (error) {
       console.error("Erro na autenticação:", error);
-      errorMessage = error.message;
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function resendVerification() {
-    loading = true;
-    errorMessage = "";
-    try {
-      const response = await fetch("/auth/resend-verification", { method: "POST" });
-      const result = await response.json();
-      if (!response.ok || result.error) throw new Error(result.error || "Falha ao reenviar.");
-      errorMessage = "Enviamos um novo código para seu e-mail.";
-    } catch (error) { errorMessage = error.message; }
-    finally { loading = false; }
-  }
-
-  async function confirmEmailCode() {
-    loading = true;
-    errorMessage = "";
-    try {
-      const response = await fetch("/auth/confirm-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: verificationCode.replace(/\s/g, "") }),
-      });
-      const result = await response.json();
-      if (!response.ok || result.error) throw new Error(result.error || "Não foi possível confirmar seu e-mail.");
-      emailVerificationPending = false;
-      window.location.href = result.redirectUrl || "/redirect/home";
-    } catch (error) {
       errorMessage = error.message;
     } finally {
       loading = false;
@@ -429,30 +167,10 @@
     }
 
     if (!result?.id) {
-      try {
-        const response = await fetch("/auth/initial-setup");
-        const setup = await response.json();
-        if (!response.ok) throw new Error(setup?.error || "Unable to check initial setup.");
-        initialSetupRequired = setup.initialSetupRequired === true;
-        registrationEnabled = setup.settings?.registrationEnabled !== false;
-        invitationsEnabled = setup.settings?.invitationsEnabled !== false;
-        if (initialSetupRequired) isLogin = false;
-      } catch (error) {
-        sessionCheck = "failed";
-        sessionCheckError = error.message || "Unable to check initial setup.";
-        return;
-      }
       sessionCheck = "ready";
       return;
     }
-
-    if (new URLSearchParams(window.location.search).get("verify-email") === "1" && !result.emailVerified) {
-      email = result.email;
-      emailVerificationPending = true;
-      sessionCheck = "ready";
-      return;
-    }
-
+    sessionCheck = "authenticated";
     if (continueTo) {
       window.location.href = continueTo;
       return;
@@ -476,16 +194,9 @@
 
     checkExistingSession();
 
-    return () => {
-      isMounted = false;
-    };
   });
 </script>
-
-<div class="page">
-  <div class="ambient"></div>
-
-  <div class="auth-shell">
+<div class="page"><div class="auth-shell">
     {#if sessionCheck === "checking"}
       <div class="brand" aria-live="polite">
         <div class="brand-mark spinning"></div>
@@ -503,249 +214,11 @@
         </div>
       </div>
       <button class="submit" on:click={checkExistingSession}>Try again</button>
-    {:else if tenantStatus && !provisioningFailed}
-      <div class="brand">
-        <div class:spinning={tenantStatus !== "ready" || !onboardingDone} class="brand-mark"></div>
-        <div class="brand-copy">
-          {#if tenantStatus === "ready" && onboardingDone}
-            <h1>Seu espaço está pronto</h1>
-            <p>Validando o acesso seguro. Você será redirecionado em instantes.</p>
-          {:else}
-            <h1>Preparando seu espaço</h1>
-            <p>Enquanto isso, conte um pouco sobre o que quer construir.</p>
-          {/if}
-        </div>
-      </div>
-      {#if tenantStatus === "ready" && onboardingDone}
-        <div class="redirect-progress" aria-live="polite" aria-busy="true"><span></span></div>
-      {:else}
-        <ul class="step-list">
-          {#each STEPS as step}
-            <li class="step step-{stepState(step.key, tenantStatus)}">
-              <span class="step-dot"></span>
-              <span class="step-label">{step.label}</span>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-
-      {#if !onboardingDone}
-        <div class="onboarding">
-          <p class="onboarding-hint">
-            Brief rápido e opcional. Assim o Agent já entra entendendo o que
-            importa para você.
-          </p>
-
-          {#if onboardingStep === 0}
-            <div class="field">
-              <label>Qual resultado você quer alcançar primeiro?</label>
-              <div class="chip-row">
-                {#each PURPOSE_SUGGESTIONS as suggestion}
-                  <button
-                    type="button"
-                    class="chip"
-                    class:active={purpose === suggestion}
-                    on:click={() => (purpose = suggestion)}
-                  >
-                    {suggestion}
-                  </button>
-                {/each}
-              </div>
-              <input
-                bind:value={purpose}
-                type="text"
-                placeholder="Ou escreva uma ideia solta — não precisa estar definida"
-              />
-            </div>
-            <div class="onboarding-actions">
-              <button type="button" class="link-btn" on:click={skipOnboarding}>
-                Pular brief
-              </button>
-              <button
-                type="button"
-                class="submit"
-                on:click={() =>
-                  nextOnboardingStep(
-                    purpose.trim() ? { purpose } : null,
-                  )}
-              >
-                Continuar
-            </div>
-          {:else if onboardingStep === 1}
-            <div class="field">
-              <label>Qual é o contexto desse começo?</label>
-              <p class="field-hint">Opcional: seu negócio, trabalho, projeto ou rotina.</p>
-              <div class="chip-row">
-                <button
-                  type="button"
-                  class="chip"
-                  class:active={briefContext === "Meu negócio ou trabalho"}
-                  on:click={() => (briefContext = "Meu negócio ou trabalho")}
-                >
-                  Meu negócio ou trabalho
-                </button>
-                <button
-                  type="button"
-                  class="chip"
-                  class:active={briefContext === "Uma ideia ou projeto"}
-                  on:click={() => (briefContext = "Uma ideia ou projeto")}
-                >
-                  Uma ideia ou projeto
-                </button>
-                <button
-                  type="button"
-                  class="chip"
-                  class:active={briefContext === "Minha rotina pessoal"}
-                  on:click={() => (briefContext = "Minha rotina pessoal")}
-                >
-                  Minha rotina pessoal
-                </button>
-              </div>
-              <input
-                bind:value={briefContext}
-                type="text"
-                placeholder="Ex.: uma clínica, uma loja, estudos, um lançamento..."
-              />
-            </div>
-            <div class="onboarding-actions">
-              <button
-                type="button"
-                class="link-btn"
-                on:click={skipOnboarding}>Pular brief</button
-              >
-              <button
-                type="button"
-                class="submit"
-                on:click={() =>
-                  nextOnboardingStep({
-                    ...(briefContext.trim() ? { briefContext } : {}),
-                  })}
-              >
-                Continuar
-              </button>
-            </div>
-          {:else if onboardingStep === 2}
-            <div class="field">
-              <label>Para quem você quer criar isso?</label>
-              <p class="field-hint">Opcional. Ajuda o Agent a ajustar linguagem e prioridades.</p>
-              <div class="chip-row">
-                {#each AUDIENCE_SUGGESTIONS as suggestion}
-                  <button
-                    type="button"
-                    class="chip"
-                    class:active={audience === suggestion}
-                    on:click={() => (audience = suggestion)}
-                  >
-                    {suggestion}
-                  </button>
-                {/each}
-              </div>
-            </div>
-            <div class="onboarding-actions">
-              <button
-                type="button"
-                class="link-btn"
-                on:click={skipOnboarding}>Pular brief</button
-              >
-              <button
-                type="button"
-                class="submit"
-                on:click={() =>
-                  nextOnboardingStep({
-                    ...(purpose.trim() ? { purpose } : {}),
-                    ...(audience.trim() ? { audience } : {}),
-                  })}
-              >
-                Concluir
-              </button>
-            </div>
-          {/if}
-        </div>
-      {/if}
-    {:else if provisioningFailed}
-      <div class="brand">
-        <div class="brand-mark"></div>
-        <div class="brand-copy">
-          <h1>Something went wrong</h1>
-          <p>{errorMessage}</p>
-        </div>
-      </div>
-      <button class="submit" on:click={retryProvisioning}>Try again</button>
-    {:else if emailVerificationPending}
-      <div class="brand">
-        <div class="brand-mark"></div>
-        <div class="brand-copy">
-          <h1>Confirme seu e-mail e receba US$ 5</h1>
-          <p>Enviamos um link e um código de 8 dígitos para {email}.</p>
-        </div>
-      </div>
-      <form class="card" on:submit|preventDefault={confirmEmailCode}>
-        <div class="field">
-          <label for="verification-code">Código de confirmação</label>
-          <input id="verification-code" bind:value={verificationCode} inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" maxlength="8" placeholder="12345678" required />
-        </div>
-        {#if errorMessage}<p class="form-error">{errorMessage}</p>{/if}
-        <button class="submit" disabled={loading}>{loading ? "Confirmando..." : "Confirmar e-mail"}</button>
-        <button type="button" class="link-btn" disabled={loading} on:click={resendVerification}>Reenviar código</button>
-        <a class="link-btn" href="/auth/enter">Continuar usando meu ambiente</a>
-        <button type="button" class="link-btn" on:click={() => { emailVerificationPending = false; errorMessage = ""; }}>Voltar</button>
-      </form>
+    {:else if sessionCheck === "authenticated"}
+      <p aria-live="polite">Opening your workspace…</p>
     {:else}
-    <div class="brand">
-      <div class="brand-mark"></div>
-
-      <div class="brand-copy">
-        <h1>
-          {initialSetupRequired ? "Create the first administrator" : isLogin ? "Welcome back" : "Create account"}
-        </h1>
-
-        <p>
-          {initialSetupRequired
-            ? "Set up the account that will manage users and access."
-            : isLogin
-            ? "Access your workspace securely."
-            : "Start building your intelligent workspace."}
-        </p>
-      </div>
-    </div>
-
-    <form class="card" novalidate on:submit|preventDefault={handleAuthSubmit}>
-      {#if !isLogin}
-        <div class="field">
-          <label>Name</label>
-
-          <input
-            bind:value={name}
-            name="name"
-            type="text"
-            placeholder="John Doe"
-            required
-          />
-        </div>
-
-        {#if !initialSetupRequired && invitationsEnabled}
-          <div class="field">
-            <label>Invitation code{registrationEnabled ? " (optional)" : ""}</label>
-            <input bind:value={invitationCode} name="invitationCode" type="text" autocomplete="off" placeholder="XXXX-XXXX-XXXX" required={!registrationEnabled} />
-          </div>
-        {/if}
-
-        <div class="field">
-          <label>Username</label>
-
-          <input
-            bind:value={username}
-            name="username"
-            type="text"
-            placeholder="seu-usuario"
-            pattern={usernamePattern}
-            title="minúsculas, números e hífen"
-            required
-          />
-        </div>
-
-      {/if}
-
+      <div class="brand"><div class="brand-copy"><h1>Welcome back</h1><p>Access your workspace securely.</p></div></div>
+      <form class="card" novalidate on:submit|preventDefault={handleAuthSubmit}>
       <div class="field">
         <label>Email</label>
 
@@ -766,7 +239,7 @@
           bind:value={password}
           name="password"
           type="password"
-          autocomplete={isLogin ? "current-password" : "new-password"}
+          autocomplete="current-password"
           placeholder="••••••••"
           required
         />
@@ -779,10 +252,9 @@
       {/if}
 
       <button type="submit" class="submit" disabled={loading}>
-        {loading ? "Loading..." : initialSetupRequired ? "Create administrator" : isLogin ? "Continue" : "Create account"}
+        {loading ? "Loading..." : "Continue"}
       </button>
 
-      {#if isLogin && !initialSetupRequired}
         <div class="divisor"><span>ou</span></div>
 
         <!-- Link, não fetch: precisa ser navegação top-level para o app
@@ -799,23 +271,10 @@
           </svg>
           Entrar com Google
         </a>
-      {/if}
     </form>
 
-    {#if !initialSetupRequired && (registrationEnabled || invitationsEnabled)}<div class="footer">
-      <span>
-        {isLogin ? "New here?" : "Already have an account?"}
-      </span>
-
-      <button type="button" on:click={() => (isLogin = !isLogin)}>
-        {isLogin ? "Create account" : "Sign in"}
-      </button>
-    </div>
     {/if}
-    {/if}
-  </div>
-</div>
-
+</div></div>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400&display=swap');
 

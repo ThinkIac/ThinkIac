@@ -1,6 +1,5 @@
 import { getProxy } from 'logos';
 import crypto from 'node:crypto';
-import { hashPasswordAsync } from '../password-async.js';
 import { GOOGLE_AUTH_URL, GOOGLE_TOKEN_URL, decodeIdTokenClaims, validateIdTokenClaims,
     safeNext, normalizeClient, precisaDeTicket } from '../google_oauth.js';
 import { resolveGoogleUser } from '../google_user.js';
@@ -9,9 +8,8 @@ import { gatewayBaseUrl } from './registry-devices.js';
 import { AUTHENTICATED_HOME, startSession } from './browser-sessions.js';
 import { loginRedirect } from './login-tickets.js';
 
-// As políticas de produto continuam no entrypoint, sem importação circular.
-// Os callbacks preservam os eventos Lógos de crédito e os entitlements atuais.
-export function createGoogleAuth({ requestWelcomeCredit, ensureEntitlement, isRetiredLocalAccount }) {
+// O callback recebe políticas existentes sem importar o entrypoint.
+export function createGoogleAuth({ ensureEntitlement, isRetiredLocalAccount }) {
     // --- LOGIN COM GOOGLE (OAUTH 2.0 + PKCE) ---
     //
     // Por que o fluxo é tão indireto: o Google recusa OAuth dentro de WebView
@@ -144,37 +142,20 @@ export function createGoogleAuth({ requestWelcomeCredit, ensureEntitlement, isRe
             return res.redirect(loginRedirect('google-token-invalido'));
         }
 
-        // Google é também uma forma de cadastro. Só permite criar uma identidade
-        // nova quando o registro público está aberto e o Runtime não exige convite.
-        // Contas já existentes continuam podendo entrar normalmente.
-        const settings = db.authsettings?.findOne?.({ id: 'default' });
-        const registrationEnabled = settings?.registrationEnabled !== false;
-        const invitationsEnabled = registrationEnabled && settings?.invitationsEnabled === true;
-        const autolink = process.env.AUTH_ENV_GOOGLE_AUTOLINK !== '0';
-        const normalizedGoogleEmail = String(claims.email || '').trim().toLowerCase();
-        const existingGoogleUser = await db.user.findOne({ googleSub: claims.sub });
-        const existingEmailUser = autolink ? await db.user.findOne({ email: normalizedGoogleEmail }) : null;
-        if (!existingGoogleUser && !existingEmailUser && (!registrationEnabled || invitationsEnabled)) {
-            return res.redirect(loginRedirect('google-registration-disabled'));
-        }
-
-        const { user, created } = await resolveGoogleUser(db.user, claims, {
-            // Lazily evaluated: logins de contas existentes não pagam PBKDF2 nem
-            // criam material secreto descartável.
-            passwordHash: () => hashPasswordAsync(crypto.randomBytes(48).toString('base64url')),
-            autolink,
+        // OAuth autentica apenas contas existentes. Configurações legadas de
+        // cadastro não podem reabrir criação de identidades.
+        const { user } = await resolveGoogleUser(db.user, claims, {
+            autolink: process.env.AUTH_ENV_GOOGLE_AUTOLINK !== '0',
         });
+        if (!user) return res.redirect(loginRedirect('google-registration-disabled'));
 
         if (user.disabled || isRetiredLocalAccount(user)) return res.redirect(loginRedirect('conta-bloqueada'));
 
-        // Mesmo sinal de "acesso real" que login() carimba, para o reaper de
-        // contas develop não varrer quem só entra por Google.
+        // Mantém o registro de atividade usado pelos consumidores da identidade.
         user.lastActivityAt = new Date();
-        await requestWelcomeCredit(user.id);
 
         if (flow.appSlug) {
             await ensureEntitlement(db, user.id, flow.appSlug);
-            if (created) user.tenantStatus = null;
         }
 
         // A autenticação não provisiona infraestrutura. O destino padrão passa

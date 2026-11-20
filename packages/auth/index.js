@@ -7,7 +7,6 @@ import { allowLoginAttempt } from './services/login-throttle.js';
 import { resolveUserIdFromBearer, resolveProxyCredential, onResolveProxyToken as onResolveProxyTokenHandler, onRecordProxySpend as onRecordProxySpendHandler } from './services/credentials.js';
 import {
     npmGroupsFor,
-    gatewayBaseUrl,
     routerNpmWorkspace as routerNpmWorkspaceHandler,
     routerNpmCatalog as routerNpmCatalogHandler,
     routerNpmCreateToken as routerNpmCreateTokenHandler,
@@ -24,11 +23,8 @@ import {
     routerNotifyAuthorize as routerNotifyAuthorizeHandler,
 } from './services/registry-devices.js';
 import {
-    canBeDefaultRegistrationRole,
     permissionCatalog,
     canManageAuth,
-    canBeDefaultRoleGroup,
-    resolveRoleSelection,
     assignRoleSelections,
     routerPermissionsOverview as routerPermissionsOverviewHandler,
     routerPermissionsCatalog as routerPermissionsCatalogHandler,
@@ -46,19 +42,15 @@ import {
 } from './services/permissions.js';
 import { loginAttemptStore } from './login-attempts.js';
 import { hashPasswordAsync, verifyPasswordAsync } from './password-async.js';
-import { claimActivation, updateActivationLease, recoverActivations } from './activation.js';
 import { createMcpAuth } from './mcp-auth.js';
 import { dispatchEvent, getProxy, isPublicRoute, isPublicView, scriba } from 'logos';
 import crypto from 'crypto';
-import { credentialHasScope, DEFAULT_BILLING_SCOPES, DEFAULT_TENANT_SCOPES, issueProxyToken } from './proxy_credentials.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { isPublicExposure } from './runtime/public-exposure.js';
 import { SIGN_IN_VIEW, signInRedirect } from './google_oauth.js';
-import { queueVerificationEmail } from './email_delivery.js';
-import { createEmailVerification, verificationMatches, verificationTokenHash } from './email_verification.js';
-import { distributedApp, getDistributedApp, pathBelongsToApp, tenantPluginsFor } from './app_flow.js';
+import { distributedApp, getDistributedApp, pathBelongsToApp } from './app_flow.js';
 // Caminho relativo intencional: pacotes do Runtime são carregados diretamente
 // pelo host, sem exigir instalação prévia em node_modules.
 import { attachPrincipal } from './runtime/identity.js';
@@ -66,20 +58,8 @@ import { authorizeViewRequest } from './resource_access.js';
 import { assertSurface } from '../ui-schema/index.js';
 export { authorizeRequest, requirePermission } from './authorization.js';
 
-// Carrega só o .env deste pacote (BILLING_ADMIN_TOKEN) — não depende do
-// ambiente do processo Agent, que outros pacotes compartilham.
+// Mantém a configuração local do Auth usada por login, OAuth e sessões.
 try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch {}
-
-const BILLING_ADMIN_HEADER = 'x-billing-admin-token';
-
-// Registro público pode receber um role de produto, mas nunca uma capacidade
-// que administra a própria identidade do Runtime.
-
-function uniqueConflict(error, field) {
-    if (error?.code !== 'SQLITE_CONSTRAINT_UNIQUE') return null;
-    const suffix = field === 'username' ? 'Username is already registered.' : 'Email is already registered.';
-    return { status: 409, error: suffix };
-}
 
 // --- FUNÇÕES AUXILIARES DE CRIPTOGRAFIA ---
 
@@ -97,191 +77,20 @@ async function verifyPassword(password, storedPasswordHash) {
     return verifyPasswordAsync(password, storedPasswordHash);
 }
 
-async function createAndSendEmailVerification(db, user) {
-    const verification = createEmailVerification({ userId: user.id, email: user.email });
-    const record = await db.emailverification.push(verification.record);
-    const url = `${gatewayBaseUrl()}/auth/verify-email?token=${encodeURIComponent(verification.token)}`;
-    try {
-        await queueVerificationEmail({ email: user.email, code: verification.code, url });
-    } catch (error) {
-        await db.emailverification.delete(record.id).catch(() => {});
-        throw error;
-    }
-    return record;
-}
-
-async function confirmEmailVerification(db, { token, email, code }) {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    const candidates = typeof token === 'string'
-        ? await db.emailverification.query({ tokenHash: verificationTokenHash(token), consumed: false }, { limit: 1 })
-        : normalizedEmail ? await db.emailverification.query({ email: normalizedEmail, consumed: false }, { sort: 'createdAt DESC', limit: 20 }) : [];
-    const record = candidates.find((item) => !item.consumed && new Date(item.expiresAt).getTime() >= Date.now() && verificationMatches(item, { token, code }));
-    if (!record) return null;
-    const user = db.user[record.userId];
-    if (!user || String(user.email).toLowerCase() !== record.email) return null;
-    // Marca antes de iniciar infraestrutura: um segundo clique nunca pode
-    // ganhar outra sessão ou disparar outro provisionamento.
-    record.consumed = true;
-    record.consumedAt = new Date();
-    user.emailVerified = true;
-    await requestWelcomeCredit(user.id);
-    return user;
-}
-
 // Contas do fluxo retirado não podem receber automaticamente uma instância
 // comercial. Não há rota, view nem permissão local restante para elas.
 function isRetiredLocalAccount(user) {
     return user?.accountType === 'local';
 }
 
-// A confirmação libera o bônus; login e sessão continuam disponíveis.
-function requiresEmailVerification(user) {
-    return user?.role !== 'admin' && !user?.emailVerified && !user?.googleSub;
-}
-
-async function requestWelcomeCredit(userId) {
-    try {
-        const result = await dispatchEvent('billing:grant-trial', { userId });
-        const user = getProxy('auth').user[userId];
-        if (user) {
-            user.welcomeCreditStatus = result?.granted === true ? 'granted' : 'pending';
-            user.welcomeCreditError = result?.granted === true ? null : (result?.reason || 'billing_unavailable');
-        }
-        if (result?.granted !== true && result?.reason !== 'email_unverified') {
-            console.error('[auth] bônus pendente: billing não confirmou a concessão');
-        }
-        return result;
-    } catch (error) {
-        const user = getProxy('auth').user[userId];
-        if (user) { user.welcomeCreditStatus = 'pending'; user.welcomeCreditError = 'billing_unavailable'; }
-        console.error('[auth] bônus pendente:', error.message);
-        return { granted: false, reason: 'billing_unavailable' };
-    }
-}
-
 /** Traduz o schema ThinkIac para o contrato neutro consumido por hosts/apps. */
 
 /** IdentityProvider do ThinkIac. Pode ser usado sem depender de middleware Logos. */
 
-function generateInviteCode() {
-    return crypto.randomBytes(6).toString('base64url').slice(0, 10).toUpperCase();
-}
-
-// --- SSO PRO CONTAINER DO TENANT ---
-//
-// Token HMAC de uso único e curta validade (verificado em
-// apps/runtime/packages/tenant-auth/index.js, mesmo CLOUD_ENV_SSO_SECRET
-// passado como env var na criação do container) — deixa o dono cair
-// autenticado na própria instância sem redigitar senha.
-
-function signSsoToken(username, secret, next = null) {
-    const payload = { username, iat: Date.now(), jti: crypto.randomBytes(9).toString('base64url') };
-    if (next) payload.next = next;
-    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const sig = crypto.createHmac('sha256', secret).update(body).digest('base64url');
-    return `${body}.${sig}`;
-}
-
-function ssoUrlFor(tenantDomain, username, next = null) {
-    const secret = process.env.CLOUD_ENV_SSO_SECRET;
-    if (!secret || !tenantDomain) return null;
-    return `https://${tenantDomain}/tenant-auth/sso?token=${signSsoToken(username, secret, next)}`;
-}
-
-// --- WARM-UP DA INSTÂNCIA (esquenta o build da view antes de liberar) ---
-//
-// O InfraKit já espera o container responder em GET / com status < 500 antes
-// de devolver o tenant como criado — mas isso só esquenta a rota raiz. O
-// destino real do usuário é outro: /tenant-auth/sso valida o token e
-// redireciona pra /view/agent/Home, e o motor de views do logos
-// (modules/views/engine.js, ensureBuilt()) compila essa rota sob demanda
-// (bundle Rollup SSR+DOM) na PRIMEIRA request feita a ela — cache por
-// processo, vazio num container recém-criado. Sem esquentar essa rota
-// específica, é o usuário de verdade quem paga esse primeiro build ao vivo
-// logo após o redirect do SSO.
-//
-// Por isso replicamos os dois hops do SSO manualmente aqui. fetch() do Node
-// não tem cookie jar: seguir o redirect automaticamente (`redirect:'follow'`)
-// perderia o Set-Cookie do primeiro hop, o accessGate do tenant mandaria pra
-// "/" sem nunca tocar a view, e o request "sucederia" (200 em /) sem
-// esquentar nada. Por isso os dois hops são feitos à mão, repassando o
-// cookie de sessão manualmente.
-const WARMUP_ROUTE = '/view/desktop/Index';
-const WARMUP_INTERVAL_MS = parseInt(process.env.AUTH_ENV_WARMUP_INTERVAL_MS) || 3000;
-const WARMUP_ATTEMPT_TIMEOUT_MS = parseInt(process.env.AUTH_ENV_WARMUP_ATTEMPT_TIMEOUT_MS) || 25000;
-const WARMUP_MAX_ATTEMPTS = parseInt(process.env.AUTH_ENV_WARMUP_MAX_ATTEMPTS) || 3;
-const activeTenantWarmups = new Set();
-
-async function probeTenantDestination(tenantDomain, username, destination = WARMUP_ROUTE) {
-    try {
-        // Token novo a cada tentativa — signSsoToken/jti é de uso único.
-        const ssoUrl = ssoUrlFor(tenantDomain, username, destination);
-        if (!ssoUrl) return { ready: false, error: 'SSO não configurado' };
-
-        const ssoRes = await fetch(ssoUrl, {
-            method: 'GET',
-            redirect: 'manual',
-            signal: AbortSignal.timeout(WARMUP_ATTEMPT_TIMEOUT_MS),
-        });
-
-        const location = ssoRes.headers.get('location');
-        if (!(ssoRes.status >= 300 && ssoRes.status < 400 && location?.startsWith(destination))) {
-            return { ready: false, error: `sso respondeu status ${ssoRes.status} location "${location}"` };
-        }
-
-        const cookie = ssoRes.headers.getSetCookie().map((value) => value.split(';')[0]).join('; ');
-        const homeRes = await fetch(new URL(location, `https://${tenantDomain}`), {
-            method: 'GET',
-            headers: cookie ? { Cookie: cookie } : {},
-            signal: AbortSignal.timeout(WARMUP_ATTEMPT_TIMEOUT_MS),
-        });
-        return homeRes.ok
-            ? { ready: true }
-            : { ready: false, error: `HTTP ${homeRes.status} em ${destination}` };
-    } catch (error) {
-        return { ready: false, error: String(error?.message || error) };
-    }
-}
-
-async function warmUpTenantApp(tenantDomain, username, destination = WARMUP_ROUTE) {
-    // Aquecimento é uma otimização best-effort, nunca um gate de acesso. Em
-    // tenants free a compilação pode ser lenta; limitar as tentativas impede
-    // trabalho eterno no gateway sem atrasar a navegação do usuário.
-    for (let attempt = 0; attempt < WARMUP_MAX_ATTEMPTS; attempt += 1) {
-        const probe = await probeTenantDestination(tenantDomain, username, destination);
-        if (probe.ready) return true;
-        if (attempt + 1 < WARMUP_MAX_ATTEMPTS) {
-            await new Promise((r) => setTimeout(r, WARMUP_INTERVAL_MS));
-        }
-    }
-    return false;
-}
-
-function startTenantDestinationWarmup(userId, tenantDomain, username, destination = WARMUP_ROUTE) {
-    const key = String(userId);
-    if (activeTenantWarmups.has(key)) return;
-    activeTenantWarmups.add(key);
-
-    warmUpTenantApp(tenantDomain, username, destination)
-        .then((ready) => {
-            if (!ready) console.warn(`[auth] warm-up best-effort de ${tenantDomain} encerrou sem confirmação`);
-        })
-        .catch((error) => {
-            console.error(`[auth] warm-up do tenant ${tenantDomain} falhou: ${error.message}`);
-        })
-        .finally(() => activeTenantWarmups.delete(key));
-}
-
-// Username vira subdomínio (<username>.THINKIAC_DOMAIN) — precisa ser
-// DNS-safe: minúsculas, alfanumérico e hífen, 3-63 caracteres.
-
-// --- AUXILIARES DO SISTEMA ---
-
 // --- PORTÃO DE ACESSO GLOBAL ---
 //
 // Anônimo: só main-site (home) e as rotas/telas de auth.
-// Usuário comum (role !== 'admin'): nunca vê os apps daqui — vai pra
-// instância pessoal dele (tenantDomain) assim que estiver pronta.
+// Usuário comum: acesso condicionado às permissões dos pacotes.
 // Admin: acesso total.
 //
 // Importado direto por index.js e passado em bootstrap({ middleware: [...] }) —
@@ -561,9 +370,7 @@ export async function accessGate(req, res, next) {
         return res.status(403).send({ error: 'Acesso ao Lectio não concedido.' });
     }
 
-    // Contas sem um app concedido permanecem no Runtime público. Não há
-    // redirecionamento para uma instância, pois o cadastro não provisiona
-    // infraestrutura individual.
+    // Contas sem um app concedido permanecem no Runtime público.
     return res.redirect('/');
 }
 
@@ -646,10 +453,6 @@ export async function setupUser(payload, context) {
         }
     }
 
-    startDevAccountReaper();
-    repairLegacyBillingCredentials().catch((error) => {
-        console.error(`[auth] migração de credenciais de billing falhou: ${error.message}`);
-    });
 }
 
 export async function credentialVerify(payload, ctx) {
@@ -704,9 +507,7 @@ export async function login(req, res) {
         } catch {
             return res.status(503).send({ error: 'Login temporarily unavailable. Try again later.' });
         }
-        // Sinal de "acesso real" pro reaper de contas develop (ver
-        // reapIdleDevAccounts) — o único ponto de login visível ao gateway
-        // central, já que o container do tenant não reporta uso de volta.
+        // Mantém o registro de atividade da identidade.
         user.lastActivityAt = new Date();
 
         const durationMs = parseInt(process.env.AUTH_ENV_SESSION_DURATION_MS) || 86400000;
@@ -820,12 +621,7 @@ export async function initialSetupStatus(req) {
      * @public true
      * @method GET
      */
-    const db = getProxy('auth');
-    const settings = db.authsettings?.findOne?.({ id: 'default' });
-    return { initialSetupRequired: false, settings: {
-        registrationEnabled: settings?.registrationEnabled !== false,
-        invitationsEnabled: settings?.invitationsEnabled !== false,
-    } };
+    return { initialSetupRequired: false, settings: { registrationEnabled: false, invitationsEnabled: false } };
 }
 
 export async function createInitialAdmin(req, res) {
@@ -837,151 +633,7 @@ export async function createInitialAdmin(req, res) {
     return res.status(403).send({ error: 'Initial setup is no longer available. Provision an administrator locally.' });
 }
 
-export async function register(req, res) {
-    /**
-     * @register_router register
-     * @public true
-     * @method POST
-     */
-    const { name, email, password, username: rawUsername, invitationCode: rawInvitationCode } = req.body || {};
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    const app = distributedApp(req.body || {});
-    const db = getProxy('auth');
-
-    const settings = db.authsettings?.findOne?.({ id: 'default' });
-    const registrationEnabled = settings?.registrationEnabled !== false;
-    const invitationsEnabled = settings?.invitationsEnabled !== false;
-    const invitationCode = String(rawInvitationCode || '').trim().toUpperCase();
-    const invitation = invitationCode ? db.invite?.findOne?.({ code: invitationCode }) : null;
-    const validInvitation = !!(invitation && !invitation.consumed && !invitation.revoked &&
-        (!invitation.expiresAt || new Date(invitation.expiresAt).getTime() > Date.now()));
-
-    if (!registrationEnabled && (!invitationsEnabled || !validInvitation)) {
-        return res.status(403).send({ error: invitationsEnabled ? 'A valid invitation code is required.' : 'Registration is currently disabled.' });
-    }
-
-    if (req.body?.flow === 'app' && !app) {
-        return res.status(400).send({ error: 'Aplicativo não distribuível.' });
-    }
-
-    if (!email || !password) {
-        return res.status(400).send({ error: 'E-mail e senha são obrigatórios.' });
-    }
-
-    const { valid, username, reason } = validateUsername(rawUsername);
-    if (!valid) {
-        return res.status(400).send({ error: reason });
-    }
-
-    const existingUser = db.user.findOne({ email: normalizedEmail });
-    if (existingUser) {
-        return res.status(409).send({ error: 'Email is already registered.' });
-    }
-
-    const existingUsername = db.user.findOne({ username });
-    if (existingUsername) {
-        return res.status(409).send({ error: 'Username is already registered.' });
-    }
-
-    let user;
-    try {
-        user = await db.user.push({
-            name,
-            email: normalizedEmail,
-            username,
-            password: await hashPasswordAsync(password),
-            role: 'user',
-            inviteBalance: 0,
-            emailVerified: false,
-            // Uma conta é somente uma identidade do Runtime. Infraestrutura não é
-            // criada como efeito colateral do cadastro.
-            tenantStatus: null
-        });
-    } catch (error) {
-        const field = /(?:User\.)?username/i.test(String(error?.message || '')) ? 'username' : 'email';
-        const conflict = uniqueConflict(error, field);
-        if (conflict) return res.status(conflict.status).send({ error: conflict.error });
-        throw error;
-    }
-
-    // Roles declaradas são grupos de permissões, não o campo estrutural
-    // User.role. Assim, um cadastro público nunca pode se tornar admin por
-    // configuração. Se o pacote que declarou o role foi removido, falhamos
-    // fechado e mantemos o novo usuário sem esse acesso extra.
-    const defaultGroupId = registrationEnabled ? String(settings?.defaultRoleGroupId || '') : '';
-    let group = defaultGroupId ? db.permissionGroup[defaultGroupId] : null;
-    if (!group && registrationEnabled) {
-        const defaultRole = permissionCatalog.get(settings?.defaultRolePackage, settings?.defaultRoleGroup);
-        if (canBeDefaultRegistrationRole(defaultRole)) {
-            group = (db.permissionGroup.query({ declaredPackage: defaultRole.packageName, declaredGroup: defaultRole.id }) || [])[0]
-                || await db.permissionGroup.push({ name: defaultRole.label, declaredPackage: defaultRole.packageName, declaredGroup: defaultRole.id });
-        }
-    }
-    if (group && canBeDefaultRoleGroup(db, group)) {
-        const membership = (db.permissionMembership.query({ userId: user.id, groupId: group.id }) || [])[0];
-        if (!membership) await db.permissionMembership.push({ userId: user.id, groupId: group.id });
-    }
-
-    if (validInvitation) {
-        invitation.consumed = true;
-        invitation.consumedByUserId = user.id;
-        invitation.consumedAt = new Date().toISOString();
-    }
-
-    if (app) {
-        await ensureEntitlement(db, user.id, app.slug);
-    }
-    await startSession(req, res, user.id);
-    // Entrega de e-mail não atrasa o acesso nem invalida o cadastro concluído.
-    createAndSendEmailVerification(db, user).catch((error) => console.error('[auth] confirmação pendente:', error.message));
-    return { success: true, role: user.role, provisioning: false, requiresEmailVerification: false, emailVerificationPending: true, email: user.email };
-
-}
-
-export async function resendVerification(req) {
-    /**
-     * @register_router resend-verification
-     * @method POST
-     * @requireCredential
-     */
-    if (!req.user?.id) return { status: 401, error: 'Sessão necessária.' };
-    const db = getProxy('auth');
-    const user = db.user[req.user.id];
-    if (!user) return { status: 401, error: 'Sessão inválida.' };
-    if (user.emailVerified) return { success: true, alreadyVerified: true };
-    const recent = db.emailverification.query({ userId: user.id }, { sort: 'createdAt DESC', limit: 1 }) || [];
-    if (recent[0] && Date.now() - new Date(recent[0].createdAt).getTime() < 60_000) return { status: 429, error: 'Aguarde um minuto antes de reenviar.' };
-    await createAndSendEmailVerification(db, user);
-    return { success: true };
-}
-
-export async function confirmEmail(req, res) {
-    /**
-     * @register_router confirm-email
-     * @public true
-     * @method POST
-     */
-    const db = getProxy('auth');
-    const user = await confirmEmailVerification(db, req.body || {});
-    if (!user) return { status: 400, error: 'Código ou link de confirmação inválido ou expirado.' };
-    await startSession(req, res, user.id);
-    return { success: true, role: user.role, provisioning: false, redirectUrl: AUTHENTICATED_HOME };
-}
-
-export async function verifyEmail(req, res) {
-    /**
-     * @register_router verify-email
-     * @public true
-     * @method GET
-     */
-    const db = getProxy('auth');
-    const user = await confirmEmailVerification(db, { token: req.query?.token });
-    if (!user) return res.redirect('/view/auth/Login?email-verification=invalid');
-    await startSession(req, res, user.id);
-    return res.redirect('/view/auth/Login?email-verification=confirmed');
-}
-
-const googleAuth = createGoogleAuth({ requestWelcomeCredit, ensureEntitlement, isRetiredLocalAccount });
+const googleAuth = createGoogleAuth({ ensureEntitlement, isRetiredLocalAccount });
 
 export async function startSession(req, res, userId) {
     return startSessionHandler(req, res, userId);
@@ -1009,327 +661,6 @@ export async function ticket(req, res) {
      * @method GET
      */
     return ticketHandler(req, res);
-}
-
-// dispatchEvent() é um pipeline (packages/logos/dist/src/kernel/bus.js): sem
-// nenhum listener pro evento, ele devolve o payload original inalterado — não
-// um Error. Por isso "sucesso" precisa ser checado positivamente (domain +
-// tenantId reais vindos do handler), não só "não é Error", senão um pacote
-// `cloud` desativado/sem hook registrado vira um falso "ready" silencioso.
-function tenantCreateSucceeded(result, expectedPlanId = null) {
-    return !!result && typeof result === 'object' && !(result instanceof Error)
-        && typeof result.domain === 'string' && result.domain.length > 0
-        && typeof result.tenantId === 'string' && result.tenantId.length > 0
-        && (!expectedPlanId || result.planId === expectedPlanId);
-}
-
-async function issueTenantCredentialPair(db, userId) {
-    const create = async (scopes) => {
-        const issued = issueProxyToken();
-        const record = await db.proxyCredential.push({
-            tokenId: issued.tokenId, tokenHash: issued.tokenHash, userId, tenantId: null,
-            scopes: JSON.stringify(scopes), status: 'pending', spentMicros: 0, maxRequestsPerMinute: 60,
-        });
-        return { issued, record };
-    };
-    const llm = await create(DEFAULT_TENANT_SCOPES);
-    const billing = await create(DEFAULT_BILLING_SCOPES);
-    return {
-        env: { LLM_PROXY_TOKEN: llm.issued.token, BILLING_PROXY_TOKEN: billing.issued.token },
-        credentialIds: [llm.record.id, billing.record.id],
-        records: [llm.record, billing.record],
-    };
-}
-
-async function activateTenantCredentialPair(db, userId, credentialIds, tenantId) {
-    const current = new Set(credentialIds || []);
-    for (const id of current) {
-        const record = db.proxyCredential[id];
-        if (!record || record.userId !== userId) continue;
-        record.tenantId = tenantId;
-        record.status = 'active';
-    }
-    for (const older of db.proxyCredential.query({ userId, tenantId }) || []) {
-        if (current.has(older.id) || older.revokedAt) continue;
-        older.status = 'revoked';
-        older.revokedAt = new Date();
-    }
-}
-
-export function activeCredentialWithScope(records, scope) {
-    return (records || []).find((record) => record.status === 'active'
-        && !record.revokedAt && credentialHasScope(record, scope)) || null;
-}
-
-async function repairLegacyBillingCredentials() {
-    const billingUrl = (process.env.CLOUD_ENV_BILLING_URL || '').replace(/\/$/, '');
-    const adminToken = process.env.BILLING_ADMIN_TOKEN || '';
-    if (!billingUrl || !adminToken) return;
-
-    const db = getProxy('auth');
-    const users = db.user.all ? await db.user.all() : [];
-    for (const user of users || []) {
-        if (!user.tenantId || user.tenantStatus !== 'ready') continue;
-        const records = db.proxyCredential.query({ userId: user.id, tenantId: user.tenantId }) || [];
-        if (activeCredentialWithScope(records, 'billing:read')) continue;
-
-        const issued = issueProxyToken();
-        const record = await db.proxyCredential.push({
-            tokenId: issued.tokenId,
-            tokenHash: issued.tokenHash,
-            userId: user.id,
-            tenantId: user.tenantId,
-            scopes: JSON.stringify(DEFAULT_BILLING_SCOPES),
-            status: 'pending',
-            spentMicros: 0,
-            maxRequestsPerMinute: 60,
-        });
-
-        try {
-            const customerResponse = await fetch(`${billingUrl}/admin/customers/${encodeURIComponent(user.tenantId)}`, {
-                headers: { [BILLING_ADMIN_HEADER]: adminToken },
-            });
-            const customer = await customerResponse.json().catch(() => null);
-            if (!customerResponse.ok || !customer?.image || !customer?.plan) {
-                throw new Error(`estado desejado indisponível (HTTP ${customerResponse.status})`);
-            }
-            const response = await fetch(`${billingUrl}/admin/customers/${encodeURIComponent(user.tenantId)}/plan`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', [BILLING_ADMIN_HEADER]: adminToken },
-                body: JSON.stringify({
-                    plan: customer.plan,
-                    addons: customer.addons || {},
-                    image: customer.image,
-                    expose: customer.expose,
-                    env: { ...(customer.env || {}), BILLING_PROXY_TOKEN: issued.token },
-                }),
-            });
-            const result = await response.json().catch(() => null);
-            if (!response.ok || result?.reconcile?.error || result?.reconcile?.dryRun) {
-                throw new Error(result?.reconcile?.error || result?.error || `reconcile HTTP ${response.status}`);
-            }
-            record.status = 'active';
-            for (const older of records) {
-                if (older.id === record.id || !credentialHasScope(older, 'billing:read')) continue;
-                older.status = 'revoked';
-                older.revokedAt = new Date();
-            }
-            console.log(`[auth] credencial de billing separada aplicada ao tenant ${user.tenantId}.`);
-        } catch (error) {
-            record.status = 'revoked';
-            record.revokedAt = new Date();
-            console.error(`[auth] tenant ${user.tenantId} manteve credenciais atuais: ${error.message}`);
-        }
-    }
-}
-
-export async function onIssueTenantCredentials(payload) {
-    /**
-     * @register_hook auth:issue-tenant-credentials
-     */
-    if (!payload?.userId) return null;
-    const pair = await issueTenantCredentialPair(getProxy('auth'), payload.userId);
-    return { env: pair.env, credentialIds: pair.credentialIds };
-}
-
-export async function onActivateTenantCredentials(payload) {
-    /**
-     * @register_hook auth:activate-tenant-credentials
-     */
-    if (!payload?.userId || !payload?.tenantId || !Array.isArray(payload?.credentialIds)) return null;
-    await activateTenantCredentialPair(getProxy('auth'), payload.userId, payload.credentialIds, payload.tenantId);
-    return { success: true };
-}
-
-export async function onRevokeTenantCredentials(payload) {
-    /**
-     * @register_hook auth:revoke-tenant-credentials
-     */
-    const db = getProxy('auth');
-    const ids = Array.isArray(payload?.credentialIds) ? payload.credentialIds : [];
-    for (const id of ids) {
-        const record = db.proxyCredential[id];
-        if (!record || (payload?.userId && record.userId !== payload.userId)) continue;
-        record.status = 'revoked';
-        record.revokedAt = new Date();
-    }
-    return { success: true };
-}
-
-let activationRecoveryTimer;
-let activationRecoveryRunning = false;
-export function startActivationRecovery() {
-    /** @register_hook runtime:ready */
-    const recover = async () => {
-        if (activationRecoveryRunning) return;
-        activationRecoveryRunning = true;
-        // Recupera somente créditos pendentes. Provisionamento de tenant não é
-        // uma consequência de autenticação ou de um registro antigo.
-        try { await recoverActivations(getProxy('auth'), { grant: requestWelcomeCredit }); }
-        catch (error) { console.error('[auth] recuperação de ativação:', error.message); }
-        finally { activationRecoveryRunning = false; }
-    };
-    clearInterval(activationRecoveryTimer);
-    activationRecoveryTimer = setInterval(recover, 60_000);
-    activationRecoveryTimer.unref?.();
-    recover();
-}
-
-const provisioningUsers = new Map();
-function provisionTenant(userId, username, options = {}) {
-    if (provisioningUsers.has(userId)) return provisioningUsers.get(userId);
-    const db = getProxy('auth');
-    const lease = claimActivation(db, userId);
-    if (!lease) return Promise.resolve();
-    const renewal = setInterval(() => updateActivationLease(db, userId, lease.leaseId, Date.now() + 300_000), 30_000);
-    renewal.unref?.();
-    const pending = provisionTenantOnce(userId, username, { ...options, requestId: lease.requestId })
-        .catch(error => {
-            const rec = db.user[userId];
-            if (rec) { rec.tenantStatus = 'failed'; rec.failureReason = 'Preparação interrompida. Tentaremos novamente.'; }
-            console.error('[auth] ativação interrompida:', error.message);
-        }).finally(() => {
-            clearInterval(renewal);
-            updateActivationLease(db, userId, lease.leaseId, Date.now() + 60_000);
-            provisioningUsers.delete(userId);
-        });
-    provisioningUsers.set(userId, pending);
-    return pending;
-}
-
-async function provisionTenantOnce(userId, username, { plan, requestId } = {}) {
-    const db = getProxy('auth');
-
-    // Credencial nova por provisionamento. O segredo entra somente no env do
-    // tenant; o gateway persiste o hash. A credencial anterior só é revogada
-    // depois que a nova instância responde, preservando rollback/falha segura.
-    const credentialPair = await issueTenantCredentialPair(db, userId);
-
-    const tenantEnv = {
-        SSO_SECRET: process.env.CLOUD_ENV_SSO_SECRET || '',
-        ...credentialPair.env,
-        // A credencial emitida para esta conta e o provider configurado no
-        // primeiro boot precisam ser a mesma coisa. Desliga o auto-provision
-        // genérico do pacote, que criaria uma segunda identidade de instalação.
-        THINKIAC_API_KEY: credentialPair.env.LLM_PROXY_TOKEN,
-        THINKIAC_PROVIDER_AUTO_PROVISION: '0',
-        // Origem do gateway central — packages/upgrade usa isso + o
-        // LLM_PROXY_TOKEN acima pra buscar/recarregar os créditos de IA
-        // (apps/thinkiac/packages/billing) de dentro do container, sem
-        // precisar de sessão de cookie nem pedir e-mail pra identidade.
-        GATEWAY_URL: process.env.CLOUD_ENV_GATEWAY_URL
-            || `https://${process.env.CLOUD_ENV_THINKIAC_DOMAIN || 'thinkiac.cloud'}`,
-    };
-    const appSlugs = activeEntitlements(db, userId);
-    const packages = tenantPluginsFor(appSlugs);
-
-    // Tenta reivindicar um tenant já pronto do estoque (instantâneo) antes de
-    // cair pro provisionamento do zero (dezenas de segundos). Quando o pool
-    // está vazio ou o pacote cloud não tem esse hook registrado, o pipeline
-    // devolve o payload original (sem domain/tenantId) — tenantCreateSucceeded
-    // detecta isso e o fallback abaixo roda normalmente, como sempre rodou.
-    const planId = plan || 'free';
-    let result = planId === 'free'
-        ? await dispatchEvent('thinkiac:tenant:claim', { userId, username, planId, env: tenantEnv, packages })
-        : null;
-
-    if (result?.pending) throw new Error('Claim em recuperação; preservando o tenant reservado.');
-    if (!tenantCreateSucceeded(result)) {
-        result = await dispatchEvent('thinkiac:tenant:create', {
-            userId,
-            image: process.env.CLOUD_ENV_TENANT_IMAGE,
-            subdomain: username,
-            requestedTenantId: `${userId}-${requestId}`,
-            planId,
-            env: tenantEnv,
-            packages,
-        });
-    }
-
-    // Claims legados só existem no tier free. Criações novas precisam ecoar o
-    // plano aplicado; sem essa confirmação o Auth não pode liberar o SSO.
-    const succeeded = tenantCreateSucceeded(result, planId === 'free' && result?.planId == null ? null : planId);
-
-    if (!succeeded) {
-        for (const record of credentialPair.records) {
-            record.status = 'revoked';
-            record.revokedAt = new Date();
-        }
-        const rec = db.user[userId];
-        rec.tenantStatus = 'failed';
-        rec.tenantDomain = null;
-        rec.tenantId = null;
-        rec.failureReason = result instanceof Error
-            ? String(result.message || result)
-            : 'Provisionamento não respondeu (nenhum handler para "thinkiac:tenant:create" — pacote "cloud" desativado ou hook não registrado).';
-        return;
-    }
-
-    // O controlador só responde depois de readiness, domínio e limites do
-    // plano final terem sido validados. Só então as credenciais são ativadas
-    // e o login pode receber a URL SSO.
-    let rec = db.user[userId];
-    await activateTenantCredentialPair(db, userId, credentialPair.credentialIds, result.tenantId);
-    const providerRegistration = await dispatchEvent('thinkiac-provider:register-tenant-installation', {
-        token: credentialPair.env.LLM_PROXY_TOKEN,
-    });
-    if (providerRegistration?.registered !== true) {
-        throw new Error('A chave ThinkIac do tenant não recebeu o crédito inicial.');
-    }
-    rec.tenantDomain = result.domain;
-    rec.tenantId = result.tenantId;
-    rec.tenantStatus = 'ready';
-    rec.failureReason = null;
-
-    await requestWelcomeCredit(userId);
-
-    const destination = getDistributedApp(appSlugs[0])?.tenantView || WARMUP_ROUTE;
-    startTenantDestinationWarmup(userId, result.domain, username, destination);
-
-}
-
-export async function status(req, res) {
-    /**
-     * @register_router status
-     * @method GET
-     * @requireCredential
-     */
-    const db = getProxy('auth');
-    const user = db.user[req.user.id];
-    if (!user) return { status: 404, message: 'Usuário não encontrado.' };
-
-    return {
-        status: 200,
-        emailVerified: user.emailVerified === true,
-        welcomeCreditStatus: user.welcomeCreditStatus || 'pending',
-        tenantStatus: user.tenantStatus,
-        tenantDomain: user.tenantDomain,
-        ssoUrl: user.tenantStatus === 'ready' ? ssoUrlFor(user.tenantDomain, user.username) : null,
-        failureReason: user.failureReason,
-    };
-}
-
-export async function destinationReady(req, res) {
-    /**
-     * @register_router destination-ready
-     * @method GET
-     * @requireCredential
-     *
-     * Sonda a rota final dentro do gateway. O browser não pode ler o status
-     * da URL SSO cross-origin sem CORS, então esta rota preserva a request que
-     * aquece o cache e devolve somente seu resultado seguro (200 ou 503).
-     */
-    const db = getProxy('auth');
-    const user = db.user[req.user.id];
-    if (!user) return { status: 404, message: 'Usuário não encontrado.' };
-    if (user.tenantStatus !== 'ready' || !user.tenantDomain) {
-        return { status: 503, ready: false, message: 'Workspace ainda está sendo preparado.' };
-    }
-
-    const probe = await probeTenantDestination(user.tenantDomain, user.username);
-    return probe.ready
-        ? { status: 200, ready: true }
-        : { status: 503, ready: false };
 }
 
 export async function enter(req, res) {
@@ -1367,64 +698,7 @@ export async function enterDistributedApp(req, res) {
     if (!user) return res.redirect(SIGN_IN_VIEW);
     await ensureEntitlement(db, user.id, app.slug);
 
-    if (user.tenantStatus === 'ready' && user.tenantDomain && user.tenantId) {
-        await dispatchEvent('thinkiac:tenant:wake', {
-            tenantId: user.tenantId,
-            domain: user.tenantDomain,
-        }).catch(() => {});
-        const installed = await ensureTenantPackages(user.tenantId, app.tenantPackages);
-        if (!installed.success) return { status: 502, message: installed.message };
-        return res.redirect(ssoUrlFor(user.tenantDomain, user.username, app.tenantView));
-    }
-
     return res.redirect(app.sharedView);
-}
-
-export async function retryProvisioning(req, res) {
-    /**
-     * @register_router retry-provisioning
-     * @method POST
-     * @requireCredential
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me) return { status: 404, message: 'Usuário não encontrado.' };
-
-    // Admin pode reprovisionar a instância de qualquer usuário (painel de
-    // gerenciamento); usuário comum só a própria.
-    const targetUserId = (me.role === 'admin' && req.body?.userId) ? req.body.userId : me.id;
-    const user = db.user[targetUserId];
-    if (!user) return { status: 404, message: 'Usuário não encontrado.' };
-
-    return {
-        status: 410,
-        message: 'Tenant provisioning is no longer started from authentication.',
-    };
-}
-
-export async function createInvite(req, res) {
-    /**
-     * @register_router invite
-     * @method POST
-     * @requireCredential
-     */
-    const db = getProxy('auth');
-    const user = db.user[req.user?.id];
-    if (!canManageAuth(db, user, 'auth.settings.write')) {
-        return { status: 403, message: 'Apenas administradores podem gerar convites.' };
-    }
-
-    const settings = db.authsettings?.findOne?.({ id: 'default' });
-    if (settings && (!settings.registrationEnabled || !settings.invitationsEnabled)) {
-        return { status: 403, message: 'Invitations are currently disabled.' };
-    }
-
-    // Quem tem a permissão de configurações controla a admissão. O saldo
-    // legado nunca foi um limite útil para esse fluxo administrativo.
-    const code = generateInviteCode();
-    await db.invite.push({ code, userId: user.id, consumed: false });
-
-    return { status: 200, code };
 }
 
 export async function listUsers(req, res) {
@@ -1440,8 +714,6 @@ export async function listUsers(req, res) {
     }
 
     const users = (db.user.all ? db.user.all() : []) || [];
-    const invites = db.invite.query({ userId: me.id });
-    const settings = db.authsettings?.findOne?.({ id: 'default' });
 
     return {
         status: 200,
@@ -1453,71 +725,8 @@ export async function listUsers(req, res) {
             role: u.role,
             disabled: !!u.disabled,
         })),
-        invites: invites.map((i) => ({
-            code: i.code,
-            consumed: !!i.consumed,
-            consumedByUserId: i.consumedByUserId || null,
-            expiresAt: i.expiresAt || null,
-            revoked: !!i.revoked,
-            revokedAt: i.revokedAt || null,
-        })),
-        settings: {
-            registrationEnabled: settings?.registrationEnabled !== false,
-            invitationsEnabled: settings?.invitationsEnabled !== false,
-            defaultRolePackage: settings?.defaultRolePackage || null,
-            defaultRoleGroup: settings?.defaultRoleGroup || null,
-            defaultRoleGroupId: settings?.defaultRoleGroupId || null,
-            defaultRoleSelection: settings?.defaultRoleGroupId ? `group:${settings.defaultRoleGroupId}` : '',
-        },
-        // Registration defaults intentionally exclude administrative roles.
-        // User management, however, must list every declared role an admin
-        // can assign, including package-specific operator roles.
-        availableRoles: permissionCatalog.list().filter(canBeDefaultRegistrationRole),
         assignableRoles: permissionCatalog.list(),
     };
-}
-
-export async function updateSettings(req) {
-    /**
-     * @register_router settings
-     * @method POST
-     * @requireCredential
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user?.id];
-    if (!canManageAuth(db, me, 'auth.settings.write')) {
-        return { status: 403, message: 'Only administrators can change settings.' };
-    }
-
-    const registrationEnabled = req.body?.registrationEnabled !== false;
-    // Convites só existem como um modo de cadastro. Fechar o cadastro também
-    // os desliga, evitando um estado sem controle correspondente na interface.
-    const invitationsEnabled = registrationEnabled && req.body?.invitationsEnabled === true;
-    const defaultRoleSelection = String(req.body?.defaultRoleSelection || '').trim();
-    const resolvedDefaultRole = await resolveRoleSelection(db, defaultRoleSelection);
-    if (defaultRoleSelection && (!resolvedDefaultRole.group || !canBeDefaultRoleGroup(db, resolvedDefaultRole.group))) {
-        return { status: 400, message: 'The selected default role is unavailable or administrative.' };
-    }
-    if (resolvedDefaultRole.error) return { status: 400, message: resolvedDefaultRole.error };
-    const current = db.authsettings?.findOne?.({ id: 'default' });
-    if (current) {
-        current.registrationEnabled = registrationEnabled;
-        current.invitationsEnabled = invitationsEnabled;
-        current.defaultRoleGroupId = resolvedDefaultRole.group?.id || null;
-        current.defaultRolePackage = null;
-        current.defaultRoleGroup = null;
-    } else {
-        await db.authsettings.push({
-            id: 'default', registrationEnabled, invitationsEnabled,
-            defaultRoleGroupId: resolvedDefaultRole.group?.id || null,
-            defaultRolePackage: null, defaultRoleGroup: null,
-        });
-    }
-    return { status: 200, settings: {
-        registrationEnabled, invitationsEnabled,
-        defaultRoleSelection: resolvedDefaultRole.group ? `group:${resolvedDefaultRole.group.id}` : '',
-        defaultRoleGroupId: resolvedDefaultRole.group?.id || null,
-    } };
 }
 
 export async function updateUser(req, res) {
@@ -1594,576 +803,6 @@ export async function updateUser(req, res) {
     };
 }
 
-export async function revokeInvite(req, res) {
-    /**
-     * @register_router revoke-invite
-     * @method POST
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user?.id];
-    if (!canManageAuth(db, me, 'auth.settings.write')) {
-        return { status: 403, message: 'Apenas administradores podem gerenciar convites.' };
-    }
-
-    const { code } = req.body || {};
-    const invite = code ? db.invite.findOne({ code }) : null;
-    if (!invite) return { status: 404, message: 'Convite não encontrado.' };
-    if (invite.consumed) {
-        return { status: 400, message: 'Convite já utilizado — não é possível revogar.' };
-    }
-
-    invite.revoked = true;
-    invite.revokedAt = new Date().toISOString();
-
-    return { status: 200, success: true };
-}
-
-export async function tenantDiagnostics(req, res) {
-    /**
-     * @register_router tenant-diagnostics
-     * @method GET
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem ver diagnósticos.' };
-    }
-
-    const { userId } = req.query || {};
-    const target = userId ? db.user[userId] : null;
-    if (!target) return { status: 404, message: 'Usuário não encontrado.' };
-
-    return {
-        status: 200,
-        diagnostics: {
-            userId: target.id,
-            username: target.username,
-            tenantStatus: target.tenantStatus,
-            tenantDomain: target.tenantDomain,
-            tenantId: target.tenantId,
-            failureReason: target.failureReason,
-        },
-    };
-}
-
-export async function tenantResources(req, res) {
-    /**
-     * @register_router tenant-resources
-     * @method GET
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem ver recursos.' };
-    }
-
-    const { userId } = req.query || {};
-    const target = userId ? db.user[userId] : null;
-    if (!target) return { status: 404, message: 'Usuário não encontrado.' };
-    if (!target.tenantId) return { status: 200, registered: false, plan: null, live: null };
-
-    const billingUrl = process.env.CLOUD_ENV_BILLING_URL;
-    let plan = null;
-    if (billingUrl) {
-        try {
-            const r = await fetch(`${billingUrl}/admin/customers/${encodeURIComponent(target.tenantId)}`, {
-                headers: { [BILLING_ADMIN_HEADER]: process.env.BILLING_ADMIN_TOKEN || '' },
-            });
-            if (r.ok) plan = await r.json();
-        } catch {
-            // serviço de billing fora do ar — degrada mostrando só o uso ao vivo
-        }
-    }
-
-    let live = null;
-    try {
-        const { default: Docker } = await import('dockerode');
-        const docker = new Docker({ socketPath: '/var/run/docker.sock' });
-        const stats = await docker.getContainer(`app_${target.tenantId}`).stats({ stream: false });
-        const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
-        const sysDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
-        const onlineCpus = stats.cpu_stats.online_cpus || (stats.cpu_stats.cpu_usage.percpu_usage || []).length || 1;
-        live = {
-            cpuPercent: sysDelta > 0 ? Math.round((cpuDelta / sysDelta) * onlineCpus * 10000) / 100 : 0,
-            memoryUsageMb: Math.round((stats.memory_stats.usage - (stats.memory_stats.stats?.cache || 0)) / 1024 / 1024),
-            memoryLimitMb: Math.round(stats.memory_stats.limit / 1024 / 1024),
-            pids: stats.pids_stats?.current ?? null,
-        };
-    } catch {
-        live = { error: 'Não foi possível ler métricas do container (offline ou nunca provisionado).' };
-    }
-
-    return { status: 200, registered: !!plan, plan, live };
-}
-
-// Grava o plano/add-ons de um tenant no billing (adminSetPlan) e força a
-// reconciliação do container. Compartilhado entre a rota update-tenant-resources
-// (admin ajustando à mão) e provisionTenant (upgrade automático na criação de
-// uma conta já num tier pago). Marca status=active no billing, então o tier
-// pago realmente vale — sem isso targetResources cai de volta pro 'free'.
-async function applyTenantPlan(target, plan, addons) {
-    if (!target || !target.tenantId) return { status: 404, message: 'Tenant não encontrado.' };
-    if (!plan) return { status: 400, message: 'Plano é obrigatório.' };
-
-    const billingUrl = process.env.CLOUD_ENV_BILLING_URL;
-    if (!billingUrl) return { status: 500, message: 'Serviço de billing não configurado.' };
-
-    try {
-        const r = await fetch(`${billingUrl}/admin/customers/${encodeURIComponent(target.tenantId)}/plan`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', [BILLING_ADMIN_HEADER]: process.env.BILLING_ADMIN_TOKEN || '' },
-            body: JSON.stringify({
-                plan,
-                addons,
-                image: process.env.CLOUD_ENV_TENANT_IMAGE,
-                expose: { domain: target.tenantDomain, ssl: true },
-            }),
-        });
-        const data = await r.json().catch(() => null);
-        if (!r.ok) return { status: r.status, message: data?.error || 'Falha ao atualizar plano.' };
-
-        // O billing sempre devolve 200 ao gravar o plano no banco, mas isso NÃO
-        // garante que o container foi reconciliado. Sem inspecionar o resultado
-        // do reconcile a tela mostrava "aplicado" mesmo quando nada mudou
-        // (dry-run sem Portainer, ou falha no resize) — o falso positivo.
-        const rec = data?.reconcile;
-        if (rec?.error) {
-            return { status: 502, message: `Plano gravado, mas a reconciliação do container falhou: ${rec.error}`, reconcile: rec };
-        }
-        if (rec?.dryRun) {
-            return { status: 503, message: 'Billing em dry-run (sem credenciais Portainer) — o plano NÃO foi aplicado no container.', reconcile: rec };
-        }
-        return { status: 200, customer: data.customer, reconcile: rec };
-    } catch (e) {
-        return { status: 502, message: `Falha ao contatar o serviço de billing: ${e.message}` };
-    }
-}
-
-export async function updateTenantResources(req, res) {
-    /**
-     * @register_router update-tenant-resources
-     * @method POST
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem alterar recursos.' };
-    }
-
-    const { userId, plan, addons } = req.body || {};
-    const target = userId ? db.user[userId] : null;
-    return applyTenantPlan(target, plan, addons);
-}
-
-export async function tenantCredits(req, res) {
-    /**
-     * @register_router tenant-credits
-     * @method GET
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem ver créditos.' };
-    }
-
-    const { userId } = req.query || {};
-    const target = userId ? db.user[userId] : null;
-    if (!target) return { status: 404, message: 'Usuário não encontrado.' };
-
-    const billingDb = getProxy('billing');
-    const wallet = billingDb.wallet.findOne({ userId: target.id });
-    const usage = billingDb.usageLog.query({ userId: target.id }) || [];
-
-    return {
-        status: 200,
-        balanceMicros: wallet?.balanceMicros ?? 0,
-        usage: usage
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 50)
-            .map((u) => ({
-                model: u.model,
-                promptTokens: u.promptTokens,
-                completionTokens: u.completionTokens,
-                costMicros: u.costMicros,
-                createdAt: u.createdAt,
-            })),
-    };
-}
-
-const PACKAGE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
-
-function catalogDir() {
-    return new URL('../../plugin-catalog/', import.meta.url);
-}
-
-function listCatalogPackagesSync() {
-    try {
-        return fs
-            .readdirSync(catalogDir(), { withFileTypes: true })
-            .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
-            .map((e) => e.name)
-            .sort();
-    } catch {
-        return [];
-    }
-}
-
-function catalogPackageReleaseSync(name) {
-    if (!PACKAGE_NAME_RE.test(name)) return null;
-    const root = new URL(`${name}/`, catalogDir());
-    if (!fs.existsSync(root)) return null;
-    const files = [];
-    const walk = (dir, prefix = '') => {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-            const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-            if (relative.split('/').some((part) => part === 'node_modules' || part.startsWith('.database'))
-                || /(^|\/)(test|data|uploads)(\/|$)/.test(relative)
-                || /(^|\/)\.env(?:\.|$)/.test(relative)) continue;
-            const target = new URL(`${relative}${entry.isDirectory() ? '/' : ''}`, root);
-            if (entry.isDirectory()) walk(target, relative);
-            else files.push({ relative, content: fs.readFileSync(target) });
-        }
-    };
-    walk(root);
-    const hash = crypto.createHash('sha256');
-    for (const file of files) hash.update(file.relative).update('\0').update(file.content).update('\0');
-    let version = '0.0.0';
-    try { version = String(JSON.parse(fs.readFileSync(new URL('package.json', root), 'utf8')).version || version); } catch {}
-    return { name, version, hash: hash.digest('hex') };
-}
-
-function listCatalogPackageReleasesSync(names = listCatalogPackagesSync()) {
-    return names.map(catalogPackageReleaseSync).filter(Boolean);
-}
-
-async function billingCustomer(tenantId) {
-    const billingUrl = process.env.CLOUD_ENV_BILLING_URL;
-    if (!billingUrl) return null;
-    const response = await fetch(`${billingUrl}/admin/customers/${encodeURIComponent(tenantId)}`, {
-        headers: { [BILLING_ADMIN_HEADER]: process.env.BILLING_ADMIN_TOKEN || '' },
-    });
-    return response.ok ? response.json() : null;
-}
-
-async function reconcileTenantPackages(target, desiredPackages) {
-    const billingUrl = process.env.CLOUD_ENV_BILLING_URL;
-    if (!billingUrl) return { status: 503, message: 'Serviço de releases não configurado.' };
-    try {
-        const response = await fetch(`${billingUrl}/admin/customers/${encodeURIComponent(target.tenantId)}/packages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', [BILLING_ADMIN_HEADER]: process.env.BILLING_ADMIN_TOKEN || '' },
-            body: JSON.stringify({ packages: listCatalogPackageReleasesSync([...new Set(desiredPackages)].sort()) }),
-        });
-        const data = await response.json().catch(() => null);
-        if (!response.ok) return { status: response.status, message: data?.error || 'Falha ao salvar estado desejado.' };
-        if (data?.reconcile?.error) return { status: 502, message: data.reconcile.error, release: data.customer };
-        if (data?.reconcile?.dryRun) return { status: 503, message: 'Release salva, mas o reconciliador está em dry-run.', release: data.customer };
-        return { status: 200, success: true, release: data?.customer, reconcile: data?.reconcile };
-    } catch (error) {
-        return { status: 502, message: `Falha ao reconciliar packages: ${error.message}` };
-    }
-}
-
-export async function catalogPackages(req, res) {
-    /**
-     * @register_router catalog-packages
-     * @method GET
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem ver o catálogo.' };
-    }
-
-    let defaults = [];
-    try {
-        const raw = JSON.parse(fs.readFileSync(new URL('.defaults.json', catalogDir()), 'utf-8'));
-        defaults = Array.isArray(raw) ? raw : [];
-    } catch {
-        // sem .defaults.json ainda — nenhum pacote é padrão
-    }
-
-    const catalog = listCatalogPackagesSync();
-    return { status: 200, catalog, catalogDetails: listCatalogPackageReleasesSync(catalog), defaults };
-}
-
-export async function updateDefaultPackages(req, res) {
-    /**
-     * @register_router update-default-packages
-     * @method POST
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem alterar os padrões.' };
-    }
-
-    const { packages } = req.body || {};
-    if (!Array.isArray(packages)) return { status: 400, message: 'packages deve ser uma lista.' };
-
-    const catalog = new Set(listCatalogPackagesSync());
-    const valid = [...new Set(packages.filter((p) => catalog.has(p)))];
-
-    fs.mkdirSync(catalogDir(), { recursive: true });
-    fs.writeFileSync(new URL('.defaults.json', catalogDir()), JSON.stringify(valid, null, 2));
-
-    return { status: 200, defaults: valid };
-}
-
-/** Executa um comando dentro do container do tenant e devolve stdout (trim). */
-async function execInTenantContainer(tenantId, cmd) {
-    const { default: Docker } = await import('dockerode');
-    const docker = new Docker({ socketPath: '/var/run/docker.sock' });
-    const container = docker.getContainer(`app_${tenantId}`);
-
-    const exec = await container.exec({
-        Cmd: ['sh', '-c', cmd],
-        AttachStdout: true,
-        AttachStderr: true,
-    });
-    const stream = await exec.start({ hijack: true, stdin: false });
-
-    return new Promise((resolve, reject) => {
-        const chunks = [];
-        docker.modem.demuxStream(
-            stream,
-            { write: (c) => chunks.push(c) },
-            { write: () => {} }
-        );
-        stream.on('end', async () => {
-            try {
-                const info = await exec.inspect();
-                resolve({ output: Buffer.concat(chunks).toString('utf-8').trim(), exitCode: info.ExitCode });
-            } catch (e) {
-                reject(e);
-            }
-        });
-        stream.on('error', reject);
-    });
-}
-
-async function ensureTenantPackages(tenantId, packages = []) {
-    const allowed = new Set(tenantPluginsFor(['lectio']));
-    const requested = [...new Set(packages)].filter((pkg) => allowed.has(pkg));
-    if (!requested.length) return { success: true };
-
-    try {
-        const { output } = await execInTenantContainer(tenantId, 'ls -1 packages');
-        const installed = new Set(output.split('\n').map((item) => item.trim()).filter(Boolean));
-        const missing = requested.filter((pkg) => !installed.has(pkg));
-        if (!missing.length) return { success: true };
-
-        const { default: Docker } = await import('dockerode');
-        const { default: tarfs } = await import('tar-fs');
-        const docker = new Docker({ socketPath: '/var/run/docker.sock' });
-        const container = docker.getContainer(`app_${tenantId}`);
-
-        for (const pkg of missing) {
-            const source = new URL(`../${pkg}/`, import.meta.url);
-            if (!fs.existsSync(source)) return { success: false, message: `Pacote ${pkg} não existe no catálogo local.` };
-            const tarStream = tarfs.pack(new URL('../', source).pathname, {
-                entries: [pkg],
-                ignore: (name) => /(?:^|\/)(?:\.database[^/]*|data|test)(?:\/|$)/.test(String(name).replaceAll('\\', '/')),
-            });
-            await container.putArchive(tarStream, { path: '/app/packages' });
-        }
-        return { success: true, installed: missing };
-    } catch (error) {
-        return { success: false, message: `Falha ao instalar o Lectio no Tenant: ${error.message}` };
-    }
-}
-
-export async function tenantPackages(req, res) {
-    /**
-     * @register_router tenant-packages
-     * @method GET
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem ver pacotes.' };
-    }
-
-    const { userId } = req.query || {};
-    const target = userId ? db.user[userId] : null;
-    if (!target || !target.tenantId) return { status: 404, message: 'Tenant não encontrado.' };
-
-    const catalog = listCatalogPackagesSync();
-    const release = await billingCustomer(target.tenantId).catch(() => null);
-    const pendingRemovals = (target.pendingPackageRemovals || '').split(',').map((s) => s.trim()).filter(Boolean);
-    try {
-        const { output, exitCode } = await execInTenantContainer(target.tenantId, 'ls -1 packages');
-        if (exitCode !== 0) {
-            return { status: 200, installed: [], catalog, pendingRemovals, error: 'Não foi possível listar pacotes (container offline?).' };
-        }
-        const installed = output.split('\n').map((s) => s.trim()).filter(Boolean);
-        return { status: 200, installed, catalog, pendingRemovals, desired: release?.desiredPackages || [], release };
-    } catch (e) {
-        return { status: 200, installed: [], catalog, pendingRemovals, error: 'Não foi possível conectar ao container do tenant.' };
-    }
-}
-
-export async function addTenantPackage(req, res) {
-    /**
-     * @register_router add-tenant-package
-     * @method POST
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem adicionar pacotes.' };
-    }
-
-    const { userId, package: pkg } = req.body || {};
-    const target = userId ? db.user[userId] : null;
-    if (!target || !target.tenantId) return { status: 404, message: 'Tenant não encontrado.' };
-    if (!pkg || !PACKAGE_NAME_RE.test(pkg) || !listCatalogPackagesSync().includes(pkg)) {
-        return { status: 400, message: 'Pacote inválido ou fora do catálogo.' };
-    }
-
-    const release = await billingCustomer(target.tenantId).catch(() => null);
-    const desired = [...(release?.desiredPackages || []), pkg];
-    const result = await reconcileTenantPackages(target, desired);
-    if (result.status === 200) target.pendingPackageRemovals = '';
-    return result;
-}
-
-export async function removeTenantPackage(req, res) {
-    /**
-     * @register_router remove-tenant-package
-     * @method POST
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem remover pacotes.' };
-    }
-
-    const { userId, package: pkg } = req.body || {};
-    const target = userId ? db.user[userId] : null;
-    if (!target || !target.tenantId) return { status: 404, message: 'Tenant não encontrado.' };
-    if (!pkg || !PACKAGE_NAME_RE.test(pkg)) {
-        return { status: 400, message: 'Nome de pacote inválido.' };
-    }
-
-    const release = await billingCustomer(target.tenantId).catch(() => null);
-    const desired = (release?.desiredPackages || []).filter((name) => name !== pkg);
-    const result = await reconcileTenantPackages(target, desired);
-    target.pendingPackageRemovals = result.status === 200 ? '' : pkg;
-    return result;
-}
-
-export async function undoTenantPackageRemoval(req, res) {
-    /**
-     * @register_router undo-tenant-package-removal
-     * @method POST
-     * @auth
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem alterar remoções pendentes.' };
-    }
-
-    const { userId, package: pkg } = req.body || {};
-    const target = userId ? db.user[userId] : null;
-    if (!target) return { status: 404, message: 'Usuário não encontrado.' };
-
-    const release = await billingCustomer(target.tenantId).catch(() => null);
-    const result = await reconcileTenantPackages(target, [...(release?.desiredPackages || []), pkg]);
-    if (result.status === 200) target.pendingPackageRemovals = '';
-    return result;
-}
-
-async function packageTargetFromBearer(req, scope = 'delegate:packages') {
-    const authHeader = req.headers?.authorization || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    const resolved = await resolveProxyCredential(token, scope);
-    if (!resolved?.userId) return null;
-    return getProxy('auth').user[resolved.userId] || null;
-}
-
-export async function tenantPackageStateByProxyToken(req, res) {
-    /**
-     * @register_router tenant-packages/by-proxy-token
-     * @method GET
-     */
-    const target = await packageTargetFromBearer(req);
-    if (!target?.tenantId) return { status: 403, error: 'Credencial sem tenant ativo.' };
-    const catalog = listCatalogPackagesSync();
-    const release = await billingCustomer(target.tenantId).catch(() => null);
-    return {
-        status: 200,
-        tenantId: target.tenantId,
-        catalog: listCatalogPackageReleasesSync(catalog),
-        desired: release?.packageReleases || [],
-        release: release ? {
-            releaseVersion: release.releaseVersion,
-            appliedFingerprint: release.appliedFingerprint,
-            lastReconcileAt: release.lastReconcileAt,
-            lastReconcileError: release.lastReconcileError,
-        } : null,
-    };
-}
-
-export async function updateTenantPackagesByProxyToken(req, res) {
-    /**
-     * @register_router tenant-packages/by-proxy-token
-     * @method POST
-     */
-    const target = await packageTargetFromBearer(req);
-    if (!target?.tenantId) return { status: 403, error: 'Credencial sem tenant ativo.' };
-    const requested = Array.isArray(req.body?.packages) ? req.body.packages.map(String) : null;
-    if (!requested) return { status: 400, error: 'packages deve ser uma lista.' };
-    const catalog = new Set(listCatalogPackagesSync());
-    if (requested.some((name) => !catalog.has(name))) return { status: 400, error: 'Package inválido ou fora do catálogo.' };
-    return reconcileTenantPackages(target, requested);
-}
-
-// Derruba o container/proxy host e apaga o registro do usuário por completo.
-// Compartilhado entre deleteUser (admin, via rota) e reapIdleDevAccounts
-// (automático, via timer) — mesma sequência: tenant primeiro, sessões
-// depois, user por último. `force` deixa seguir mesmo com a instância
-// travada (container preso, proxy órfão etc.); o reaper nunca usa force —
-// prefere tentar de novo no próximo tick a apagar o user com container vivo
-// pra trás.
-async function destroyTenantAndUser(userId, { force = false } = {}) {
-    const db = getProxy('auth');
-    const target = db.user[userId];
-    if (!target) return { status: 404, message: 'Usuário não encontrado.' };
-
-    if (target.tenantId) {
-        const result = await dispatchEvent('thinkiac:tenant:delete', { tenantId: target.tenantId });
-        const alreadyGone = result instanceof Error && result.constructor.name === 'TenantNotFoundError';
-        if (result instanceof Error && !alreadyGone && !force) {
-            return {
-                status: 500,
-                message: `Falha ao remover a instância: ${result.message || result}`,
-                canForce: true,
-            };
-        }
-    }
-
-    const sessions = db.session.query({ userId }) || [];
-    for (const s of sessions) {
-        await db.session.delete(s.id).catch(() => {});
-    }
-
-    await db.user.delete(userId);
-
-    return { status: 200, success: true };
-}
-
 export async function deleteUser(req, res) {
     /**
      * @register_router delete-user
@@ -2192,14 +831,6 @@ export async function deleteUser(req, res) {
     await db.user.delete(target.id);
     return { status: 200, success: true };
 }
-
-// --- CRIAÇÃO DIRETA DE CONTAS (admin, sem convite) ---
-// Uma conta pode ser "normal" (permanente) ou "develop" (teste, com ociosidade
-// real — some por completo pelo reaper). Nos dois casos o admin define o plano
-// do tenant na criação. develop é só um flag em cima do mesmo fluxo.
-
-const DEV_IDLE_DEFAULT_MINUTES = parseInt(process.env.AUTH_ENV_DEV_IDLE_TIMEOUT_MINUTES) || 24 * 60;
-const DEV_REAPER_INTERVAL_MS = parseInt(process.env.AUTH_ENV_DEV_REAPER_INTERVAL_MS) || 15 * 60 * 1000;
 
 export async function createAccount(req, res) {
     /**
@@ -2244,112 +875,6 @@ export async function createAccount(req, res) {
     }
 
     return { status: 200, success: true, userId: user.id, user: normalizeUser(user) };
-}
-
-export async function accountStatus(req, res) {
-    /**
-     * @register_router account-status
-     * @method GET
-     * @auth
-     *
-     * Status de provisionamento de uma conta recém-criada + ssoUrl pra entrar
-     * já logado assim que o tenant fica 'ready'. O painel admin faz polling
-     * aqui depois de criar a conta e então redireciona o admin direto pro
-     * tenant via SSO do gateway — sem passar pela tela de login do tenant, que
-     * por design não tem senha pra conta owner (passwordHash nulo, ver
-     * tenant-auth/index.js sso()). Auth é 100% via gateway central: nada de
-     * senha duplicada no container. Serve contas normais e develop.
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem consultar contas.' };
-    }
-
-    const { userId } = req.query || {};
-    const user = userId ? db.user[userId] : null;
-    if (!user) {
-        return { status: 404, message: 'Conta não encontrada.' };
-    }
-
-    const ready = user.tenantStatus === 'ready';
-    return {
-        status: 200,
-        tenantStatus: user.tenantStatus,
-        tenantDomain: user.tenantDomain || null,
-        failureReason: user.failureReason || null,
-        ssoUrl: ready ? ssoUrlFor(user.tenantDomain, user.username) : null,
-    };
-}
-
-export async function devAccountStatus(req, res) {
-    /**
-     * @register_router dev-account-status
-     * @method GET
-     * @auth
-     *
-     * Status de provisionamento de uma conta develop + ssoUrl pra entrar já
-     * logado assim que o tenant fica 'ready'. O painel admin faz polling aqui
-     * depois de criar a conta e então redireciona o admin direto pro tenant
-     * via SSO do gateway — sem passar pela tela de login do tenant, que por
-     * design não tem senha pra conta owner (passwordHash nulo, ver
-     * tenant-auth/index.js sso()). Auth é 100% via gateway central: nada de
-     * senha duplicada no container.
-     */
-    const db = getProxy('auth');
-    const me = db.user[req.user.id];
-    if (!me || me.role !== 'admin') {
-        return { status: 403, message: 'Apenas administradores podem consultar contas develop.' };
-    }
-
-    const { userId } = req.query || {};
-    const user = userId ? db.user[userId] : null;
-    if (!user || user.accountType !== 'develop') {
-        return { status: 404, message: 'Conta develop não encontrada.' };
-    }
-
-    const ready = user.tenantStatus === 'ready';
-    return {
-        status: 200,
-        tenantStatus: user.tenantStatus,
-        tenantDomain: user.tenantDomain || null,
-        failureReason: user.failureReason || null,
-        ssoUrl: ready ? ssoUrlFor(user.tenantDomain, user.username) : null,
-    };
-}
-
-async function reapIdleDevAccounts() {
-    const db = getProxy('auth');
-    const users = (db.user.all ? await db.user.all() : []) || [];
-    const now = Date.now();
-
-    for (const user of users) {
-        if (user.accountType !== 'develop' || !user.lastActivityAt) continue;
-
-        const timeoutMinutes = user.idleTimeoutMinutes ?? DEV_IDLE_DEFAULT_MINUTES;
-        const idleMs = now - new Date(user.lastActivityAt).getTime();
-        if (idleMs < timeoutMinutes * 60 * 1000) continue;
-
-        const result = await destroyTenantAndUser(user.id, { force: false });
-        if (result.status === 200) {
-            console.log(`[auth] conta develop ${user.id} (${user.username}) apagada por ociosidade (${timeoutMinutes}min).`);
-        } else {
-            // Não força: melhor tentar de novo no próximo tick do que apagar
-            // o registro do user com um container/proxy órfão pra trás.
-            console.error(`[auth] reaper: falha ao apagar conta develop ${user.id}: ${result.message}`);
-        }
-    }
-}
-
-let devReaperStarted = false;
-function startDevAccountReaper() {
-    // Boot hooks podem rodar mais de uma vez em cenários de reload — a
-    // guarda evita empilhar múltiplos setInterval fazendo a mesma varredura.
-    if (devReaperStarted) return;
-    devReaperStarted = true;
-    setInterval(() => {
-        reapIdleDevAccounts().catch((err) => console.error('[auth] reaper de contas develop falhou:', err));
-    }, DEV_REAPER_INTERVAL_MS);
 }
 
 // Mesmo padrão de resolveUserIdFromBearer() em packages/billing/index.js —
@@ -2572,13 +1097,12 @@ export async function getOnboardingByProxyToken(req, res) {
 // O manifesto é a fonte de verdade, como já ocorre com `manifest.menu` no
 // Shell; não há um registry em memória que se perca em reload.
 
-const AUTH_TABS = new Set(['auth-users', 'auth-roles', 'auth-registration', 'auth-invitations']);
+const AUTH_TABS = new Set(['auth-users', 'auth-roles']);
 const AUTH_SURFACE = Object.freeze({
     version: 1,
     kind: 'auth-administration',
     actions: {
         'auth.create-user': { intent: 'write' }, 'auth.update-user': { intent: 'write' }, 'auth.delete-user': { intent: 'destructive' },
-        'auth.save-registration': { intent: 'write' }, 'auth.create-invite': { intent: 'write' }, 'auth.revoke-invite': { intent: 'destructive' },
         'auth.create-role': { intent: 'write' }, 'auth.update-role': { intent: 'write' }, 'auth.delete-role': { intent: 'destructive' },
         'auth.add-member': { intent: 'write' }, 'auth.remove-member': { intent: 'destructive' },
         'auth.add-grant': { intent: 'write' }, 'auth.remove-grant': { intent: 'destructive' },
@@ -2625,9 +1149,6 @@ export async function systemAction(req) {
     if (action === 'auth.create-user') return routed(createAccount, values, 'Usuário criado.');
     if (action === 'auth.update-user') return routed(updateUser, values, 'Usuário atualizado.');
     if (action === 'auth.delete-user') return routed(deleteUser, values, 'Usuário removido.');
-    if (action === 'auth.save-registration') return routed(updateSettings, values, 'Configurações atualizadas.');
-    if (action === 'auth.create-invite') return routed(createInvite, values, 'Convite criado.');
-    if (action === 'auth.revoke-invite') return routed(revokeInvite, values, 'Convite revogado.');
     if (action === 'auth.create-role') return routed(routerPermissionsCreateGroup, values, 'Papel criado.');
     if (action === 'auth.update-role') return routed(routerPermissionsUpdateGroup, values, 'Papel atualizado.');
     if (action === 'auth.delete-role') return routed(routerPermissionsDeleteGroup, values, 'Papel removido.');
@@ -2768,7 +1289,7 @@ export async function routerMcpIssue(req, res) {
     const admin = await mcpAdministrator(req, res);
     if (!admin) return;
     const user = getProxy('auth').user[String(req.body?.userId || admin.id)];
-    if (!user || requiresEmailVerification(user)) return res.status(400).json({ error: 'Usuário inválido.' });
+    if (!user || user.disabled) return res.status(400).json({ error: 'Usuário inválido.' });
     try {
         const issued = mcpAuth.issue({ userId: user.id, tenantId: user.tenantId ?? null,
             scopes: req.body?.scopes, ttlMs: req.body?.ttlMs ?? 86400000,

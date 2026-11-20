@@ -5,7 +5,6 @@
 
   let data = {}, appliedState = null, busy = '', error = '', notice = '', createOpen = false, editing = null, selectedRole = null;
   let createForm = { name: '', email: '', username: '', password: '', roleSelections: [] };
-  let registration = { registrationEnabled: true, invitationsEnabled: true, defaultRoleSelection: '' };
   let roleName = '', roleEditName = '', grantPermission = '', grantEffect = 'allow';
 
   // `data` is also updated with the complete state returned by an action.
@@ -14,7 +13,6 @@
   $: if (state && state !== appliedState) {
     appliedState = state;
     data = state;
-    registration = { ...registration, ...(state.settings || {}) };
     if (selectedRole) selectedRole = (state.permissions?.groups || []).find((group) => group.id === selectedRole.id) || null;
   }
   $: users = Array.isArray(data.users) ? data.users : [];
@@ -24,9 +22,7 @@
   // stored group on their first assignment. Keep them in this picker so an
   // administrator can grant a product role before that happens.
   $: assignableRoles = Array.isArray(data.assignableRoles) ? data.assignableRoles : [];
-  $: availableRoles = Array.isArray(data.availableRoles) ? data.availableRoles : [];
   $: roleOptions = optionsFor(assignableRoles);
-  $: defaultRoleOptions = optionsFor(availableRoles);
   $: selectablePermissions = Array.isArray(permissions.selectablePermissions) ? permissions.selectablePermissions : [];
 
   function optionsFor(declaredRoles) {
@@ -41,7 +37,6 @@
   function membershipFor(userId, groupId) { return (permissions.memberships || []).find((item) => item.userId === userId && item.groupId === groupId); }
   function grantsFor(subjectType, subjectId) { return (permissions.grants || []).filter((item) => item.subjectType === subjectType && item.subjectId === subjectId); }
   function membersFor(groupId) { return (permissions.memberships || []).filter((item) => item.groupId === groupId); }
-  function status(invite) { return invite.consumed ? 'Used' : invite.revoked ? 'Revoked' : 'Available'; }
 
   async function act(action, values = {}, label = action) {
     busy = label; error = ''; notice = '';
@@ -68,16 +63,6 @@
     {#if createOpen}<form class="form" on:submit|preventDefault={createUser}><label>Name<input bind:value={createForm.name} /></label><label>Email<input type="email" required bind:value={createForm.email} /></label><label>Username<input required bind:value={createForm.username} /></label><label>Password<input type="password" required bind:value={createForm.password} /></label><label>Roles<select multiple bind:value={createForm.roleSelections}>{#each roleOptions as role}<option value={role.value}>{role.label}</option>{/each}</select></label><footer><button class="primary" disabled={busy === 'create-user'}>Create user</button></footer></form>{/if}
     <ul>{#each users as user}<li><div><strong>{user.name || user.username || user.email}</strong><small>{user.email}</small><small>{groupsFor(user.id).map((group) => group.name).join(', ') || 'No roles'}</small></div><div class="row-actions"><button on:click={() => openEdit(user)}>Edit</button>{#if user.role !== 'admin'}<button class="danger" disabled={busy === `delete-${user.id}`} on:click={() => act('auth.delete-user', { userId: user.id }, `delete-${user.id}`)}>Delete</button>{/if}</div>{#if editing?.id === user.id}<form class="form edit" on:submit|preventDefault={saveUser}><label>Name<input bind:value={editing.form.name} /></label><label>Email<input type="email" required bind:value={editing.form.email} /></label><label>Username<input required bind:value={editing.form.username} /></label><label>Roles<select multiple bind:value={editing.form.roleSelections}>{#each roleOptions as role}<option value={role.value}>{role.label}</option>{/each}</select></label><footer><button class="primary" disabled={busy === 'update-user'}>Save</button><button type="button" on:click={() => editing = null}>Cancel</button></footer></form>{/if}</li>{/each}</ul>
 
-  {:else if surface.tab === 'auth-registration'}
-    <form class="form narrow" on:submit|preventDefault={() => act('auth.save-registration', registration, 'registration')}><label class="switch"><span>Allow registration<small>Anyone can create an account.</small></span><input type="checkbox" bind:checked={registration.registrationEnabled} /></label>{#if registration.registrationEnabled}<label class="switch"><span>Enable invitations<small>Allow invitation codes during sign-up.</small></span><input type="checkbox" bind:checked={registration.invitationsEnabled} /></label><label>Default role<select bind:value={registration.defaultRoleSelection}><option value="">No default role</option>{#each defaultRoleOptions as role}<option value={role.value}>{role.label}</option>{/each}</select></label>{/if}<footer><button class="primary" disabled={busy === 'registration'}>Save settings</button></footer></form>
-
-  {:else if surface.tab === 'auth-invitations'}
-    <header><h2>Invitations</h2><button class="primary" disabled={busy === 'invite'} on:click={() => act('auth.create-invite', {}, 'invite')}>Create invitation</button></header>
-    <ul>{#each data.invites || [] as invite}<li><code>{invite.code}</code><span class="badge">{status(invite)}</span>{#if !invite.consumed && !invite.revoked}<button class="danger" disabled={busy === `revoke-${invite.code}`} on:click={() => act('auth.revoke-invite', { code: invite.code }, `revoke-${invite.code}`)}>Revoke</button>{/if}</li>{:else}<li class="muted">No invitations yet.</li>{/each}</ul>
-
-  {:else}
-    <header><h2>Roles</h2></header><form class="inline" on:submit|preventDefault={() => { if (roleName.trim()) act('auth.create-role', { name: roleName.trim() }, 'create-role').then(() => { if (!error) roleName = ''; }); }}><input aria-label="New role name" placeholder="New role name" bind:value={roleName} /><button class="primary" disabled={busy === 'create-role'}>Create role</button></form>
-    <div class="roles"><section>{#each roles as role}<button class:active={selectedRole?.id === role.id} class="role" on:click={() => selectRole(role)}><strong>{role.name}</strong><small>{membersFor(role.id).length} people · {grantsFor('group', role.id).length} permissions</small></button>{:else}<p class="muted">No custom roles yet.</p>{/each}</section>{#if selectedRole}<aside><form class="inline" on:submit|preventDefault={() => act('auth.update-role', { id: selectedRole.id, name: roleEditName }, 'update-role')}><input aria-label="Role name" bind:value={roleEditName} /><button class="primary" disabled={busy === 'update-role'}>Save</button></form><h3>Permissions</h3>{#each grantsFor('group', selectedRole.id) as grant}<div class="line"><code>{grant.permission}</code><button class="danger" on:click={() => act('auth.remove-grant', { id: grant.id }, `remove-grant-${grant.id}`)}>Remove</button></div>{:else}<p class="muted">No permissions.</p>{/each}<form class="inline" on:submit|preventDefault={() => grantPermission && act('auth.add-grant', { subjectType: 'group', subjectId: selectedRole.id, permission: grantPermission, effect: grantEffect }, 'add-grant')}><select aria-label="Permission" bind:value={grantPermission}><option value="">Select permission</option>{#each selectablePermissions as permission}<option value={permission.permission}>{permission.packageName} · {permission.resource} · {permission.action}</option>{/each}</select><select aria-label="Effect" bind:value={grantEffect}><option value="allow">Allow</option><option value="deny">Deny</option></select><button disabled={!grantPermission || busy === 'add-grant'}>Add</button></form><h3>People</h3>{#each users as user}<label class="member"><input type="checkbox" checked={!!membershipFor(user.id, selectedRole.id)} on:change={() => { const membership = membershipFor(user.id, selectedRole.id); act(membership ? 'auth.remove-member' : 'auth.add-member', membership ? { id: membership.id } : { userId: user.id, groupId: selectedRole.id }, `member-${user.id}`); }} />{user.name || user.username || user.email}</label>{/each}<footer><button class="danger" disabled={busy === 'delete-role'} on:click={() => act('auth.delete-role', { id: selectedRole.id }, 'delete-role').then(() => { if (!error) selectedRole = null; })}>Delete role</button></footer></aside>{:else}<aside class="muted">Select a role to manage it.</aside>{/if}</div>
   {/if}
 </section>
 
