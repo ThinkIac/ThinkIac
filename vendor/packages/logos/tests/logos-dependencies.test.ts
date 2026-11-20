@@ -19,6 +19,23 @@ describe('logosDependencies', () => {
     expect(result.packages.map(pkg => pkg.folder)).toEqual(['provider', 'consumer']);
   });
 
+  it('blocks consumers when a required package cannot finish preparation', async () => {
+    const ws = workspace();
+    pkg(ws, 'consumer', { name: 'consumer', logosDependencies: { provider: '1.0.0' } });
+    pkg(ws, 'provider', { name: 'provider', version: '1.0.0' });
+    const preparePackage = vi.fn().mockRejectedValue(new Error('npm install failed'));
+
+    const result = await resolveLogosDependencies(new PackageRegistry(ws.root), { preparePackage });
+
+    expect(preparePackage).toHaveBeenCalledTimes(1);
+    expect(preparePackage).toHaveBeenCalledWith(expect.objectContaining({ folder: 'provider' }));
+    expect(result.packages).toEqual([]);
+    expect(result.blocked).toEqual([
+      { folder: 'provider', error: 'npm install failed' },
+      { folder: 'consumer', error: 'required dependency "provider" is blocked' },
+    ]);
+  });
+
   it('keeps an optional dependency from blocking the consumer', async () => {
     const ws = workspace(); pkg(ws, 'consumer', { name: 'consumer', logosDependencies: { 'missing?': '1.0.0' } });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('missing', { status: 404 })));

@@ -95,7 +95,10 @@ async function ensure(registry: PackageRegistry, name: string, requested: string
   return installRelease(registry, name, metadata.versions![selected]);
 }
 
-export async function resolveLogosDependencies(registry: PackageRegistry, options: { registry?: string } = {}): Promise<DependencyResolution> {
+export async function resolveLogosDependencies(
+  registry: PackageRegistry,
+  options: { registry?: string; preparePackage?: (pkg: PackageInfo) => Promise<void> } = {},
+): Promise<DependencyResolution> {
   const registryUrl = options.registry || DEFAULT_LOGOS_REGISTRY;
   const diagnostics: DependencyDiagnostic[] = []; const blocked = new Map<string, string>();
   const ordered: PackageInfo[] = []; const visited = new Set<string>(); const visiting: string[] = [];
@@ -115,6 +118,12 @@ export async function resolveLogosDependencies(registry: PackageRegistry, option
     }
     visiting.pop();
     if (blocked.has(pkg.folder)) return false;
+    try {
+      await options.preparePackage?.(pkg);
+    } catch (err: any) {
+      blocked.set(pkg.folder, err?.message || String(err));
+      return false;
+    }
     visited.add(pkg.folder); ordered.push(pkg); return true;
   };
   for (const pkg of registry.discover()) await visit(pkg);

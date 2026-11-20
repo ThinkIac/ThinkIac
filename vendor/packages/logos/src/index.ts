@@ -275,7 +275,13 @@ export async function bootstrap(config: BootstrapConfig = {}): Promise<LogosInst
   await container.installPhase('boot');
 
   // Resolve structural Package dependencies before any Package code is loaded.
-  const dependencyResolution = await resolveLogosDependencies(container.registry, config.logosDependencies);
+  const supervisor = container.state('supervisor').get('controller');
+  const dependencyResolution = await resolveLogosDependencies(container.registry, {
+    ...config.logosDependencies,
+    preparePackage: async pkg => {
+      if (!supervisor?.bootBlock(pkg)) await stabilizer.ensureDeps(pkg.folder);
+    },
+  });
   for (const blocked of dependencyResolution.blocked) {
     container.registry.setState(blocked.folder, 'blocked', blocked.error);
     container.log(`[logos:dependencies] "${blocked.folder}" blocked: ${blocked.error}`);
@@ -285,7 +291,6 @@ export async function bootstrap(config: BootstrapConfig = {}): Promise<LogosInst
   }
 
   // Resolver output is topologically ordered (providers before consumers).
-  const supervisor = container.state('supervisor').get('controller');
   const allPackages = dependencyResolution.packages.filter(pkg => {
     const reason = supervisor?.bootBlock(pkg);
     if (!reason) return true;
