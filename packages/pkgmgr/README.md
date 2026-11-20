@@ -9,6 +9,22 @@ The package view lists only local packages. Operators can search, filter,
 enable, disable, remove, and apply bulk lifecycle actions. Search runs against
 the local list and remains usable on narrow screens.
 
+## Install from GitHub
+
+```sh
+logos pkgmgr install calendar
+logos pkgmgr:install --package git:ThinkIac/calendar
+```
+
+A bare name resolves to `ThinkIac/<name>`. The installer downloads
+`package-<tag>.zip` from the latest GitHub release, using the artifact that
+`think engineer:createPackage` configures the package CI to publish. If the
+release endpoint returns 404, the installer downloads the default branch as
+a ZIP. A release without the expected asset produces an error.
+
+Installation stages the archive, reads its package manifest, and stores the
+package as disabled. Enable it explicitly after review.
+
 ## Runtime model
 
 Each tenant uses an isolated `PackageRuntime` rooted at `/app/data/runtime`, or
