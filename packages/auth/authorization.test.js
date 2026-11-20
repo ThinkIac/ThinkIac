@@ -38,7 +38,7 @@ test('Redirect and Providers publish their groups to the real Access catalog', (
   assert.deepEqual(catalog.get('providers', 'manager')?.permissions, [
     'providers.catalog.read', 'providers.catalog.write', 'providers.catalog.manage',
   ]);
-  assert.ok(catalog.get('cnpj-scraper', 'operator')?.permissions.includes('cnpj-scraper.read'));
+  assert.ok(catalog.get('auth', 'administrator')?.permissions.includes('auth.access.write'));
 });
 
 test('the package authorization contract fails closed and retains explicit deny', () => {

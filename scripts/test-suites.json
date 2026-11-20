@@ -84,7 +84,18 @@
         "packages/auth/mcp-auth.test.js",
         "packages/auth/npm_registry.test.js",
         "packages/auth/permissions.test.js",
-        "packages/auth/proxy_credentials.test.js"
+        "packages/auth/proxy_credentials.test.js",
+        "packages/auth/registration-contract.test.js",
+        "packages/auth/activation.test.js",
+        "packages/auth/auth-permission-contract.test.js",
+        "packages/auth/authorization.test.js",
+        "packages/auth/discovery_permissions.test.js",
+        "packages/auth/identity-contract.test.js",
+        "packages/auth/login-registration-settings-view.test.js",
+        "packages/auth/logout-link.test.js",
+        "packages/auth/password-async.test.js",
+        "packages/auth/permission_catalog.test.js",
+        "packages/auth/permissions-admin-view.test.js"
       ],
       "timeoutMs": 120000
     },
@@ -98,7 +109,10 @@
         "mcp-routes.test.js",
         "signup-flow.test.js",
         "user-commands.test.js",
-        "boundaries.test.js"
+        "boundaries.test.js",
+        "events.test.js",
+        "initial-admin.test.js",
+        "registration-settings.test.js"
       ],
       "timeoutMs": 120000
     },

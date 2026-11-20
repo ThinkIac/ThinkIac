@@ -1,0 +1,500 @@
+{
+  "routes": [
+    {
+      "path": "delegation/issue",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "delegation",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "login",
+      "method": "post",
+      "public": true
+    },
+    {
+      "path": "logout",
+      "method": "get",
+      "public": true
+    },
+    {
+      "path": "get",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "initial-setup",
+      "method": "get",
+      "public": true
+    },
+    {
+      "path": "initial-admin",
+      "method": "post",
+      "public": true
+    },
+    {
+      "path": "register",
+      "method": "post",
+      "public": true
+    },
+    {
+      "path": "resend-verification",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "confirm-email",
+      "method": "post",
+      "public": true
+    },
+    {
+      "path": "verify-email",
+      "method": "get",
+      "public": true
+    },
+    {
+      "path": "google/start",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "google/callback",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "ticket",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "status",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "destination-ready",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "enter",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "apps/:app/enter",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "retry-provisioning",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "invite",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "users",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "settings",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "update-user",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "revoke-invite",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "tenant-diagnostics",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "tenant-resources",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "update-tenant-resources",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "tenant-credits",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "catalog-packages",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "update-default-packages",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "tenant-packages",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "add-tenant-package",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "remove-tenant-package",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "undo-tenant-package-removal",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "tenant-packages/by-proxy-token",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "tenant-packages/by-proxy-token",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "delete-user",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "create-account",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "account-status",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "dev-account-status",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "npm/workspace",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "npm/catalog",
+      "method": "get",
+      "public": true
+    },
+    {
+      "path": "npm/tokens",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "npm/tokens",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "npm/tokens/:id/revoke",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "npm/authenticate",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "npm/packages",
+      "method": "post",
+      "public": true
+    },
+    {
+      "path": "npm/packages/:name",
+      "method": "delete",
+      "public": true
+    },
+    {
+      "path": "npm/access",
+      "method": "post",
+      "public": true
+    },
+    {
+      "path": "npm/device",
+      "method": "post",
+      "public": true
+    },
+    {
+      "path": "npm/device/approve",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "npm/device/poll",
+      "method": "post",
+      "public": true
+    },
+    {
+      "path": "notify/devices",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "notify/authorize",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "onboarding",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "onboarding/by-proxy-token",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "system/view",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "system/action",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "permissions",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "permissions/catalog",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "permissions/groups",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "permissions/groups/update",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "permissions/groups/delete",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "system/tabs",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "permissions/memberships",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "permissions/memberships/delete",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "permissions/grants",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "permissions/grants/full-package",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "permissions/grants/delete",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "permissions/user",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "permissions/audit",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "mcp/credentials",
+      "method": "post",
+      "public": false
+    },
+    {
+      "path": "mcp/credentials",
+      "method": "get",
+      "public": false
+    },
+    {
+      "path": "mcp/credentials/:id",
+      "method": "delete",
+      "public": false
+    }
+  ],
+  "hooks": [
+    "boot",
+    "credential:verify",
+    "auth:issue-tenant-credentials",
+    "auth:activate-tenant-credentials",
+    "auth:revoke-tenant-credentials",
+    "runtime:ready",
+    "auth:resolve-proxy-token",
+    "auth:record-proxy-spend",
+    "auth:get-admin-user"
+  ],
+  "commands": [
+    "create-user",
+    "add-user",
+    "list-users",
+    "get-user",
+    "update-user",
+    "disable-user",
+    "enable-user"
+  ],
+  "exports": [
+    "authorizeRequest",
+    "requirePermission",
+    "hashPassword",
+    "npmGroupsFor",
+    "identityProvider",
+    "isPublicPath",
+    "requiredDelegatedCapability",
+    "expectsHtmlDocument",
+    "accessGate",
+    "issueDelegatedTicket",
+    "consumeDelegatedTicket",
+    "setupUser",
+    "credentialVerify",
+    "login",
+    "logout",
+    "getUser",
+    "provisionInitialAdmin",
+    "createUserCommand",
+    "manageUserCommand",
+    "addUserCommand",
+    "listUsersCommand",
+    "getUserCommand",
+    "updateUserCommand",
+    "disableUserCommand",
+    "enableUserCommand",
+    "initialSetupStatus",
+    "createInitialAdmin",
+    "register",
+    "resendVerification",
+    "confirmEmail",
+    "verifyEmail",
+    "startSession",
+    "googleStart",
+    "googleCallback",
+    "ticket",
+    "activeCredentialWithScope",
+    "onIssueTenantCredentials",
+    "onActivateTenantCredentials",
+    "onRevokeTenantCredentials",
+    "startActivationRecovery",
+    "status",
+    "destinationReady",
+    "enter",
+    "enterDistributedApp",
+    "retryProvisioning",
+    "createInvite",
+    "listUsers",
+    "updateSettings",
+    "updateUser",
+    "revokeInvite",
+    "tenantDiagnostics",
+    "tenantResources",
+    "updateTenantResources",
+    "tenantCredits",
+    "catalogPackages",
+    "updateDefaultPackages",
+    "tenantPackages",
+    "addTenantPackage",
+    "removeTenantPackage",
+    "undoTenantPackageRemoval",
+    "tenantPackageStateByProxyToken",
+    "updateTenantPackagesByProxyToken",
+    "deleteUser",
+    "createAccount",
+    "accountStatus",
+    "devAccountStatus",
+    "onResolveProxyToken",
+    "onRecordProxySpend",
+    "routerNpmWorkspace",
+    "routerNpmCatalog",
+    "routerNpmCreateToken",
+    "routerNpmListTokens",
+    "routerNpmRevokeToken",
+    "routerNpmAuthenticate",
+    "routerNpmRegisterPackage",
+    "routerNpmDeletePackage",
+    "routerNpmAccess",
+    "routerNpmDeviceStart",
+    "routerNpmDeviceApprove",
+    "routerNpmDevicePoll",
+    "routerNotifyPairDevice",
+    "routerNotifyAuthorize",
+    "onGetAdminUser",
+    "saveOnboarding",
+    "getOnboardingByProxyToken",
+    "systemView",
+    "systemAction",
+    "routerPermissionsOverview",
+    "routerPermissionsCatalog",
+    "routerPermissionsCreateGroup",
+    "routerPermissionsUpdateGroup",
+    "routerPermissionsDeleteGroup",
+    "routerSystemTabs",
+    "routerPermissionsAddMember",
+    "routerPermissionsDeleteMember",
+    "routerPermissionsCreateGrant",
+    "routerPermissionsCreateFullPackageGrant",
+    "routerPermissionsDeleteGrant",
+    "routerPermissionsForUser",
+    "routerPermissionsAudit",
+    "mcpAuth",
+    "routerMcpIssue",
+    "routerMcpCredentials",
+    "routerMcpRevoke"
+  ]
+}

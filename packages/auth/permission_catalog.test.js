@@ -50,7 +50,7 @@ test('validates a declared group only while its package definition exists', () =
     });
     assert.throws(
         () => validateDeclaredGroupInput({ declaredPackage: 'email-manager', declaredGroup: 'missing' }, catalog),
-        /definição de grupo/i,
+        /declared group definition/i,
     );
 });
 

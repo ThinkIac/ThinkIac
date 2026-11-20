@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const root = new URL('.', import.meta.url);
-const source = readFileSync(new URL('./index.js', root), 'utf8');
+const source = ['./index.js', './services/permissions.js'].map(file => readFileSync(new URL(file, root), 'utf8')).join('\n');
 const view = readFileSync(new URL('./views/Index.svelte', root), 'utf8');
 const schemaView = readFileSync(new URL('../ui-schema/views/AuthSurface.svelte', root), 'utf8');
 

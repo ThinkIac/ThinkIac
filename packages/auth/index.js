@@ -1,11 +1,53 @@
+import { normalizeUser, parseCookies, identityProvider } from './services/identity.js';
+import { validateUsername, provisionInitialAdmin, manageUserCommand } from './services/local-users.js';
+import { allowLoginAttempt } from './services/login-throttle.js';
+import { resolveUserIdFromBearer, resolveProxyCredential, onResolveProxyToken as onResolveProxyTokenHandler, onRecordProxySpend as onRecordProxySpendHandler } from './services/credentials.js';
+import {
+    npmGroupsFor,
+    gatewayBaseUrl,
+    routerNpmWorkspace as routerNpmWorkspaceHandler,
+    routerNpmCatalog as routerNpmCatalogHandler,
+    routerNpmCreateToken as routerNpmCreateTokenHandler,
+    routerNpmListTokens as routerNpmListTokensHandler,
+    routerNpmRevokeToken as routerNpmRevokeTokenHandler,
+    routerNpmAuthenticate as routerNpmAuthenticateHandler,
+    routerNpmRegisterPackage as routerNpmRegisterPackageHandler,
+    routerNpmDeletePackage as routerNpmDeletePackageHandler,
+    routerNpmAccess as routerNpmAccessHandler,
+    routerNpmDeviceStart as routerNpmDeviceStartHandler,
+    routerNpmDeviceApprove as routerNpmDeviceApproveHandler,
+    routerNpmDevicePoll as routerNpmDevicePollHandler,
+    routerNotifyPairDevice as routerNotifyPairDeviceHandler,
+    routerNotifyAuthorize as routerNotifyAuthorizeHandler,
+} from './services/registry-devices.js';
+import {
+    canBeDefaultRegistrationRole,
+    permissionCatalog,
+    canManageAuth,
+    canBeDefaultRoleGroup,
+    resolveRoleSelection,
+    assignRoleSelections,
+    routerPermissionsOverview as routerPermissionsOverviewHandler,
+    routerPermissionsCatalog as routerPermissionsCatalogHandler,
+    routerPermissionsCreateGroup as routerPermissionsCreateGroupHandler,
+    routerPermissionsUpdateGroup as routerPermissionsUpdateGroupHandler,
+    routerPermissionsDeleteGroup as routerPermissionsDeleteGroupHandler,
+    routerSystemTabs as routerSystemTabsHandler,
+    routerPermissionsAddMember as routerPermissionsAddMemberHandler,
+    routerPermissionsDeleteMember as routerPermissionsDeleteMemberHandler,
+    routerPermissionsCreateGrant as routerPermissionsCreateGrantHandler,
+    routerPermissionsCreateFullPackageGrant as routerPermissionsCreateFullPackageGrantHandler,
+    routerPermissionsDeleteGrant as routerPermissionsDeleteGrantHandler,
+    routerPermissionsForUser as routerPermissionsForUserHandler,
+    routerPermissionsAudit as routerPermissionsAuditHandler,
+} from './services/permissions.js';
 import { loginAttemptStore } from './login-attempts.js';
 import { hashPasswordAsync, verifyPasswordAsync } from './password-async.js';
 import { claimActivation, updateActivationLease, recoverActivations } from './activation.js';
 import { createMcpAuth } from './mcp-auth.js';
 import { dispatchEvent, getProxy, isPublicRoute, isPublicView, scriba } from 'logos';
 import crypto from 'crypto';
-import { isIP } from 'node:net';
-import { credentialHasScope, DEFAULT_BILLING_SCOPES, DEFAULT_TENANT_SCOPES, issueProxyToken, parseProxyToken, parseScopes, verifyProxyToken } from './proxy_credentials.js';
+import { credentialHasScope, DEFAULT_BILLING_SCOPES, DEFAULT_TENANT_SCOPES, issueProxyToken } from './proxy_credentials.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,57 +68,31 @@ import {
 import { resolveGoogleUser } from './google_user.js';
 import { queueVerificationEmail } from './email_delivery.js';
 import { createEmailVerification, verificationMatches, verificationTokenHash } from './email_verification.js';
-import {
-    appDestination,
-    distributedApp,
-    getDistributedApp,
-    pathBelongsToApp,
-    tenantPluginsFor,
-} from './app_flow.js';
-import permissionService from './permissions.cjs';
-import permissionCatalogService from './permission_catalog.cjs';
+import { appDestination, distributedApp, getDistributedApp, pathBelongsToApp, tenantPluginsFor } from './app_flow.js';
 // Caminho relativo intencional: pacotes do Runtime são carregados diretamente
 // pelo host, sem exigir instalação prévia em node_modules.
-import { attachPrincipal, createPrincipal } from './runtime/identity.js';
+import { attachPrincipal } from './runtime/identity.js';
 import { authorizeViewRequest } from './resource_access.js';
-import { listLegacySystemTabs } from '../settings/lib/tabs.js';
 import { assertSurface } from '../ui-schema/index.js';
 export { authorizeRequest, requirePermission } from './authorization.js';
-import { canReadNpmPackage, normalizeNpmPackage, npmPublicCatalog, npmReadableCatalog, npmWorkspaceSummary } from './npm_registry.js';
 
 // Carrega só o .env deste pacote (BILLING_ADMIN_TOKEN) — não depende do
 // ambiente do processo Agent, que outros pacotes compartilham.
 try { process.loadEnvFile(new URL('./.env', import.meta.url)); } catch {}
 
 const BILLING_ADMIN_HEADER = 'x-billing-admin-token';
-const { authorize, permissionsForUser, validateGrantInput } = permissionService;
-const { createPermissionCatalog, listSelectablePermissions, validateDeclaredGroupInput } = permissionCatalogService;
-const permissionCatalog = createPermissionCatalog({ packagesDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') });
 
 // Registro público pode receber um role de produto, mas nunca uma capacidade
 // que administra a própria identidade do Runtime.
-function canBeDefaultRegistrationRole(role) {
-    return !!role && !(role.permissions || []).some((permission) => /^auth\.(?:users|access|settings)\.(?:read|write)$/.test(permission));
-}
-const NPM_TOKEN_SCOPES = Object.freeze(['npm:read', 'npm:publish', 'npm:unpublish']);
-const NOTIFY_SUBSCRIBE_SCOPE = 'notify:subscribe';
+
 // A entrada autenticada é decidida pelo pacote Redirect. Ele aplica a regra
 // do cargo, quando houver, e usa a tela inicial como destino padrão.
 const AUTHENTICATED_HOME = '/redirect/home';
-
 
 function uniqueConflict(error, field) {
     if (error?.code !== 'SQLITE_CONSTRAINT_UNIQUE') return null;
     const suffix = field === 'username' ? 'Username is already registered.' : 'Email is already registered.';
     return { status: 409, error: suffix };
-}
-
-function notifyDeviceScope(appId) {
-    return `notify:device:${appId}`;
-}
-
-function validNotifyDeviceId(appId) {
-    return /^[A-Za-z0-9_-]{12,64}$/.test(String(appId || ''));
 }
 
 // --- FUNÇÕES AUXILIARES DE CRIPTOGRAFIA ---
@@ -126,13 +142,6 @@ async function confirmEmailVerification(db, { token, email, code }) {
     return user;
 }
 
-function normalizeUser(user) {
-    if (!user) return null;
-    const data = typeof user.toJSON === 'function' ? user.toJSON() : { ...user };
-    delete data.password;
-    return data;
-}
-
 // Contas do fluxo retirado não podem receber automaticamente uma instância
 // comercial. Não há rota, view nem permissão local restante para elas.
 function isRetiredLocalAccount(user) {
@@ -164,51 +173,9 @@ async function requestWelcomeCredit(userId) {
     }
 }
 
-function sameSecret(actual, expected) {
-    if (!actual || !expected) return false;
-    const received = Buffer.from(String(actual));
-    const configured = Buffer.from(String(expected));
-    return received.length === configured.length && crypto.timingSafeEqual(received, configured);
-}
-
-export function npmGroupsFor(user, credential) {
-    const groups = new Set(['npm:read', `npm:owner:${String(user?.username || '').toLowerCase()}`]);
-    for (const scope of NPM_TOKEN_SCOPES) {
-        if (credentialHasScope(credential, scope)) groups.add(scope);
-    }
-    if (user?.role === 'admin') groups.add('npm:admin');
-    return [...groups];
-}
-
 /** Traduz o schema ThinkIac para o contrato neutro consumido por hosts/apps. */
-function principalFor(user, session = null) {
-    const cleanUser = normalizeUser(user);
-    if (!cleanUser?.id) return null;
-    let capabilities = [];
-    try { capabilities = JSON.parse(session?.delegatedCapabilities || '[]'); } catch {}
-    return createPrincipal({
-        subject: cleanUser.id,
-        type: 'user',
-        role: cleanUser.role,
-        capabilities: Array.isArray(capabilities) ? capabilities : [],
-        sessionId: session?.id ?? null,
-        claims: { email: cleanUser.email, username: cleanUser.username },
-    });
-}
 
 /** IdentityProvider do ThinkIac. Pode ser usado sem depender de middleware Logos. */
-export const identityProvider = Object.freeze({
-    async resolve(req) {
-        const sessionId = parseCookies(req?.headers?.cookie)['sessionId'];
-        const db = getProxy('auth');
-        const session = sessionId ? db.session[sessionId] : null;
-        if (!session || !Number.isFinite(new Date(session.expiresAt).getTime()) || Date.now() >= new Date(session.expiresAt).getTime()) return null;
-        const user = db.user[session.userId];
-        if (!user || user.disabled) return null;
-        const sessionData = typeof session.toJSON === 'function' ? session.toJSON() : { id: sessionId, ...session };
-        return { principal: principalFor(user, sessionData), user: normalizeUser(user), session: sessionData };
-    },
-});
 
 function generateInviteCode() {
     return crypto.randomBytes(6).toString('base64url').slice(0, 10).toUpperCase();
@@ -321,41 +288,8 @@ function startTenantDestinationWarmup(userId, tenantDomain, username, destinatio
 
 // Username vira subdomínio (<username>.THINKIAC_DOMAIN) — precisa ser
 // DNS-safe: minúsculas, alfanumérico e hífen, 3-63 caracteres.
-const USERNAME_RE = /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/;
-const RESERVED_USERNAMES = new Set([
-    'www', 'admin', 'api', 'root', 'mail', 'ftp',
-    'portainer', 'npm', 'proxy', 'gateway', 'static', 'cdn',
-    'app', 'docker', 'localhost', 'thinkiac', 'ns1', 'ns2', 'auth', 'cloud',
-]);
-
-function validateUsername(raw) {
-    const username = String(raw || '').trim().toLowerCase();
-    if (username.length < 3 || username.length > 63) {
-        return { valid: false, reason: 'O usuário deve ter entre 3 e 63 caracteres.' };
-    }
-    if (!USERNAME_RE.test(username)) {
-        return { valid: false, reason: 'Use apenas letras minúsculas, números e hífen (sem começar/terminar com hífen).' };
-    }
-    if (RESERVED_USERNAMES.has(username)) {
-        return { valid: false, reason: 'Esse usuário é reservado.' };
-    }
-    return { valid: true, username };
-}
 
 // --- AUXILIARES DO SISTEMA ---
-
-function parseCookies(cookieHeader) {
-    const cookies = {};
-    if (!cookieHeader) return cookies;
-
-    cookieHeader.split(';').forEach(cookie => {
-        const [parts] = cookie.split('=');
-        const name = parts.trim();
-        const value = cookie.substring(name.length + 1).trim();
-        if (name) cookies[name] = decodeURIComponent(value);
-    });
-    return cookies;
-}
 
 // --- PORTÃO DE ACESSO GLOBAL ---
 //
@@ -746,38 +680,7 @@ export async function credentialVerify(payload, ctx) {
 
 // --- ROTEADORES (CONTROLLERS) ---
 
-function normalizeLoginAddress(address) {
-    if (typeof address !== 'string' || address.includes('%')) return null;
-    const family = isIP(address);
-    if (family === 4) address = `::ffff:${address}`;
-    if (!family) return null;
-    return new URL(`http://[${address}]/`).hostname.slice(1, -1);
-}
-
-function loginClientAddress(req) {
-    const peer = normalizeLoginAddress(req.socket?.remoteAddress);
-    if (!peer) return 'unknown';
-    const trustedProxies = process.env.AUTH_LOGIN_TRUSTED_PROXY_IPS?.split(',') || [];
-    if (trustedProxies.some(address => normalizeLoginAddress(address.trim()) === peer)) {
-        return normalizeLoginAddress(req.headers?.['x-real-ip']) || peer;
-    }
-    return peer;
-}
-
 // Per-process protection applies to both direct and proxied login requests.
-const loginAttempts = new Map();
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-function allowLoginAttempt(req, now = Date.now()) {
-    for (const [key, entry] of loginAttempts) if (entry.until <= now) loginAttempts.delete(key);
-    const key = loginClientAddress(req);
-    let entry = loginAttempts.get(key);
-    if (!entry) {
-        if (loginAttempts.size >= 10000) return false;
-        entry = { count: 0, until: now + LOGIN_WINDOW_MS };
-        loginAttempts.set(key, entry);
-    }
-    return ++entry.count <= 20;
-}
 
 export async function login(req, res) {
     /**
@@ -880,29 +783,6 @@ export async function getUser(req, res) {
 }
 
 // Provisioning is local to the operator: credentials never enter an HTTP request.
-export async function provisionInitialAdmin(db, env = process.env) {
-    const rawUsername = env.INITIAL_AUTH_USER;
-    const password = env.INITIAL_AUTH_PASSWORD;
-    if (!rawUsername && !password && !env.INITIAL_AUTH_EMAIL) return { created: false };
-    if (!rawUsername || !password || !env.INITIAL_AUTH_EMAIL) {
-        throw new Error('Set INITIAL_AUTH_USER, INITIAL_AUTH_EMAIL and INITIAL_AUTH_PASSWORD together.');
-    }
-    const users = await db.user.all();
-    if (users.some(user => user.role === 'admin')) return { created: false };
-    const { valid, username, reason } = validateUsername(rawUsername);
-    if (!valid) throw new Error(reason);
-    const email = String(env.INITIAL_AUTH_EMAIL).trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof password !== 'string' || password.length < 12) {
-        throw new Error('A valid INITIAL_AUTH_EMAIL and a password of at least 12 characters are required.');
-    }
-    if (users.some(user => String(user.email || '').toLowerCase() === email || String(user.username || '').toLowerCase() === username)) {
-        throw new Error('The configured initial administrator email or username is already in use.');
-    }
-    await db.user.push({ name: String(env.INITIAL_AUTH_NAME || username).trim(), email, username,
-        password: await hashPasswordAsync(password), role: 'admin', inviteBalance: 0,
-        emailVerified: true, tenantStatus: null });
-    return { created: true };
-}
 
 export async function createUserCommand() {
     /**
@@ -915,58 +795,6 @@ export async function createUserCommand() {
 
 // These commands are a local administrative capability: access to the host and
 // database is the authorization boundary, not a remotely callable endpoint.
-export async function manageUserCommand(db, operation, env = process.env) {
-    const users = await db.user.all();
-    const id = String(env.AUTH_USER_ID || '').trim();
-    const view = user => ({ id: user.id, name: user.name, email: user.email, username: user.username, role: user.role, disabled: !!user.disabled });
-    if (operation === 'list') return { users: users.map(view) };
-    const target = id && db.user[id];
-    if (operation === 'get') {
-        if (!target) throw new Error('User not found. Set AUTH_USER_ID.');
-        return { user: view(target) };
-    }
-    if (operation !== 'create' && !target) throw new Error('User not found. Set AUTH_USER_ID.');
-    const changes = {};
-    const editing = operation === 'create' || operation === 'update';
-    if (editing && (operation === 'create' || env.AUTH_USER_USERNAME !== undefined)) {
-        const validation = validateUsername(env.AUTH_USER_USERNAME);
-        if (!validation.valid) throw new Error(validation.reason);
-        changes.username = validation.username;
-    }
-    if (editing && (operation === 'create' || env.AUTH_USER_EMAIL !== undefined)) {
-        changes.email = String(env.AUTH_USER_EMAIL || '').trim().toLowerCase();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(changes.email)) throw new Error('A valid AUTH_USER_EMAIL is required.');
-    }
-    if (editing && env.AUTH_USER_NAME !== undefined) changes.name = String(env.AUTH_USER_NAME).trim() || null;
-    if (editing && (operation === 'create' || env.AUTH_USER_ROLE !== undefined)) {
-        changes.role = env.AUTH_USER_ROLE || 'user';
-        if (!['user', 'admin'].includes(changes.role)) throw new Error('Invalid AUTH_USER_ROLE.');
-    }
-    if (editing && (operation === 'create' || env.AUTH_USER_PASSWORD !== undefined)) {
-        if (typeof env.AUTH_USER_PASSWORD !== 'string' || env.AUTH_USER_PASSWORD.length < 12) throw new Error('AUTH_USER_PASSWORD must contain at least 12 characters.');
-        changes.password = await hashPasswordAsync(env.AUTH_USER_PASSWORD);
-    }
-    for (const field of ['email', 'username']) {
-        if (changes[field] && users.some(u => u.id !== target?.id && String(u[field] || '').toLowerCase() === changes[field])) throw new Error(`${field} is already registered.`);
-    }
-    if (!['create', 'update', 'disable', 'enable'].includes(operation)) throw new Error('Invalid operation.');
-    if (target && target.role === 'admin' && !target.disabled && (operation === 'disable' || changes.role === 'user')) {
-        if (!users.some(u => u.id !== target.id && u.role === 'admin' && !u.disabled)) throw new Error('Cannot remove the last active administrator.');
-    }
-    if (operation === 'update' && !Object.keys(changes).length) throw new Error('No changes supplied.');
-    let user = target;
-    if (operation === 'create') user = await db.user.push({ ...changes, name: changes.name || changes.username, emailVerified: true });
-    else {
-        if (operation === 'disable') changes.disabled = true;
-        if (operation === 'enable') changes.disabled = false;
-        Object.assign(target, changes);
-    }
-    if (target && (operation === 'disable' || changes.password)) {
-        for (const session of await db.session.query({ userId: target.id })) await db.session.delete(session.id);
-    }
-    await db.permissionAudit.push({ actorId: 'local-cli', action: `user.${operation}`, subjectType: 'user', subjectId: user.id });
-    return { user: view(user) };
-}
 
 export async function addUserCommand() {
     /** @register_command add-user
@@ -1193,10 +1021,6 @@ export async function verifyEmail(req, res) {
 
 const OAUTH_FLOW_TTL_MS = 10 * 60 * 1000;
 const LOGIN_TICKET_TTL_MS = 60 * 1000;
-
-function gatewayBaseUrl() {
-    return `https://${process.env.CLOUD_ENV_THINKIAC_DOMAIN || 'thinkiac.cloud'}`;
-}
 
 function googleRedirectUri() {
     return `${gatewayBaseUrl()}/auth/google/callback`;
@@ -2773,86 +2597,19 @@ function startDevAccountReaper() {
 // Mesmo padrão de resolveUserIdFromBearer() em packages/billing/index.js —
 // aqui inline porque a resolução (db.user.findOne por llmProxyToken) já mora
 // neste arquivo, sem precisar do dispatchEvent('auth:resolve-proxy-token').
-async function resolveUserIdFromBearer(req, scope = null) {
-    const authHeader = req.headers?.authorization || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) return null;
-
-    const resolved = await resolveProxyCredential(token, scope);
-    return resolved?.userId || null;
-}
-
-const credentialRateWindows = new Map();
-
-function withinCredentialRateLimit(record) {
-    const now = Date.now();
-    const current = credentialRateWindows.get(record.tokenId);
-    const window = !current || now - current.startedAt >= 60_000
-        ? { startedAt: now, count: 0 }
-        : current;
-    window.count += 1;
-    credentialRateWindows.set(record.tokenId, window);
-    return window.count <= Math.max(1, Number(record.maxRequestsPerMinute) || 60);
-}
-
-async function resolveProxyCredential(token, scope = null) {
-    const db = getProxy('auth');
-    const parsed = parseProxyToken(token);
-    if (parsed) {
-        const record = db.proxyCredential.findOne({ tokenId: parsed.tokenId });
-        // Installation credentials are least-privilege service principals. They
-        // intentionally do not create interactive User rows, but still use the
-        // same hashed credential, revocation, scope and rate-limit checks.
-        const principalExists = Boolean(db.user[record.userId]) || String(record.userId || '').startsWith('installation:');
-        if (!verifyProxyToken(token, record) || record.status !== 'active' || !principalExists) return null;
-        if (scope && !credentialHasScope(record, scope)) return null;
-        if (!withinCredentialRateLimit(record)) return null;
-        record.lastUsedAt = new Date();
-        return {
-            userId: record.userId,
-            tenantId: record.tenantId || null,
-            credentialId: record.id,
-            scopes: JSON.parse(record.scopes || '[]'),
-            spendLimitMicros: record.spendLimitMicros ?? null,
-            spentMicros: record.spentMicros || 0,
-        };
-    }
-
-    // Janela de migração explicitamente opt-in. Em produção o default é negar:
-    // um token legado em texto não pode recuperar implicitamente todos os
-    // escopos de billing e administração.
-    if (process.env.AUTH_ENV_ALLOW_LEGACY_PROXY_TOKEN !== '1') return null;
-    const legacyUser = db.user.findOne({ llmProxyToken: token });
-    if (!legacyUser || (scope && scope !== 'llm:invoke')) return null;
-    return { userId: legacyUser.id, legacy: true, scopes: ['llm:invoke'] };
-}
 
 export async function onResolveProxyToken(payload) {
     /**
      * @register_hook auth:resolve-proxy-token
      */
-    const { token, scope = null } = payload || {};
-    if (!token) return null;
-    return resolveProxyCredential(token, scope);
+    return onResolveProxyTokenHandler(payload);
 }
 
 export async function onRecordProxySpend(payload) {
     /**
      * @register_hook auth:record-proxy-spend
      */
-    const credentialId = String(payload?.credentialId || '');
-    const amountMicros = Math.max(0, Math.trunc(Number(payload?.amountMicros) || 0));
-    if (!credentialId || !amountMicros) return null;
-    const db = getProxy('auth');
-    const credential = db.proxyCredential[credentialId];
-    if (!credential || credential.revokedAt) return null;
-    credential.spentMicros = (credential.spentMicros || 0) + amountMicros;
-    return { credentialId, spentMicros: credential.spentMicros };
-}
-
-async function npmSessionUser(req) {
-    const resolved = await identityProvider.resolve(req);
-    return resolved?.user || null;
+    return onRecordProxySpendHandler(payload);
 }
 
 export async function routerNpmWorkspace(req) {
@@ -2860,10 +2617,7 @@ export async function routerNpmWorkspace(req) {
      * @register_router npm/workspace
      * @method GET
      */
-    const user = await npmSessionUser(req);
-    if (!user?.username) return { authenticated: false, workspace: null, packages: [] };
-    const records = getProxy('auth').npmPackage.query({ owner: String(user.username).toLowerCase() }) || [];
-    return npmWorkspaceSummary(user, records);
+    return routerNpmWorkspaceHandler(req);
 }
 
 export async function routerNpmCatalog(req) {
@@ -2872,13 +2626,7 @@ export async function routerNpmCatalog(req) {
      * @method GET
      * @public true
      */
-    const identity = await npmUserForBearer(req);
-    const records = getProxy('auth').npmPackage.query() || [];
-    return {
-        packages: identity
-            ? npmReadableCatalog(records, identity.user.username)
-            : npmPublicCatalog(records),
-    };
+    return routerNpmCatalogHandler(req);
 }
 
 export async function routerNpmCreateToken(req, res) {
@@ -2886,31 +2634,7 @@ export async function routerNpmCreateToken(req, res) {
      * @register_router npm/tokens
      * @method POST
      */
-    const user = await npmSessionUser(req);
-    if (!user) return { status: 401, error: 'Faça login no ThinkIac para criar um token npm.' };
-    if (!user.username) return { status: 409, error: 'Sua conta ainda não possui um nome de usuário para reservar o escopo npm.' };
-
-    const issued = issueProxyToken();
-    const record = await getProxy('auth').proxyCredential.push({
-        tokenId: issued.tokenId,
-        tokenHash: issued.tokenHash,
-        userId: user.id,
-        tenantId: null,
-        scopes: JSON.stringify(NPM_TOKEN_SCOPES),
-        status: 'active',
-        spentMicros: 0,
-        maxRequestsPerMinute: 600,
-    });
-    return {
-        status: 201,
-        token: issued.token,
-        tokenId: record.id,
-        username: user.username,
-        scope: `@${user.username}`,
-        official: user.role === 'admin',
-        registry: 'https://npm.thinkiac.cloud',
-        warning: 'Copie agora: este token não será exibido novamente.',
-    };
+    return routerNpmCreateTokenHandler(req, res);
 }
 
 export async function routerNpmListTokens(req, res) {
@@ -2918,20 +2642,7 @@ export async function routerNpmListTokens(req, res) {
      * @register_router npm/tokens
      * @method GET
      */
-    const user = await npmSessionUser(req);
-    if (!user) return { status: 401, error: 'Faça login no ThinkIac para consultar tokens npm.' };
-    const records = getProxy('auth').proxyCredential.query({ userId: user.id }) || [];
-    return {
-        tokens: records
-            .filter((record) => NPM_TOKEN_SCOPES.some((scope) => credentialHasScope(record, scope)))
-            .map((record) => ({
-                id: record.id,
-                createdAt: record.createdAt,
-                lastUsedAt: record.lastUsedAt || null,
-                revokedAt: record.revokedAt || null,
-                active: record.status === 'active' && !record.revokedAt,
-            })),
-    };
+    return routerNpmListTokensHandler(req, res);
 }
 
 export async function routerNpmRevokeToken(req, res) {
@@ -2939,15 +2650,7 @@ export async function routerNpmRevokeToken(req, res) {
      * @register_router npm/tokens/:id/revoke
      * @method POST
      */
-    const user = await npmSessionUser(req);
-    if (!user) return { status: 401, error: 'Faça login no ThinkIac para revogar um token npm.' };
-    const record = getProxy('auth').proxyCredential[String(req.params?.id || '')];
-    if (!record || record.userId !== user.id || !NPM_TOKEN_SCOPES.some((scope) => credentialHasScope(record, scope))) {
-        return { status: 404, error: 'Token npm não encontrado.' };
-    }
-    record.status = 'revoked';
-    record.revokedAt = new Date();
-    return { ok: true };
+    return routerNpmRevokeTokenHandler(req, res);
 }
 
 export async function routerNpmAuthenticate(req, res) {
@@ -2955,35 +2658,7 @@ export async function routerNpmAuthenticate(req, res) {
      * @register_router npm/authenticate
      * @method POST
      */
-    const serviceToken = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
-    if (!sameSecret(serviceToken, process.env.AUTH_ENV_VERDACCIO_SERVICE_TOKEN)) {
-        return { status: 401, authenticated: false };
-    }
-    const identifier = String(req.body?.username || '').trim().toLowerCase();
-    const token = String(req.body?.token || '');
-    const db = getProxy('auth');
-    const user = db.user.findOne({ username: identifier }) || db.user.findOne({ email: identifier });
-    const credential = await resolveProxyCredential(token, 'npm:read');
-    if (!user || !credential || credential.userId !== user.id || !user.username) {
-        return { status: 401, authenticated: false };
-    }
-    return { authenticated: true, username: user.username, groups: npmGroupsFor(user, db.proxyCredential[credential.credentialId]) };
-}
-
-function deviceCodeHash(code) {
-    return crypto.createHash('sha256').update(String(code || '')).digest('hex');
-}
-
-function npmBearer(req) {
-    return String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
-}
-
-async function npmUserForBearer(req, scope = 'npm:read') {
-    const token = npmBearer(req);
-    const credential = await resolveProxyCredential(token, scope);
-    if (!credential) return null;
-    const user = getProxy('auth').user[credential.userId];
-    return user?.username ? { user, credential } : null;
+    return routerNpmAuthenticateHandler(req, res);
 }
 
 export async function routerNpmRegisterPackage(req) {
@@ -2992,17 +2667,7 @@ export async function routerNpmRegisterPackage(req) {
      * @method POST
      * @public true
      */
-    const identity = await npmUserForBearer(req, 'npm:publish');
-    if (!identity) return { status: 401, error: 'Token npm de publicação inválido.' };
-    let record;
-    try { record = normalizeNpmPackage({ ...req.body, owner: identity.user.username, official: identity.user.role === 'admin' && req.body?.official === true }); }
-    catch (error) { return { status: 400, error: error.message }; }
-    const db = getProxy('auth');
-    const current = db.npmPackage.findOne({ name: record.name });
-    if (current && current.owner !== record.owner && identity.user.role !== 'admin') return { status: 403, error: 'Este pacote pertence a outro workspace.' };
-    if (current) Object.assign(current, record);
-    else await db.npmPackage.push(record);
-    return { ok: true, ...record };
+    return routerNpmRegisterPackageHandler(req);
 }
 
 export async function routerNpmDeletePackage(req) {
@@ -3011,15 +2676,7 @@ export async function routerNpmDeletePackage(req) {
      * @method DELETE
      * @public true
      */
-    const identity = await npmUserForBearer(req, 'npm:unpublish');
-    if (!identity) return { status: 401, error: 'Token npm de remoção inválido.' };
-    const name = String(req.params?.name || '').trim().toLowerCase();
-    const db = getProxy('auth');
-    const record = db.npmPackage.findOne({ name });
-    if (!record) return { status: 404, error: 'Pacote não encontrado.' };
-    if (record.owner !== String(identity.user.username).toLowerCase() && identity.user.role !== 'admin') return { status: 403, error: 'Este pacote pertence a outro workspace.' };
-    await db.npmPackage.delete(record.id);
-    return { ok: true, name };
+    return routerNpmDeletePackageHandler(req);
 }
 
 export async function routerNpmAccess(req) {
@@ -3028,13 +2685,7 @@ export async function routerNpmAccess(req) {
      * @method POST
      * @public true
      */
-    const serviceToken = npmBearer(req);
-    if (!sameSecret(serviceToken, process.env.AUTH_ENV_VERDACCIO_SERVICE_TOKEN)) return { status: 401, allowed: false };
-    const packageName = String(req.body?.packageName || '').toLowerCase();
-    const record = getProxy('auth').npmPackage.findOne({ name: packageName });
-    // Pacotes não gerenciados continuam disponíveis para o proxy npmjs. Todo
-    // pacote publicado pelo fluxo ThinkIac é registrado antes do upload.
-    return { allowed: !record || canReadNpmPackage(record, req.body?.username) };
+    return routerNpmAccessHandler(req);
 }
 
 export async function routerNpmDeviceStart(req) {
@@ -3043,10 +2694,7 @@ export async function routerNpmDeviceStart(req) {
      * @method POST
      * @public true
      */
-    const code = crypto.randomBytes(32).toString('base64url');
-    const expiresAt = new Date(Date.now() + 5 * 60_000);
-    await getProxy('auth').npmDeviceAuthorization.push({ codeHash: deviceCodeHash(code), expiresAt });
-    return { deviceCode: code, verificationUri: `${gatewayBaseUrl()}/auth/npm/device/approve?code=${encodeURIComponent(code)}`, expiresIn: 300, interval: 2 };
+    return routerNpmDeviceStartHandler(req);
 }
 
 export async function routerNpmDeviceApprove(req) {
@@ -3054,14 +2702,7 @@ export async function routerNpmDeviceApprove(req) {
      * @register_router npm/device/approve
      * @method GET
      */
-    const user = await npmSessionUser(req);
-    if (!user) return { status: 401, error: 'Faça login no ThinkIac para aprovar este dispositivo.' };
-    const code = String(req.query?.code || '');
-    const record = getProxy('auth').npmDeviceAuthorization.findOne({ codeHash: deviceCodeHash(code) });
-    if (!record || record.consumedAt || new Date(record.expiresAt).getTime() < Date.now()) return { status: 400, error: 'Código de dispositivo inválido ou expirado.' };
-    record.userId = user.id;
-    record.approvedAt = new Date();
-    return { ok: true, message: 'Dispositivo aprovado. Você já pode voltar ao terminal.' };
+    return routerNpmDeviceApproveHandler(req);
 }
 
 export async function routerNpmDevicePoll(req) {
@@ -3070,15 +2711,7 @@ export async function routerNpmDevicePoll(req) {
      * @method POST
      * @public true
      */
-    const record = getProxy('auth').npmDeviceAuthorization.findOne({ codeHash: deviceCodeHash(req.body?.deviceCode) });
-    if (!record || record.consumedAt || new Date(record.expiresAt).getTime() < Date.now()) return { status: 400, error: 'Código de dispositivo inválido ou expirado.' };
-    if (!record.approvedAt || !record.userId) return { status: 202, pending: true };
-    const user = getProxy('auth').user[record.userId];
-    if (!user?.username) return { status: 409, error: 'A conta não possui workspace pessoal.' };
-    const issued = issueProxyToken();
-    await getProxy('auth').proxyCredential.push({ tokenId: issued.tokenId, tokenHash: issued.tokenHash, userId: user.id, tenantId: null, scopes: JSON.stringify(NPM_TOKEN_SCOPES), status: 'active', spentMicros: 0, maxRequestsPerMinute: 600 });
-    record.consumedAt = new Date();
-    return { token: issued.token, username: user.username, scope: `@${user.username}`, official: user.role === 'admin', registry: 'https://npm.thinkiac.cloud' };
+    return routerNpmDevicePollHandler(req);
 }
 
 /** Emite uma credencial de leitura estritamente vinculada a uma instalação. */
@@ -3087,39 +2720,7 @@ export async function routerNotifyPairDevice(req, res) {
      * @register_router notify/devices
      * @method POST
      */
-    const user = await npmSessionUser(req);
-    const appId = String(req.body?.appId || '');
-    if (!user) return { status: 401, error: 'Faça login no ThinkIac para parear este aparelho.' };
-    if (!validNotifyDeviceId(appId)) return { status: 400, error: 'Identificador de aparelho inválido.' };
-
-    const db = getProxy('auth');
-    // O token só aparece nesta resposta. Reparear revoga o anterior desse
-    // aparelho, o que também torna a revogação simples em caso de perda.
-    for (const record of db.proxyCredential.query({ userId: user.id }) || []) {
-        if (credentialHasScope(record, notifyDeviceScope(appId)) && !record.revokedAt) {
-            record.status = 'revoked';
-            record.revokedAt = new Date();
-        }
-    }
-    const issued = issueProxyToken();
-    await db.proxyCredential.push({
-        tokenId: issued.tokenId,
-        tokenHash: issued.tokenHash,
-        userId: user.id,
-        tenantId: null,
-        scopes: JSON.stringify([NOTIFY_SUBSCRIBE_SCOPE, notifyDeviceScope(appId)]),
-        status: 'active',
-        spentMicros: 0,
-        maxRequestsPerMinute: 60,
-    });
-    return {
-        status: 201,
-        appId,
-        topic: appId,
-        server: process.env.AUTH_ENV_NOTIFY_URL || 'https://notify.thinkiac.cloud',
-        token: issued.token,
-        warning: 'A credencial é exibida apenas durante este pareamento.',
-    };
+    return routerNotifyPairDeviceHandler(req, res);
 }
 
 /** Endpoint servidor-servidor usado pelo gateway. Nunca recebe sessão web. */
@@ -3128,22 +2729,7 @@ export async function routerNotifyAuthorize(req, res) {
      * @register_router notify/authorize
      * @method POST
      */
-    const serviceToken = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
-    if (!sameSecret(serviceToken, process.env.AUTH_ENV_NTFY_SERVICE_TOKEN)) {
-        return { status: 401, authorized: false };
-    }
-    const token = String(req.body?.token || '');
-    const topic = String(req.body?.topic || '');
-    const action = String(req.body?.action || 'subscribe');
-    if (action !== 'subscribe' || !validNotifyDeviceId(topic)) return { status: 400, authorized: false };
-
-    const credential = await resolveProxyCredential(token, NOTIFY_SUBSCRIBE_SCOPE);
-    if (!credential) return { status: 401, authorized: false };
-    const record = getProxy('auth').proxyCredential[credential.credentialId];
-    if (!parseScopes(record?.scopes).includes(notifyDeviceScope(topic))) {
-        return { status: 403, authorized: false };
-    }
-    return { authorized: true, topic };
+    return routerNotifyAuthorizeHandler(req, res);
 }
 
 export async function onGetAdminUser() {
@@ -3219,78 +2805,14 @@ export async function getOnboardingByProxyToken(req, res) {
 // Estas rotas não conhecem pacotes consumidores: administram sujeitos,
 // permissões e escopos de forma genérica para todo o ThinkIac.
 
-function canManageAuth(db, user, permission) {
-    return !!user && authorize({
-        userId: user.id,
-        permission,
-        database: db,
-        catalog: permissionCatalog,
-    }).allowed;
-}
-
-function requireGlobalPermissionAdmin(req, permission) {
-    const db = getProxy('auth');
-    const actor = db.user[req.user?.id];
-    if (!canManageAuth(db, actor, permission)) {
-        const error = new Error('Only system administrators can manage global permissions.');
-        error.status = 403;
-        throw error;
-    }
-    return { db, actor };
-}
-
-function canBeDefaultRoleGroup(db, group) {
-    if (!group) return false;
-    if (group.declaredPackage) return canBeDefaultRegistrationRole(permissionCatalog.get(group.declaredPackage, group.declaredGroup));
-    return !(db.permissionGrant.query({ subjectType: 'group', subjectId: group.id }) || [])
-        .some((grant) => /^auth\.(?:users|access|settings)\.(?:read|write)$/.test(grant.permission));
-}
-
-async function resolveRoleSelection(db, value) {
-    const selection = String(value || '').trim();
-    if (!selection) return { group: null };
-    let group = null;
-    if (selection.startsWith('group:')) {
-        group = db.permissionGroup[selection.slice('group:'.length)];
-    } else if (selection.startsWith('declared:')) {
-        const [, packageName, declaredGroup] = selection.split(':');
-        const definition = permissionCatalog.get(packageName, declaredGroup);
-        if (!definition) return { error: 'The selected role is unavailable.' };
-        group = (db.permissionGroup.query({ declaredPackage: packageName, declaredGroup }) || [])[0];
-        if (!group) group = await db.permissionGroup.push({ name: definition.label, declaredPackage: packageName, declaredGroup });
-    } else {
-        return { error: 'The selected role is invalid.' };
-    }
-    return group ? { group } : { error: 'The selected role is unavailable.' };
-}
-
 // A user can belong to any number of roles. Direct grants are intentionally
 // untouched, so a role change never removes a user-specific exception.
-async function assignRoleSelections(db, userId, values) {
-    const selections = [...new Set((Array.isArray(values) ? values : []).map((value) => String(value || '').trim()).filter(Boolean))];
-    const groups = [];
-    for (const selection of selections) {
-        const resolved = await resolveRoleSelection(db, selection);
-        if (resolved.error) return resolved;
-        if (resolved.group) groups.push(resolved.group);
-    }
-    for (const membership of db.permissionMembership.query({ userId }) || []) await db.permissionMembership.delete(membership.id);
-    for (const group of groups) await db.permissionMembership.push({ userId, groupId: group.id });
-    return { groups };
-}
-
-async function auditPermissionChange(db, actorId, action, details = {}) {
-    return db.permissionAudit.push({ actorId, action, ...details });
-}
 
 // Protocolo mínimo para contribuições da tela System. Um pacote instalado pode
 // declarar `manifest.systemTab` (ou uma lista): { id, label, view, order }.
 // `renderer: "schema"` troca o iframe por uma surface declarativa nativa.
 // O manifesto é a fonte de verdade, como já ocorre com `manifest.menu` no
 // Shell; não há um registry em memória que se perca em reload.
-function registeredSystemTabs() {
-    return listLegacySystemTabs();
-}
 
 const AUTH_TABS = new Set(['auth-users', 'auth-roles', 'auth-registration', 'auth-invitations']);
 const AUTH_SURFACE = Object.freeze({
@@ -3363,15 +2885,7 @@ export async function routerPermissionsOverview(req, res) {
      * @register_router permissions
      * @method GET
      */
-    const { db } = requireGlobalPermissionAdmin(req, 'auth.access.read');
-    const grants = db.permissionGrant.query({}) || [];
-    return {
-        groups: db.permissionGroup.query({}) || [],
-        memberships: db.permissionMembership.query({}) || [],
-        grants,
-        declaredGroups: permissionCatalog.list(),
-        selectablePermissions: listSelectablePermissions({ catalog: permissionCatalog, grants }),
-    };
+    return routerPermissionsOverviewHandler(req, res);
 }
 
 export async function routerPermissionsCatalog(req, res) {
@@ -3379,8 +2893,7 @@ export async function routerPermissionsCatalog(req, res) {
      * @register_router permissions/catalog
      * @method GET
      */
-    requireGlobalPermissionAdmin(req, 'auth.access.read');
-    return { groups: permissionCatalog.list() };
+    return routerPermissionsCatalogHandler(req, res);
 }
 
 export async function routerPermissionsCreateGroup(req, res) {
@@ -3388,14 +2901,7 @@ export async function routerPermissionsCreateGroup(req, res) {
      * @register_router permissions/groups
      * @method POST
      */
-    const { db, actor } = requireGlobalPermissionAdmin(req, 'auth.access.write');
-    const declared = validateDeclaredGroupInput(req.body, permissionCatalog);
-    const definition = declared.declaredPackage ? permissionCatalog.get(declared.declaredPackage, declared.declaredGroup) : null;
-    const name = String(req.body?.name || definition?.label || '').trim();
-    if (!name) return { status: 400, error: 'Group name is required.' };
-    const group = await db.permissionGroup.push({ name, ...declared });
-    await auditPermissionChange(db, actor.id, 'group.create', { subjectType: 'group', subjectId: group.id });
-    return group;
+    return routerPermissionsCreateGroupHandler(req, res);
 }
 
 export async function routerPermissionsUpdateGroup(req, res) {
@@ -3403,15 +2909,7 @@ export async function routerPermissionsUpdateGroup(req, res) {
      * @register_router permissions/groups/update
      * @method POST
      */
-    const { db, actor } = requireGlobalPermissionAdmin(req, 'auth.access.write');
-    const group = db.permissionGroup[String(req.body?.id || '')];
-    if (!group) return { status: 404, error: 'Group not found.' };
-    if (group.declaredPackage) return { status: 400, error: 'Declared roles cannot be renamed.' };
-    const name = String(req.body?.name || '').trim();
-    if (!name) return { status: 400, error: 'Group name is required.' };
-    group.name = name;
-    await auditPermissionChange(db, actor.id, 'group.update', { subjectType: 'group', subjectId: group.id });
-    return group;
+    return routerPermissionsUpdateGroupHandler(req, res);
 }
 
 export async function routerPermissionsDeleteGroup(req, res) {
@@ -3419,15 +2917,7 @@ export async function routerPermissionsDeleteGroup(req, res) {
      * @register_router permissions/groups/delete
      * @method POST
      */
-    const { db, actor } = requireGlobalPermissionAdmin(req, 'auth.access.write');
-    const group = db.permissionGroup[String(req.body?.id || '')];
-    if (!group) return { status: 404, error: 'Group not found.' };
-    if (group.declaredPackage) return { status: 400, error: 'Declared roles cannot be deleted.' };
-    for (const membership of db.permissionMembership.query({ groupId: group.id }) || []) await db.permissionMembership.delete(membership.id);
-    for (const grant of db.permissionGrant.query({ subjectType: 'group', subjectId: group.id }) || []) await db.permissionGrant.delete(grant.id);
-    await db.permissionGroup.delete(group.id);
-    await auditPermissionChange(db, actor.id, 'group.delete', { subjectType: 'group', subjectId: group.id });
-    return { success: true };
+    return routerPermissionsDeleteGroupHandler(req, res);
 }
 
 export async function routerSystemTabs(req, res) {
@@ -3435,8 +2925,7 @@ export async function routerSystemTabs(req, res) {
      * @register_router system/tabs
      * @method GET
      */
-    requireGlobalPermissionAdmin(req, 'auth.users.read');
-    return { tabs: registeredSystemTabs() };
+    return routerSystemTabsHandler(req, res);
 }
 
 export async function routerPermissionsAddMember(req, res) {
@@ -3444,15 +2933,7 @@ export async function routerPermissionsAddMember(req, res) {
      * @register_router permissions/memberships
      * @method POST
      */
-    const { db, actor } = requireGlobalPermissionAdmin(req, 'auth.access.write');
-    const userId = String(req.body?.userId || '');
-    const groupId = String(req.body?.groupId || '');
-    if (!db.user[userId] || !db.permissionGroup[groupId]) return { status: 404, error: 'User or group not found.' };
-    const existing = (db.permissionMembership.query({ userId, groupId }) || [])[0];
-    if (existing) return existing;
-    const membership = await db.permissionMembership.push({ userId, groupId });
-    await auditPermissionChange(db, actor.id, 'membership.create', { subjectType: 'user', subjectId: userId, resourceId: groupId });
-    return membership;
+    return routerPermissionsAddMemberHandler(req, res);
 }
 
 export async function routerPermissionsDeleteMember(req, res) {
@@ -3460,15 +2941,7 @@ export async function routerPermissionsDeleteMember(req, res) {
      * @register_router permissions/memberships/delete
      * @method POST
      */
-    const { db, actor } = requireGlobalPermissionAdmin(req, 'auth.access.write');
-    const id = String(req.body?.id || '');
-    const membership = db.permissionMembership[id];
-    if (!membership) return { status: 404, error: 'Group membership not found.' };
-    await db.permissionMembership.delete(membership.id);
-    await auditPermissionChange(db, actor.id, 'membership.delete', {
-        subjectType: 'user', subjectId: membership.userId, resourceId: membership.groupId,
-    });
-    return { success: true };
+    return routerPermissionsDeleteMemberHandler(req, res);
 }
 
 export async function routerPermissionsCreateGrant(req, res) {
@@ -3476,15 +2949,7 @@ export async function routerPermissionsCreateGrant(req, res) {
      * @register_router permissions/grants
      * @method POST
      */
-    const { db, actor } = requireGlobalPermissionAdmin(req, 'auth.access.write');
-    const grantInput = validateGrantInput(req.body);
-    const subjectExists = grantInput.subjectType === 'user'
-        ? db.user[grantInput.subjectId]
-        : db.permissionGroup[grantInput.subjectId];
-    if (!subjectExists) return { status: 404, error: 'Permission subject not found.' };
-    const grant = await db.permissionGrant.push({ ...grantInput, createdById: actor.id });
-    await auditPermissionChange(db, actor.id, 'grant.create', grantInput);
-    return grant;
+    return routerPermissionsCreateGrantHandler(req, res);
 }
 
 export async function routerPermissionsCreateFullPackageGrant(req, res) {
@@ -3492,29 +2957,7 @@ export async function routerPermissionsCreateFullPackageGrant(req, res) {
      * @register_router permissions/grants/full-package
      * @method POST
      */
-    const { db, actor } = requireGlobalPermissionAdmin(req, 'auth.access.write');
-    const subjectType = String(req.body?.subjectType || '');
-    const subjectId = String(req.body?.subjectId || '').trim();
-    const packageName = String(req.body?.packageName || '').trim();
-    const effect = String(req.body?.effect || 'allow');
-    if (!['user', 'group'].includes(subjectType) || !subjectId || !['allow', 'deny'].includes(effect)) {
-        return { status: 400, error: 'Invalid full package access request.' };
-    }
-    const subjectExists = subjectType === 'user' ? db.user[subjectId] : db.permissionGroup[subjectId];
-    if (!subjectExists) return { status: 404, error: 'Permission subject not found.' };
-    const permissions = [...new Set(permissionCatalog.list()
-        .filter((definition) => definition.packageName === packageName)
-        .flatMap((definition) => definition.permissions || []))];
-    if (!permissions.length) return { status: 400, error: 'This package has no declared permissions.' };
-    const existing = db.permissionGrant.query({ subjectType, subjectId }) || [];
-    const existingKeys = new Set(existing.map((grant) => `${grant.permission}:${grant.resourceId || ''}:${grant.effect}`));
-    const created = [];
-    for (const permission of permissions) {
-        if (existingKeys.has(`${permission}::${effect}`)) continue;
-        created.push(await db.permissionGrant.push({ subjectType, subjectId, permission, resourceId: null, effect, createdById: actor.id }));
-    }
-    await auditPermissionChange(db, actor.id, 'grant.full-package', { subjectType, subjectId, packageName, effect });
-    return { created: created.length, permissions };
+    return routerPermissionsCreateFullPackageGrantHandler(req, res);
 }
 
 export async function routerPermissionsDeleteGrant(req, res) {
@@ -3522,15 +2965,7 @@ export async function routerPermissionsDeleteGrant(req, res) {
      * @register_router permissions/grants/delete
      * @method POST
      */
-    const { db, actor } = requireGlobalPermissionAdmin(req, 'auth.access.write');
-    const id = String(req.body?.id || '');
-    const grant = db.permissionGrant[id];
-    if (!grant) return { status: 404, error: 'Permission not found.' };
-    await db.permissionGrant.delete(id);
-    await auditPermissionChange(db, actor.id, 'grant.delete', {
-        subjectType: grant.subjectType, subjectId: grant.subjectId, permission: grant.permission, resourceId: grant.resourceId,
-    });
-    return { success: true };
+    return routerPermissionsDeleteGrantHandler(req, res);
 }
 
 export async function routerPermissionsForUser(req, res) {
@@ -3538,10 +2973,7 @@ export async function routerPermissionsForUser(req, res) {
      * @register_router permissions/user
      * @method GET
      */
-    const { db } = requireGlobalPermissionAdmin(req, 'auth.access.read');
-    const userId = String(req.query?.userId || '');
-    if (!db.user[userId]) return { status: 404, error: 'User not found.' };
-    return permissionsForUser({ userId, database: db, catalog: permissionCatalog });
+    return routerPermissionsForUserHandler(req, res);
 }
 
 export async function routerPermissionsAudit(req, res) {
@@ -3549,9 +2981,7 @@ export async function routerPermissionsAudit(req, res) {
      * @register_router permissions/audit
      * @method GET
      */
-    const { db } = requireGlobalPermissionAdmin(req, 'auth.access.read');
-    const limit = Math.min(Math.max(Number(req.query?.limit) || 30, 1), 100);
-    return { entries: db.permissionAudit.query({}, { sort: 'createdAt DESC', limit }) || [] };
+    return routerPermissionsAuditHandler(req, res);
 }
 
 // MCP uses the same canonical users, verification and entitlement decisions as
@@ -3613,3 +3043,6 @@ export async function routerMcpRevoke(req, res) {
     mcpAuth.audit({ timestamp: new Date().toISOString(), operation: 'credential:revoked', principal: admin.id, credentialId, revoked });
     return { revoked };
 }
+
+// Compatibility exports for hosts and direct package consumers.
+export { identityProvider, npmGroupsFor, provisionInitialAdmin, manageUserCommand };
