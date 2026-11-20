@@ -11,7 +11,7 @@ function collection() {
  return store;
 }
 const response = () => { const res = { setHeader: vi.fn(), status: vi.fn(() => res), send: vi.fn() }; return res; };
-beforeEach(() => { vi.clearAllMocks(); db.user = collection(); db.session = collection(); db.emailverification = collection(); db.appentitlement = collection(); dispatch.mockResolvedValue({ granted: true }); mail.mockResolvedValue({}); });
+beforeEach(() => { vi.clearAllMocks(); db.user = collection(); db.session = collection(); db.emailverification = collection(); db.appentitlement = collection(); db.permissionMembership = collection(); db.permissionGroup = collection(); db.permissionGrant = collection(); dispatch.mockResolvedValue({ granted: true }); mail.mockResolvedValue({}); });
 test('registration starts a usable session before email delivery finishes', async () => {
  mail.mockReturnValue(new Promise(() => {}));
  // An app account exercises registration without calling real infrastructure.

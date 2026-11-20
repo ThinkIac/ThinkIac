@@ -82,11 +82,10 @@ test('Login keeps onboarding visible when provisioning completes before its answ
     assert.doesNotThrow(() => compile(source, { generate: 'ssr' }));
 });
 
-test('Login collects an optional three-part brief that is accepted by Auth and delivered to the tenant', async () => {
-    const [login, auth, tenantAuth, onboarding] = await Promise.all([
+test('Login collects an optional three-part brief accepted by Auth and consumed by Agent onboarding', async () => {
+    const [login, auth, onboarding] = await Promise.all([
         readFile(loginView, 'utf8'),
         readFile(authEntry, 'utf8'),
-        readFile(new URL('../../tenant-packages/tenant-auth/index.js', import.meta.url), 'utf8'),
         readFile(new URL('../agent/hooks/onboarding.js', import.meta.url), 'utf8'),
     ]);
 
@@ -98,8 +97,9 @@ test('Login collects an optional three-part brief that is accepted by Auth and d
     assert.match(login, /async function skipOnboarding\(\) \{\s*await finishOnboarding\(\);/);
     assert.doesNotMatch(login, /disabled=\{!context\}/);
     assert.match(auth, /'briefContext'/);
-    assert.match(tenantAuth, /auth\/onboarding\/by-proxy-token/);
-    assert.match(tenantAuth, /dispatchEvent\('tenant:onboarding-received', \{ onboarding \}\)/);
+    assert.match(auth, /@register_router onboarding\/by-proxy-token/);
+    assert.match(auth, /return \{ status: 200, onboarding: user\.onboarding \|\| null \}/);
+    assert.match(onboarding, /@register_hook tenant:onboarding-received/);
     assert.match(onboarding, /onboarding\.briefContext/);
     assert.match(onboarding, /upsertSection\(next, 'Contexto', onboarding\.briefContext\)/);
 });
