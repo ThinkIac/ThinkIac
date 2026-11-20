@@ -1,8 +1,10 @@
+import { loginAttemptStore } from './login-attempts.js';
 import { hashPasswordAsync, verifyPasswordAsync } from './password-async.js';
 import { claimActivation, updateActivationLease, recoverActivations } from './activation.js';
 import { createMcpAuth } from './mcp-auth.js';
-import { dispatchEvent, getProxy, isPublicRoute, isPublicView } from 'logos';
+import { dispatchEvent, getProxy, isPublicRoute, isPublicView, scriba } from 'logos';
 import crypto from 'crypto';
+import { isIP } from 'node:net';
 import { credentialHasScope, DEFAULT_BILLING_SCOPES, DEFAULT_TENANT_SCOPES, issueProxyToken, parseProxyToken, parseScopes, verifyProxyToken } from './proxy_credentials.js';
 import fs from 'fs';
 import path from 'path';
@@ -81,7 +83,7 @@ function validNotifyDeviceId(appId) {
 
 export function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString('hex');
-    const iterations = 10000;
+    const iterations = 210000;
     const keylen = 64;
     const digest = 'sha512';
 
@@ -744,6 +746,39 @@ export async function credentialVerify(payload, ctx) {
 
 // --- ROTEADORES (CONTROLLERS) ---
 
+function normalizeLoginAddress(address) {
+    if (typeof address !== 'string' || address.includes('%')) return null;
+    const family = isIP(address);
+    if (family === 4) address = `::ffff:${address}`;
+    if (!family) return null;
+    return new URL(`http://[${address}]/`).hostname.slice(1, -1);
+}
+
+function loginClientAddress(req) {
+    const peer = normalizeLoginAddress(req.socket?.remoteAddress);
+    if (!peer) return 'unknown';
+    const trustedProxies = process.env.AUTH_LOGIN_TRUSTED_PROXY_IPS?.split(',') || [];
+    if (trustedProxies.some(address => normalizeLoginAddress(address.trim()) === peer)) {
+        return normalizeLoginAddress(req.headers?.['x-real-ip']) || peer;
+    }
+    return peer;
+}
+
+// Per-process protection applies to both direct and proxied login requests.
+const loginAttempts = new Map();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+function allowLoginAttempt(req, now = Date.now()) {
+    for (const [key, entry] of loginAttempts) if (entry.until <= now) loginAttempts.delete(key);
+    const key = loginClientAddress(req);
+    let entry = loginAttempts.get(key);
+    if (!entry) {
+        if (loginAttempts.size >= 10000) return false;
+        entry = { count: 0, until: now + LOGIN_WINDOW_MS };
+        loginAttempts.set(key, entry);
+    }
+    return ++entry.count <= 20;
+}
+
 export async function login(req, res) {
     /**
      * @register_router login
@@ -751,11 +786,35 @@ export async function login(req, res) {
      * @method POST
      */
     const { email, password } = req.body || {};
+    if (!allowLoginAttempt(req)) {
+        res.setHeader('Retry-After', '900');
+        return res.status(429).send({ error: 'Too many login attempts. Try again later.' });
+    }
     const db = getProxy('auth');
 
-    const user = await db.user.findOne({ email });
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    let accountAttempts;
+    let reservation;
+    if (normalizedEmail) {
+        try {
+            accountAttempts = loginAttemptStore(scriba.instance._tenants.auth.db);
+            reservation = accountAttempts.reserve(normalizedEmail);
+        } catch {
+            return res.status(503).send({ error: 'Login temporarily unavailable. Try again later.' });
+        }
+        if (reservation.retryAfter) {
+            res.setHeader('Retry-After', String(reservation.retryAfter));
+            return res.status(429).send({ error: 'Too many login attempts. Try again later.' });
+        }
+    }
+    const user = normalizedEmail ? await db.user.findOne({ email: normalizedEmail }) : null;
 
     if (user && !user.disabled && !isRetiredLocalAccount(user) && await verifyPassword(password, user.password) && !user.disabled) {
+        try {
+            accountAttempts.refund(reservation);
+        } catch {
+            return res.status(503).send({ error: 'Login temporarily unavailable. Try again later.' });
+        }
         // Sinal de "acesso real" pro reaper de contas develop (ver
         // reapIdleDevAccounts) — o único ponto de login visível ao gateway
         // central, já que o container do tenant não reporta uso de volta.
@@ -779,7 +838,7 @@ export async function login(req, res) {
         };
     }
 
-    return { status: 400, error: 'Credentials not found.' };
+    return res.status(400).send({ error: 'Credentials not found.' });
 }
 
 /** Encerra a sessão atual e impede que o navegador a reutilize. */

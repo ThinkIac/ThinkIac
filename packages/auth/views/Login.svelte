@@ -346,8 +346,7 @@
 
       const result = await response.json();
 
-      // login() sempre responde HTTP 200 (erro vem em result.error); register()
-      // usa res.status(400) de verdade nos erros — checa os dois casos.
+      // Aceita erros HTTP e respostas legadas com result.error.
       if (result.error || !response.ok) {
         if (result.requiresEmailVerification) emailVerificationPending = true;
         throw new Error(result.error || result.message || "Ocorreu um erro na requisição.");

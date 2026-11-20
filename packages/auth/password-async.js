@@ -1,5 +1,6 @@
 import { pbkdf2, randomBytes, timingSafeEqual } from 'node:crypto';
 
+export const PASSWORD_ITERATIONS = 210000;
 // Leave room in the shared libuv pool for HTTP filesystem operations.
 let active = 0;
 const waiting = [];
@@ -19,8 +20,8 @@ async function derive(password, salt, iterations) {
 
 export async function hashPasswordAsync(password) {
     const salt = randomBytes(16).toString('hex');
-    const key = await derive(password, salt, 10000);
-    return `${salt}:10000:${key.toString('hex')}`;
+    const key = await derive(password, salt, PASSWORD_ITERATIONS);
+    return `${salt}:${PASSWORD_ITERATIONS}:${key.toString('hex')}`;
 }
 
 export async function verifyPasswordAsync(password, stored) {

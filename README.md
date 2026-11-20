@@ -306,3 +306,37 @@ para:
 
 Os termos completos de licença e redistribuição serão publicados com a primeira
 versão estável.
+
+### Limite de tentativas de login atrás de proxy reverso
+
+Por padrão, o limite de login usa o IP da conexão TCP. Para separar clientes
+atrás de um proxy reverso, defina `AUTH_LOGIN_TRUSTED_PROXY_IPS` no processo do
+ThinkIac com os IPs exatos dos proxies imediatos, separados por vírgula. Use os
+endereços que o ThinkIac vê na conexão TCP e reserve-os para os proxies.
+
+No Nginx, configure o bloco que encaminha o login para substituir o cabeçalho
+recebido pelo endereço do cliente:
+
+```nginx
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+Se houver CDN ou outro proxy na frente do Nginx, configure o módulo Real IP do
+Nginx para resolver o endereço do cliente apenas a partir dos intermediários
+autorizados. Mantenha a porta do ThinkIac acessível apenas ao proxy nessa
+topologia e use uma rede em que outros serviços não compartilhem o IP confiável.
+
+O login usa o IP da conexão quando o proxy não está cadastrado ou quando
+`X-Real-IP` está ausente ou inválido. O contador por IP fica em cada processo
+do ThinkIac.
+
+O login por senha também limita a 10 tentativas por e-mail normalizado em
+uma janela de 60 segundos, mesmo para endereços sem cadastro. O SQLite da
+autenticação reserva a tentativa antes de verificar a senha. Uma senha válida
+devolve sua própria reserva. Quando o limite é atingido, o login retorna
+HTTP 429 com `Retry-After` e novas requisições não estendem a janela.
+Registros vencidos são removidos na próxima tentativa com e-mail.
+
+Processos que usam o mesmo banco de autenticação compartilham o contador.
+Réplicas com bancos separados têm limites independentes. Se o armazenamento
+do contador falhar, o login por senha retorna HTTP 503.
