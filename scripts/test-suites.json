@@ -112,7 +112,8 @@
         "boundaries.test.js",
         "events.test.js",
         "initial-admin.test.js",
-        "registration-settings.test.js"
+        "registration-settings.test.js",
+        "oauth-flow.test.js"
       ],
       "timeoutMs": 120000
     },

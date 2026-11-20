@@ -5,7 +5,7 @@ import test from 'node:test';
 const authEntry = new URL('./index.js', import.meta.url);
 
 test('the root logout link revokes the session, clears its cookie and returns to login', async () => {
-    const source = await readFile(authEntry, 'utf8');
+    const source = await readFile(authEntry, 'utf8') + '\n' + await readFile(new URL('./services/browser-sessions.js', import.meta.url), 'utf8');
 
     assert.match(source, /req\.path === '\/logout'.*?\.toUpperCase\(\) === 'GET'/s);
     assert.match(source, /await getProxy\('auth'\)\.session\.delete\(sessionId\)/);
