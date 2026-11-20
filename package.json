@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "index.js",
+  "bin": {
+    "think": "bin/think.js"
+  },
   "scripts": {
     "postinstall": "node scripts/prepare-terminal-assets.mjs",
     "prepare:terminal-assets": "node scripts/prepare-terminal-assets.mjs",
