@@ -20,6 +20,7 @@ import { promisify } from 'util';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
+import { downloadGitHubPackage } from './lib/github-package.js';
 import { createDisabledHistory } from './lib/disabled-history.js';
 
 const execFileAsync = promisify(execFile);
@@ -556,7 +557,7 @@ function isJunkEntry(entryName) {
  * re-resolved and checked against the target root, so an archive carrying
  * `../../etc/whatever` cannot write outside staging.
  */
-function extractZip(buffer, destDir) {
+function extractZip(buffer, destDir, maxExpandedBytes = Infinity) {
   let zip;
   try {
     zip = new AdmZip(buffer);
@@ -568,6 +569,7 @@ function extractZip(buffer, destDir) {
   if (!entries.length) throw new Error('The archive is empty');
 
   let written = 0;
+  let expandedBytes = 0;
   for (const entry of entries) {
     const entryName = entry.entryName.replace(/\\/g, '/');
     if (!entryName || isJunkEntry(entryName)) continue;
@@ -587,6 +589,8 @@ function extractZip(buffer, destDir) {
       continue;
     }
     mkdirSync(dirname(target), { recursive: true });
+    expandedBytes += entry.header.size;
+    if (expandedBytes > maxExpandedBytes) throw new Error('GitHub package ZIP exceeds 200 MiB when extracted');
     writeFileSync(target, entry.getData());
     written += 1;
   }
@@ -612,7 +616,7 @@ function findPackageRoot(dir) {
   return null;
 }
 
-async function runZipInstall(job, { buffer, filename }) {
+async function runZipInstall(job, { buffer, filename, origin, maxExpandedBytes }) {
   let staging;
   try {
     stepStart(job, 'receive');
@@ -623,7 +627,7 @@ async function runZipInstall(job, { buffer, filename }) {
     staging = makeStagingDir('zip');
     const unpacked = join(staging, 'unpacked');
     mkdirSync(unpacked, { recursive: true });
-    const written = extractZip(buffer, unpacked);
+    const written = extractZip(buffer, unpacked, maxExpandedBytes);
     stepDone(job, 'extract', `${written} ${written === 1 ? 'file' : 'files'}`);
 
     const root = findPackageRoot(unpacked);
@@ -631,7 +635,7 @@ async function runZipInstall(job, { buffer, filename }) {
       throw new Error('No package.json found — the archive must contain a package folder or the package files at its root');
     }
 
-    const pkg = promoteStagedPackage(job, root, { origin: filename || 'an uploaded archive' });
+    const pkg = promoteStagedPackage(job, root, { origin: origin || filename || 'an uploaded archive' });
     completeJob(job, pkg);
     return pkg;
   } catch (err) {
@@ -640,6 +644,21 @@ async function runZipInstall(job, { buffer, filename }) {
   } finally {
     if (staging) rmSync(staging, { recursive: true, force: true });
   }
+}
+
+/**
+ * @register_command install
+ * @description Instala um pacote do GitHub, usando a organização ThinkIac por padrão.
+ * @param {string} package - Nome do pacote ou git:owner/package
+ * @alias p
+ * @order package
+ */
+export async function installPackage(input) {
+  const { package: identifier } = normalizeInput(input);
+  const archive = await downloadGitHubPackage(identifier);
+  const job = createJob('zip', ZIP_STEPS, archive.origin);
+  const pkg = await runZipInstall(job, { ...archive, maxExpandedBytes: 200 * 1024 * 1024 });
+  return { package: pkg, origin: archive.origin, job: publicJob(job) };
 }
 
 function formatBytes(bytes) {
