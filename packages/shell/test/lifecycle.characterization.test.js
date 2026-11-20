@@ -18,9 +18,10 @@ function setup(overrides={}) {
     ...Object.fromEntries(['loadSessionPreferences','checkMobile','publishBackgroundContext','applyChatEvent','maybeLoadRecentSessions','busEmitLocal','reconcileSession','createUiSnapshot','setupWidgetBus','bootstrapMenuItems','bootstrapHeaderActions','loadChatFeatureAvailability','loadSystem','loadWorkspace','replaceMobileBrowserHistoryEntry','abrirChatPorDeepLink','abrirAppPorDeepLink','abrirResultadoPorDeepLink','abrirCaminhoInterno','openDesktopComposition','handleSelectSession','handleStop','setupGestureProtocol','measureComposerDock','handleMobileBrowserBack','handleOnline','handleOffline','fullSaveSessionState','postEdgeStatus','disposeBackgroundViews'].map(key=>[key,vi.fn()])),
     ...overrides,
   };
+  vi.stubGlobal('requestAnimationFrame', state.requestAnimationFrame);
   return {state,hooks,mount:createMountController(state)};
 }
-afterEach(()=>vi.useRealTimers());
+afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();});
 test('mount initializes environment and only declares ready on the next frame',async()=>{
   const {state:s,mount}=setup(); const dispose=mount(); expect(s.nativeApp).toBe(true); expect(s.layoutReady).toBe(true); expect(s.theme).toBe('light'); expect(s.agentRuntime.connectAll).toHaveBeenCalledOnce();
   expect(s.postEdgeStatus).not.toHaveBeenCalled(); await vi.advanceTimersByTimeAsync(16); expect(s.showLoading).toBe(false); expect(s.postEdgeStatus).toHaveBeenCalledWith({type:'ready',surface:'default'}); dispose();
