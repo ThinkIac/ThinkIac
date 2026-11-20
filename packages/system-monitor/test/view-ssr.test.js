@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const logosRoot = path.dirname(require.resolve('logos/package.json'));
-const engineUrl = pathToFileURL(path.join(logosRoot, 'dist/src/modules/views/engine.js')).href;
+const engineUrl = pathToFileURL(path.join(logosRoot, '../modules/svelte/index.cjs')).href;
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const viewPath = path.join(packageRoot, 'views/index.svelte');
 const widgetPath = path.join(packageRoot, 'views/Widget.svelte');

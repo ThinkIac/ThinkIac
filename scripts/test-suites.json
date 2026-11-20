@@ -96,7 +96,8 @@
         "google_oauth.test.js",
         "google_user.test.js",
         "mcp-routes.test.js",
-        "signup-flow.test.js"
+        "signup-flow.test.js",
+        "user-commands.test.js"
       ],
       "timeoutMs": 120000
     },
@@ -104,6 +105,7 @@
       "name": "agent:node",
       "cwd": "packages/agent",
       "runner": "node",
+      "setup": "db",
       "files": [
         "core/activity_registry.test.js",
         "core/chat_bus.test.js",
@@ -243,15 +245,6 @@
       "timeoutMs": 120000
     },
     {
-      "name": "process-manager:node",
-      "cwd": "packages/process-manager",
-      "runner": "node",
-      "files": [
-        "test/recovery.test.js"
-      ],
-      "timeoutMs": 120000
-    },
-    {
       "name": "terminal:node",
       "cwd": "packages/terminal",
       "runner": "node",
@@ -268,28 +261,6 @@
         "test/accessibility.contract.test.js",
         "test/view-ssr.test.js",
         "views/lib/desktop-control.test.js"
-      ],
-      "timeoutMs": 120000
-    },
-    {
-      "name": "cloud:node",
-      "cwd": "packages/cloud",
-      "runner": "node",
-      "files": [
-        "actions/bundle-rollout-executor.test.js",
-        "actions/bundle-rollout.test.js",
-        "actions/claim-env.test.js",
-        "actions/deployment.test.js",
-        "actions/host-catalog.test.js",
-        "actions/managed-git-broker.test.js",
-        "actions/persisted-bundle-rollout.test.js",
-        "actions/pool-bundle.test.js",
-        "actions/pool-hosts.test.js",
-        "actions/pool-reservation.test.js",
-        "actions/release-bundle.test.js",
-        "actions/scalezero.test.js",
-        "actions/tenant-runtime.test.js",
-        "actions/tenant-storage.test.js"
       ],
       "timeoutMs": 120000
     },

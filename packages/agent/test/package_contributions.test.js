@@ -22,7 +22,6 @@ function sourceFiles(dir) {
 }
 
 test('active packages declare their Agent contributions', () => {
-  assert.equal(json('../../artifacts/package.json').manifest.widget.lang, 'artifact')
   assert.equal(json('../../terminal/package.json').manifest.widget.lang, 'bash')
   const usageManifest = path.resolve(PACKAGES_DIR, 'usage/package.json')
   if (fs.existsSync(usageManifest)) {

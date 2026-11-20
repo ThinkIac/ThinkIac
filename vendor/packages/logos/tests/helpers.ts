@@ -21,7 +21,7 @@ export interface FixtureWorkspace {
 }
 
 export function makeWorkspace(prefix = 'logos-test-'): FixtureWorkspace {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), prefix));
   return {
     root,
     pkg(folder: string, files: Record<string, string>): string {

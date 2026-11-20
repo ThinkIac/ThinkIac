@@ -37,6 +37,8 @@ function fakeContainer(packages: any[], sessions: string[] = []) {
     },
   };
   container.state('ws').set('hub', hub);
+  container.state('external-api').set('ws', { getHub: () => hub });
+  container.state('external-api').set('http', { clearRouter: (pkg: string) => { const router = container.state('routers').get(pkg); if (router) router.stack = []; } });
   return container;
 }
 

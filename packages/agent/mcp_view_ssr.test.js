@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const logosRoot = path.dirname(require.resolve('logos/package.json'))
-const engineUrl = pathToFileURL(path.join(logosRoot, 'dist/src/modules/views/engine.js')).href
+const engineUrl = pathToFileURL(path.join(logosRoot, '../modules/svelte/index.cjs')).href
 
 test('MCP view renders in SSR without browser globals', async () => {
   const cacheDir = await mkdtemp(path.join(os.tmpdir(), 'agent-mcp-view-'))

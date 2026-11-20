@@ -60,7 +60,7 @@ export function loadSuites() {
       const args = suite.runner === 'vitest'
         ? [resolve(dirname(require.resolve('vitest/package.json')), 'vitest.mjs'), 'run', '--config', resolve(root, 'scripts/test-vitest.config.mjs'), '--root', cwd, ...suite.files]
         : suite.runner === 'npm' ? ['test'] : [
-          ...(suite.setup === 'runtime' ? ['--import', resolve(root, 'scripts/test-runtime-setup.mjs')] : []),
+          ...(suite.setup ? ['--import', resolve(root, `scripts/test-${suite.setup}-setup.mjs`)] : []),
           '--test', '--test-concurrency=1',
           ...(suite.setup === 'runtime' ? ['--test-force-exit'] : []),
           ...suite.files,
