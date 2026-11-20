@@ -144,8 +144,10 @@ sudo journalctl -u thinkiac -f
 
 Abra `http://SEU_IP:5040/view/auth/Login`. Antes de expor a instância, configure
 firewall, HTTPS e um provedor de IA. Na primeira instalação a senha de administrador
-é exibida uma vez; também é possível defini-la com `THINKIAC_ADMIN_EMAIL` e
-`THINKIAC_ADMIN_PASSWORD` antes do comando.
+é salva no arquivo de ambiente protegido; também é possível defini-la com `THINKIAC_ADMIN_EMAIL` e
+`THINKIAC_ADMIN_PASSWORD` antes do comando. Após o primeiro acesso, remova as
+credenciais de bootstrap do arquivo protegido `/opt/thinkiac/.env`. Veja o
+[procedimento de provisionamento](packages/auth/BOOTSTRAP.md).
 
 ## Docker
 
@@ -153,7 +155,8 @@ firewall, HTTPS e um provedor de IA. Na primeira instalação a senha de adminis
 git clone https://github.com/ThinkIac/ThinkIac.git
 cd ThinkIac
 cp .env.example .env
-# Edite .env: defina AUTH_ENV_ADMIN_PASSWORD e um provedor de IA.
+# Edite .env: defina INITIAL_AUTH_USER, INITIAL_AUTH_EMAIL,
+# INITIAL_AUTH_PASSWORD e um provedor de IA. Proteja o arquivo com chmod 600.
 docker compose up -d --build
 ```
 
