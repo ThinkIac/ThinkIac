@@ -32,7 +32,7 @@ export interface PackageManifest {
   tools: { name: string; description: string | null; parameters: any; reach: string; recoveryPolicy: string | null; reconcileTool: string | null }[];
   hooks: { event: string; priority: number }[];
   routes: { path: string; method: string }[];
-  commands: { name: string; description: string | null; parameters: any }[];
+  commands: { name: string; description: string | null; parameters: any; order?: string[] }[];
   generatedAt: string;
 }
 
@@ -59,7 +59,7 @@ export async function generateManifest(agentFolder: string): Promise<PackageMani
     })),
     hooks: hooks.map((h: any) => ({ event: h.event, priority: h.priority })),
     routes: routes.map((r: any) => ({ path: r.path, method: r.method })),
-    commands: commands.map((c: any) => ({ name: c.name, description: c.description ?? null, parameters: c.parameters })),
+    commands: commands.map((c: any) => ({ name: c.name, description: c.description ?? null, parameters: c.parameters, ...(c.order ? { order: c.order } : {}) })),
     generatedAt: new Date().toISOString(),
   };
 }

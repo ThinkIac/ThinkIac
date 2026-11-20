@@ -26,6 +26,7 @@ import fs from 'fs';
 import path from 'path';
 import { printBanner } from './banner';
 import { runChat } from './chat';
+import { commandHelpRequested, formatCommandHelp, parseCommandArguments, usesDeclaredArguments } from './command-arguments';
 
 function cliVersion(): string {
   // Compiled path is dist/src/cli/index.js; package.json lives three levels up.
@@ -51,8 +52,9 @@ function findWorkspace(start = process.cwd()): string {
   }
 }
 
-function parseArgs(argv: string[]): { positional: string[]; options: Record<string, any> } {
+function parseArgs(argv: string[]): { positional: string[]; options: Record<string, any>; targetIndex: number } {
   const positional: string[] = [];
+  let targetIndex = -1;
   const options: Record<string, any> = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -64,10 +66,11 @@ function parseArgs(argv: string[]): { positional: string[]; options: Record<stri
       if (next === undefined || next.startsWith('--')) { options[key] = true; }
       else { options[key] = next; i++; }
     } else {
+      if (targetIndex === -1) targetIndex = i;
       positional.push(arg);
     }
   }
-  return { positional, options };
+  return { positional, options, targetIndex };
 }
 
 function buildParams(options: Record<string, any>): Record<string, any> {
@@ -106,7 +109,8 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const { positional, options } = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  const { positional, options, targetIndex } = parseArgs(argv);
   const target = positional[0];
   const version = cliVersion();
   const name = invokedAs();
@@ -156,13 +160,19 @@ async function main() {
     }
   }
 
-  if (!target || target === 'help' || options.help) {
+  const separator = target?.indexOf(':') ?? -1;
+  const isGlobalTarget = ['list', 'status', 'commit', 'manifest'].includes(target);
+  const hierarchical = !isGlobalTarget && separator === -1 && targetIndex === 0 &&
+    argv[1] && !argv[1].startsWith('-');
+
+  if (!target || target === 'help' || ((options.help || argv.includes('-h')) && separator === -1 && !hierarchical)) {
     if (name === 'thinkiac') printBanner(version);
     console.log(`Lógos runtime CLI (${name})
 
   thinkiac                  interactive chat REPL with your agent
   thinkiac chat [--url u] [--session s]
 
+  logos <package> <command> [arguments] [options]
   logos <package>:<command> [--params '{"k":"v"}'] [--key value]
   logos list                list packages and commands
   logos status              lifecycle state of every package
@@ -176,21 +186,33 @@ async function main() {
     process.exit(0);
   }
 
-  const separator = target.indexOf(':');
-  const isGlobalTarget = ['list', 'status', 'commit', 'manifest'].includes(target);
-
   // A package-qualified target is intentionally resolved before bootstrap.
   // Most operational commands only need their own source files; booting every
   // package would be slow and can emit unrelated logs or side effects.
-  if (separator !== -1) {
-    const pkgFolder = target.slice(0, separator);
-    const commandName = target.slice(separator + 1);
-    const params = buildParams(options);
-    if (positional.length > 1) params._ = positional.slice(1);
+  if (separator !== -1 || hierarchical) {
+    const pkgFolder = hierarchical ? target : target.slice(0, separator);
+    const commandName = hierarchical ? argv[1] : target.slice(separator + 1);
+    const args = hierarchical ? argv.slice(2) : argv.filter((_, index) => index !== targetIndex);
 
     try {
-      const { runMinimalPackageCommand } = require('./package-command');
-      const isolated = await runMinimalPackageCommand(workspace, pkgFolder, commandName, params);
+      const { discoverPackageCommands, runMinimalPackageCommand } = require('./package-command');
+      const pkg = await discoverPackageCommands(workspace, pkgFolder);
+      const metadata = pkg.commands.find(item => item.name === commandName);
+      if (!metadata) throw new Error(`Command not found: ${pkgFolder}:${commandName}`);
+      if (commandHelpRequested(args)) {
+        console.log(formatCommandHelp(name, pkgFolder, metadata));
+        return;
+      }
+
+      let params: Record<string, unknown>;
+      if (hierarchical || usesDeclaredArguments(metadata)) {
+        params = parseCommandArguments(args, metadata);
+      } else {
+        params = buildParams(options);
+        if (positional.length > 1) params._ = positional.slice(1);
+      }
+
+      const isolated = await runMinimalPackageCommand(workspace, pkgFolder, commandName, params, pkg);
       if (!isolated.requiresFullRuntime) {
         printCommandResult(isolated.result);
         return;

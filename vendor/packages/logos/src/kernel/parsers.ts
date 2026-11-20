@@ -9,7 +9,7 @@
 //   @register_router <path>      HTTP route          (+ @method @requireCredential @upload @streaming @stream @direction @channel @offline)
 //   @register_tool [name]        LLM tool            (+ @description @param [@enum|@enumSource] @only/@never/@when @reach)
 //   @register_hook <event>       event handler       (+ @priority @only/@never/@when)
-//   @register_command [name]     CLI command         (+ @description @param @only/@never/@when @cli_runtime)
+//   @register_command [name]     CLI command         (+ @description @param @alias @order @only/@never/@when @cli_runtime)
 //   @register_predicate [name]   middleware predicate
 //   @register_middleware <name>  package middleware  (+ @predicate)
 //   @register_module <name>      system module       (+ @phase @after @swappable @runtime @events)
@@ -266,6 +266,39 @@ export function parseHook(fn: Function, doc: string | null) {
 
 // ── Commands ────────────────────────────────────────────────────────────────
 
+function parseCommandArguments(lines: string[], parameters: ReturnType<typeof parseParams>) {
+  const byName = new Map(parameters.map(parameter => [parameter.name, parameter]));
+  const used = new Set([...byName.keys(), 'help', 'h', 'params']);
+  const order: string[] = [];
+  let current: string | undefined;
+
+  for (const line of lines) {
+    const [, tag, value = ''] = line.match(/^@(param|parameter|alias|order)(?:\s+(.*))?$/) || [];
+    if (tag === 'param') current = line.match(PARAM_RE)?.[2];
+    if (tag === 'parameter') current = value.trim();
+    if (tag === 'alias') {
+      const parameter = byName.get(current);
+      if (!parameter || !value.trim()) throw new Error('@alias requires a declared parameter and at least one alias');
+      for (const alias of value.trim().split(/[\s,]+/)) {
+        if (!/^[a-zA-Z][\w-]*$/.test(alias)) throw new Error(`Invalid command alias: ${alias}`);
+        if (used.has(alias)) throw new Error(`Conflicting command alias: ${alias}`);
+        used.add(alias);
+        (parameter.aliases ??= []).push(alias);
+      }
+    }
+    if (tag === 'order') {
+      if (!value.trim()) throw new Error('@order requires at least one parameter');
+      for (const name of value.split(',').map(item => item.trim())) {
+        if (!byName.has(name)) throw new Error(`Unknown parameter in @order: ${name}`);
+        if (order.includes(name)) throw new Error(`Duplicate parameter in @order: ${name}`);
+        order.push(name);
+      }
+    }
+  }
+
+  return order;
+}
+
 export function parseCommand(fn: Function, doc: string | null) {
   if (typeof fn !== 'function' || !doc) return null;
   const lines = docLines(doc);
@@ -273,12 +306,15 @@ export function parseCommand(fn: Function, doc: string | null) {
   if (!registerLine) return null;
 
   const registerMatch = registerLine.match(/@register_command\s*(\S+)?/);
+  const parameters = parseParams(lines);
+  const order = parseCommandArguments(lines, parameters);
   const cliRuntimeMatch = lines.find(l => l.startsWith('@cli_runtime'))?.match(/^@cli_runtime\s+(minimal|full)$/);
 
   return {
     name: (registerMatch && registerMatch[1]) || fn.name || 'anonymousCommand',
     description: description(lines),
-    parameters: parseParams(lines),
+    parameters,
+    ...(order.length ? { order } : {}),
     call: fn,
     condition: parseConditions(doc),
     // Commands are isolated by default. `full` is an explicit escape hatch
