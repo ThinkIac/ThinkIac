@@ -1,4 +1,7 @@
 <script>
+    import { createChatEvents } from './controllers/chat_events.js';
+    import { createSessionLoading } from './controllers/session_loading.js';
+    import { createChatCommands } from './controllers/chat_commands.js';
     import { createHistoryMessages } from "./lib/history_messages.js";
     import { retryTurnInput } from './lib/retry-turn.js';
     import { onMount, tick } from "svelte";
@@ -270,32 +273,7 @@
         }
     }
 
-    async function discardResolvedGovernanceCard(sid) {
-        const source = sessionCache[sid] || [];
-        const message = source[source.length - 1];
-        const steps = Array.isArray(message?._structuredData)
-            ? message._structuredData
-            : message?._structuredData ? [message._structuredData] : [];
-        const decisionId = steps.find((step) => step?.governanceDecisionId)?.governanceDecisionId;
-        if (!decisionId) return;
-        try {
-            const response = await fetch(`/governance/confirmations/pending?sessionId=${encodeURIComponent(sid)}`);
-            const result = await response.json();
-            const pending = result?.data ?? result;
-            if (response.ok && Array.isArray(pending) && !pending.some((row) => row?.id === decisionId)) {
-                const current = sessionCache[sid] || [];
-                const index = current.indexOf(message);
-                if (index < 0) return;
-                const updated = current.map((item, itemIndex) => itemIndex === index
-                    ? { ...item, _structuredData: null }
-                    : item);
-                sessionCache[sid] = updated;
-                if (!activeIsApp && sessionId === sid) history = updated;
-            }
-        } catch {
-            // Falha fechada: sem confirmar o estado, preserva o card.
-        }
-    }
+    function discardResolvedGovernanceCard(...args) { return sessionLoading.discardResolvedGovernanceCard(...args); }
 
     function handleOffline() {
         isOnline = false;
@@ -492,32 +470,12 @@
         await activateSession(sid);
     }
 
-    function historyPath(sid, all = false) {
-        const limit = all || !isMobile ? "all" : 100;
-        return `/sessions/${encodeURIComponent(sid)}/history?limit=${limit}`;
-    }
+    function historyPath(...args) { return sessionLoading.historyPath(...args); }
 
     let historyTruncated = false;
     let loadingFullHistory = false;
 
-    async function loadFullHistory() {
-        if (loadingFullHistory || !historyTruncated) return;
-        const sid = sessionId;
-        const agentId = readSessionAgent(localStorage, sid);
-        loadingFullHistory = true;
-        try {
-            const data = await apiForAgent(agentId, historyPath(sid, true), "GET");
-            if (sid !== sessionId || !Array.isArray(data)) return;
-            const fullHistory = sanitizeHistoryMessages(data);
-            sessionCache[sid] = fullHistory;
-            history = fullHistory;
-            historyTruncated = false;
-            await tick();
-            await listRef?.scrollBottom(true);
-        } finally {
-            loadingFullHistory = false;
-        }
-    }
+    function loadFullHistory(...args) { return sessionLoading.loadFullHistory(...args); }
     let composerSessionId = "";
     // Trocar de conversa salva o texto anterior e restaura apenas o rascunho
     // da sessão que passou a ocupar o composer.
@@ -918,7 +876,7 @@
 
     function formatChatCost(value) {
         if (!Number.isFinite(value) || value <= 0) return 'Not available';
-        return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
+        return value < 0.01 ? `${value.toFixed(4)}` : `${value.toFixed(2)}`;
     }
 
     function openArtifactLibrary() {
@@ -1003,15 +961,9 @@
     let appMenuOpen = false;
     let appRefreshingMap = {};
 
-    function markChatRead(sid) {
-        if (!unreadMap[sid]) return;
-        unreadMap = { ...unreadMap, [sid]: false };
-    }
+    function markChatRead(...args) { return chatEvents.markChatRead(...args); }
 
-    function markChatUnread(sid) {
-        if (sid === activeTab && !activeIsApp) return;
-        unreadMap = { ...unreadMap, [sid]: true };
-    }
+    function markChatUnread(...args) { return chatEvents.markChatUnread(...args); }
 
     async function loadWorkspace() {
         if (tabs.length > 0) {
@@ -1019,75 +971,11 @@
         }
     }
 
-    async function activateSession(sid) {
-        const activation = sessionActivation.begin(sid);
-        historyTruncated = false;
-        activeAgentId = readSessionAgent(localStorage, sid);
-        agentRuntime.activateAgent(activeAgentId);
-        // Abrir a conversa também consome seus avisos informativos. A emissão
-        // local fecha o toast imediatamente; a mensagem WS persiste a leitura.
-        busEmitLocal("ntfy:session-read", { sessionId: sid });
-        agentRuntime.send({
-            type: "bus:emit",
-            event: "ntfy:session-read",
-            detail: { sessionId: sid },
-        });
-        if (sessionCache[sid]) {
-            sessionId = sid;
-            const cachedHistory = sessionCache[sid].map((m) => ({
-                ...m,
-                thinkingExpanded: m.thinkingExpanded ?? false,
-            }));
-            historyTruncated = isMobile && cachedHistory.length >= 100;
-            sessionCache[sid] = cachedHistory;
-            if (sessionActivation.isCurrent(activation, sessionId, activeIsApp)) {
-                history = cachedHistory;
-            }
-            await discardResolvedGovernanceCard(sid);
-            if (!sessionActivation.isCurrent(activation, sessionId, activeIsApp)) return;
-            await tick();
-            await listRef?.scrollBottom(true);
-            // Cache pode estar defasado se a sessão segue respondendo
-            reconcileSession(sid);
-            return;
-        }
-        sessionId = sid;
-        const data = await api(historyPath(sid), "GET");
-        const loadedHistory = sanitizeHistoryMessages(data || []);
-        if (!sessionActivation.isCurrent(activation, sessionId, activeIsApp)) return;
-        historyTruncated = isMobile && loadedHistory.length >= 100;
-        const liveHistory = sessionCache[sid];
-        if (liveHistory?.some((item) => item?._localEchoContent)) {
-            history = liveHistory;
-            await tick();
-            await listRef?.scrollBottom(true);
-            reconcileSession(sid);
-            return;
-        }
-        history = loadedHistory;
-        if (loadedHistory.length > 0) sessionCache[sid] = loadedHistory;
-        else delete sessionCache[sid];
-        await discardResolvedGovernanceCard(sid);
-        if (!sessionActivation.isCurrent(activation, sessionId, activeIsApp)) return;
-        await tick();
-        await listRef?.scrollBottom(true);
-        // Se a sessão ainda está respondendo no servidor, reata o stream
-        reconcileSession(sid);
-    }
+    function activateSession(...args) { return sessionLoading.activateSession(...args); }
 
     // Uma sessão escolhe seu próprio agente. Reconexões de abas em segundo
     // plano não podem usar implicitamente o adapter da aba que está em foco.
-    async function apiForAgent(agentId, path, method = "GET", body = null) {
-        try {
-            const options = { method, headers: { "Content-Type": "application/json" } };
-            if (body) options.body = JSON.stringify(body);
-            const response = await agentRuntime.requestForAgent(agentId, path, options);
-            const payload = await response?.json?.();
-            return payload?.data ?? payload ?? null;
-        } catch {
-            return null;
-        }
-    }
+    function apiForAgent(...args) { return sessionLoading.apiForAgent(...args); }
 
     // ── Tab event handlers ───────────────────────────────────────────
     async function handleSelectTab(e) {
@@ -1300,102 +1188,24 @@
         refreshTrigger++;
     }
 
-    function updateSessionHistory(sid, updater) {
-        const cached = sessionCache[sid] || [];
-        const updated = updater(cached);
-        sessionCache[sid] = updated;
-        if (sessionId === sid) history = updated;
-    }
+    function updateSessionHistory(...args) { return chatEvents.updateSessionHistory(...args); }
 
     // ── Stop ─────────────────────────────────────────────────────────
     // Aprovar/negar um pedido nativo de Codex/Claude após confirmação HTTP.
     // O evento permission_resolved também reconcilia as outras abas.
-    async function handleResolvePermission(e) {
-        const { request_id, decision } = e.detail ?? {};
-        if (!request_id) return;
-        const target = e.detail?.session_id || sessionId;
-        const result = await api("/permission/resolve", "POST", {
-            request_id, session_id: target, decision,
-        });
-        updateSessionHistory(target, (hist) =>
-            hist.map((m) =>
-                m.pendingPermissions?.some((p) => p.request_id === request_id)
-                    ? {
-                          ...m,
-                          pendingPermissions: m.pendingPermissions.map((p) =>
-                              p.request_id === request_id
-                                  ? { ...p, status: result?.ok ? decision : p.status,
-                                      error: result?.ok ? null : result?.error || "Could not record the decision. Please try again." }
-                                  : p,
-                          ),
-                      }
-                    : m,
-            ),
-        );
-        if (result?.ok) busEmitLocal("notifications:resolved", { sessionId: target, requestId: request_id });
-    }
+    function handleResolvePermission(...args) { return chatCommands.handleResolvePermission(...args); }
 
-    async function handleMessageFeedback(e) {
-        const { assistantOrdinal, feedback } = e.detail ?? {};
-        if (!Number.isInteger(assistantOrdinal) || !feedback) return;
-        const result = await api(`/sessions/${sessionId}/feedback`, "POST", {
-            assistant_ordinal: assistantOrdinal,
-            ...feedback,
-        });
-        if (!result?.success) return;
-        updateSessionHistory(sessionId, (hist) => {
-            let ordinal = -1;
-            return hist.map((item) => {
-                if (item.role !== "assistant" || !String(item.content ?? "").trim()) return item;
-                ordinal += 1;
-                return ordinal === assistantOrdinal
-                    ? { ...item, feedback: result.feedback }
-                    : item;
-            });
-        });
-    }
+    function handleMessageFeedback(...args) { return chatCommands.handleMessageFeedback(...args); }
 
-    async function handleStop(sid) {
-        const target = sid || sessionId;
-        const result = await api("/chat/cancel", "POST", { session_id: target });
-        if (!result?.success) return;
-        updateSessionHistory(target, (hist) => {
-            // Mensagens ainda na fila não serão processadas (o servidor
-            // limpa a fila no cancel) — remove para não enganar o usuário
-            const filtered = hist.filter((m) => !m.queued);
-            return filtered;
-        });
-    }
+    function handleStop(...args) { return chatCommands.handleStop(...args); }
 
-    async function retryTimedOutTurn(sid, index) {
-        const target = sid || sessionId;
-        const hist = sessionCache[target] || [];
-        const input = retryTurnInput(hist, index);
-        if (!input || loadingMap[target]) return;
-        if (target !== sessionId) await activateSession(target);
-        await send({ detail: input });
-    }
+    function retryTimedOutTurn(...args) { return chatCommands.retryTimedOutTurn(...args); }
 
     // ── Pipeline de eventos de chat (WS ao vivo + replay do reconnect) ──
     // Todas as mutações de renderização de um turno passam por aqui, venham
     // do WS ou do replay do buffer — a aba que enviou e as demais abas da
     // mesma sessão renderizam pelo mesmo caminho.
-    function ensureStreamingAssistant(hist) {
-        const last = hist[hist.length - 1];
-        if (last?.role === "assistant" && last.streaming) return hist;
-        return [
-            ...hist,
-            {
-                role: "assistant",
-                content: "",
-                streaming: true,
-                steps: [],
-                allReasoning: null,
-                thinkingExpanded: false,
-                pendingPermissions: [],
-            },
-        ];
-    }
+    function ensureStreamingAssistant(...args) { return chatEvents.ensureStreamingAssistant(...args); }
 
     // Posição da mensagem de usuário em relação à resposta em andamento.
     //
@@ -1408,536 +1218,27 @@
     // é onde o olho espera a última coisa que você digitou. Quando o turno a
     // consome (queued: false), ela sobe para o lugar cronológico e o bloco de
     // pensamento desce — a troca de lugar que o usuário vê acontecer.
-    function insertUserMessage(hist, msg) {
-        const last = hist[hist.length - 1];
-        if (!msg.queued && last?.role === "assistant" && last.streaming) {
-            return [...hist.slice(0, -1), msg, last];
-        }
-        return [...hist, msg];
-    }
+    function insertUserMessage(...args) { return chatEvents.insertUserMessage(...args); }
 
     // Mensagem em fila foi aceita: além de perder o `queued`, ela troca de lugar
     // com a bolha em streaming (que estava acima dela).
-    function settleQueuedMessage(hist, i) {
-        const settled = { ...hist[i], queued: false, justSettled: true };
-        const prev = hist[i - 1];
-        if (i === hist.length - 1 && prev?.role === "assistant" && prev.streaming) {
-            return [...hist.slice(0, i - 1), settled, prev];
-        }
-        return hist.map((x, j) => (j === i ? settled : x));
-    }
+    function settleQueuedMessage(...args) { return chatEvents.settleQueuedMessage(...args); }
 
-    function applyChatEvent(sid, event, data, seq, epoch = null) {
-        if (seq != null) {
-            const incomingEpoch = epoch || cursorMap[sid]?.epoch || "legacy";
-            const cursor = cursorMap[sid];
-            if (cursor?.epoch === incomingEpoch && cursor.seq >= seq) return;
-            cursorMap[sid] = { epoch: incomingEpoch, seq };
-        }
-
-        if (event === "start") {
-            loadingMap = { ...loadingMap, [sid]: true };
-            updateSessionHistory(sid, ensureStreamingAssistant);
-        } else if (event === "user_message") {
-            // Confirmação de mensagem enviada: consome o eco otimista local,
-            // desmarca queued, ou anexa (mensagem vinda de outra aba/replay)
-            updateSessionHistory(sid, (hist) => {
-                for (let i = hist.length - 1; i >= 0; i--) {
-                    const m = hist[i];
-                    if (m.role !== "user") continue;
-                    if (m._localEchoContent === data.text) {
-                        return hist.map((x, j) => {
-                            if (j !== i) return x;
-                            const { _localEchoContent, queued, ...rest } = x;
-                            return rest;
-                        });
-                    }
-                    if (m.queued && m.content === data.text) {
-                        return settleQueuedMessage(hist, i);
-                    }
-                    if (m.content === data.text) return hist; // já renderizada
-                }
-                const refs = extractAttachmentRefs(data.text);
-                return insertUserMessage(hist, {
-                    role: "user",
-                    content: refs.content,
-                    attachments: refs.attachments,
-                    metadata: data.metadata,
-                });
-            });
-        } else if (event === "input_trace") {
-            // A proveniência só fica pronta depois que o backend compõe o
-            // prompt. Enriquece o eco já exibido, sem criar outra mensagem.
-            updateSessionHistory(sid, (hist) => {
-                for (let i = hist.length - 1; i >= 0; i--) {
-                    const m = hist[i];
-                    if (m.role !== "user") continue;
-                    if (m.content === data.text || m._localEchoContent === data.text) {
-                        return hist.map((item, j) => j === i
-                            ? { ...item, inputTrace: data.inputTrace ?? null }
-                            : item);
-                    }
-                }
-                return hist;
-            });
-        } else if (event === "queued") {
-            updateSessionHistory(sid, (hist) => {
-                const echoed = hist.some(
-                    (m) =>
-                        m.role === "user" &&
-                        (m._localEchoContent === data.text ||
-                            (m.queued && m.content === data.text)),
-                );
-                if (echoed) return hist;
-                const refs = extractAttachmentRefs(data.text);
-                return insertUserMessage(hist, {
-                    role: "user",
-                    content: refs.content,
-                    attachments: refs.attachments,
-                    queued: true,
-                });
-            });
-        } else if (event === "token") {
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? { ...m, content: (m.content ?? "") + (data.text ?? "") }
-                        : m,
-                );
-            });
-            if (sid === sessionId) listRef?.scrollBottom();
-        } else if (event === "reasoning") {
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? {
-                              ...m,
-                              allReasoning:
-                                  (m.allReasoning ?? "") + (data.text ?? ""),
-                              thinkingExpanded: m.thinkingExpanded ?? false,
-                          }
-                        : m,
-                );
-            });
-            // Reasoning streama token a token — acompanha o scroll como o texto
-            // (condicional: só desce se o usuário estiver ancorado no fim).
-            if (sid === sessionId) listRef?.scrollBottom();
-        } else if (event === "model") {
-            // Identificador do modelo que respondeu este turno. Fica na bolha
-            // assistant em streaming; ao trocar de modelo no meio (chain de
-            // fallback), o último a falar é o que a bolha mostra.
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? {
-                              ...m,
-                              model: data.model ?? m.model ?? null,
-                              provider: data.provider ?? m.provider ?? null,
-                          }
-                        : m,
-                );
-            });
-        } else if (event === "usage") {
-            // Custo/tokens acumulados até esta iteração — atualiza a bolha
-            // assistant em streaming ao vivo, sem esperar o done.
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? { ...m, usage: data.usage ?? m.usage ?? null }
-                        : m,
-                );
-            });
-        } else if (event === "permission_request") {
-            // O provider claude-cli (modo interativo) quer usar uma ferramenta —
-            // anexa um card de aprovação na bolha assistant em streaming.
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? {
-                              ...m,
-                              pendingPermissions: [
-                                  ...(m.pendingPermissions ?? []),
-                                  {
-                                      request_id: data.request_id,
-                                      tool_name: data.tool_name,
-                                      tool_input: data.tool_input ?? {},
-                                      status: "pending",
-                                  },
-                              ],
-                          }
-                        : m,
-                );
-            });
-            // Governança exige atenção mesmo se a conversa estiver aberta em
-            // outra aba ou o usuário estiver num app. O card continua sendo a
-            // única superfície que efetivamente aprova ou nega a ação.
-            busEmitLocal("notifications:push", {
-                id: `governance:${sid}:${data.request_id}`,
-                title: "Approval required",
-                message: `${data.tool_name || "An action"} is awaiting your decision.`,
-                click: `${window.location.origin}${window.location.pathname}?open=chat&session=${encodeURIComponent(sid)}`,
-                priority: 5,
-                tags: [`notify_id:governance:${sid}:${data.request_id}`],
-                kind: "governance",
-                requestId: data.request_id,
-            });
-            if (sid === sessionId) listRef?.scrollBottom();
-        } else if (event === "permission_resolved") {
-            // Decisão chegou (deste ou de outro cliente) — atualiza o card.
-            updateSessionHistory(sid, (hist) =>
-                hist.map((m) =>
-                    m.pendingPermissions?.some(
-                        (p) => p.request_id === data.request_id,
-                    )
-                        ? {
-                              ...m,
-                              pendingPermissions: m.pendingPermissions.map((p) =>
-                                  p.request_id === data.request_id
-                                      ? { ...p, status: data.decision }
-                                      : p,
-                              ),
-                          }
-                        : m,
-                ),
-            );
-        } else if (event === "step") {
-            // O reasoning de cada step fica só nele mesmo (step.reasoning,
-            // exibido inline na timeline) — não entra mais em allReasoning.
-            // Antes entrava nos dois lugares: como allReasoning é a fase de
-            // raciocínio que vem ANTES dos steps (chega primeiro, renderizada
-            // acima na UI), acumular reasoning de step ali fazia esse bloco
-            // "de cima" continuar mudando depois que os steps (embaixo) já
-            // tinham aparecido — quebrava a leitura de timeline (cima→baixo,
-            // cronológica) que o painel deve transmitir.
-            if (data.result !== undefined) {
-                updateSessionHistory(sid, (hist) => {
-                    const h = ensureStreamingAssistant(hist);
-                    const idx = h.length - 1;
-                    return h.map((m, i) => {
-                        if (i !== idx || !m.steps?.length) return m;
-                        const steps = [...m.steps];
-                        // Codex App Server identifica cada item; APIs HTTP
-                        // carregam o id do tool call. Só no legado sem id o
-                        // último step pendente é a associação mais segura.
-                        let stepIndex = data.toolCallId
-                            ? steps.map((step) => step.toolCallId).lastIndexOf(data.toolCallId)
-                            : -1;
-                        if (stepIndex < 0) stepIndex = steps.map((step) => step.result === undefined || step.result === null).lastIndexOf(true);
-                        if (stepIndex < 0) stepIndex = steps.length - 1;
-                        steps[stepIndex] = {
-                            ...steps[stepIndex],
-                            result: data.result,
-                            completedAt: data.completedAt ?? new Date().toISOString(),
-                        };
-                        return { ...m, steps };
-                    });
-                });
-                if (sid === sessionId) listRef?.scrollBottom();
-                return;
-            }
-            const newStep = {
-                toolCallId: data.toolCallId ?? null,
-                label: data.label ?? "",
-                reasoning: data.reasoning ?? null,
-                iteration: data.iteration ?? null,
-                // args da tool p/ a tabela do timeline — aceita qualquer um dos
-                // formatos que os providers emitem (padroniza no frontend).
-                args:
-                    data.args ??
-                    data.input ??
-                    data.tool_input ??
-                    data.arguments ??
-                    null,
-                result: data.result ?? data.output ?? null,
-                startedAt: data.startedAt ?? new Date().toISOString(),
-            };
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx ? { ...m, steps: [...m.steps, newStep] } : m,
-                );
-            });
-            if (sid === sessionId) listRef?.scrollBottom();
-        } else if (event === "done") {
-            loadingMap = { ...loadingMap, [sid]: false };
-            markChatUnread(sid);
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) => {
-                    if (i !== idx) return m;
-                    return processAssistantMessage({
-                        ...m,
-                        content: data.response ?? "",
-                        streaming: false,
-                        justCompleted: true,
-                        thinkingExpanded: false,
-                        usage: data.usage ?? null,
-                        createdAt: data.timestamp ?? m.createdAt ?? null,
-                    });
-                });
-            });
-            if (sid === sessionId && !activeIsApp) {
-                listRef?.scrollBottom();
-            } else {
-                const preview = String(data.response ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
-                if (preview) busEmitLocal("notifications:push", {
-                    id: `chat:${sid}:${data.epoch ?? "turn"}:${data.seq ?? Date.now()}`,
-                    title: "Response complete", message: preview,
-                    click: `${window.location.origin}${window.location.pathname}?open=chat&session=${encodeURIComponent(sid)}`,
-                    priority: 3, tags: [`notify_id:chat:${sid}`],
-                });
-            }
-        } else if (event === "error") {
-            loadingMap = { ...loadingMap, [sid]: false };
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? {
-                              ...m,
-                              content: data.error,
-                              streaming: false,
-                              thinkingExpanded: false,
-                          }
-                        : m,
-                );
-            });
-        } else if (event === "timeout") {
-            loadingMap = { ...loadingMap, [sid]: false };
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) => i === idx ? { ...m, content: "", streaming: false, timedOut: true, thinkingExpanded: false } : m);
-            });
-        }
-        // 'commit' é ignorado ao vivo — serve ao slicing do replay no servidor
-    }
+    function applyChatEvent(...args) { return chatEvents.applyChatEvent(...args); }
 
     // ── Reconexão de sessão ──────────────────────────────────────────
     // Reata uma sessão possivelmente em andamento: se o agente ainda está
     // respondendo, recarrega o histórico persistido (cobre tudo até o último
     // commit) e replaya do buffer apenas o estado parcial não-persistido; o
     // WS continua ao vivo dali em diante.
-    async function reconcileSession(sid) {
-        if (!sid) return;
-        const sessionAgentId = readSessionAgent(localStorage, sid);
-        const generation = (reconcileGeneration[sid] || 0) + 1;
-        reconcileGeneration[sid] = generation;
-        const status = await apiForAgent(sessionAgentId, `/sessions/${sid}/status`, "GET");
-        if (reconcileGeneration[sid] !== generation) return;
-        if (!status) return; // servidor inacessível — não mexe no estado
-
-        const cached = sessionCache[sid];
-        // A mensagem enviada localmente ainda pode não existir no histórico
-        // persistido quando o socket reconecta. Preserve esse eco até o replay
-        // confirmar `user_message`, pois ele é a única cópia visível neste
-        // intervalo.
-        const hasLocalEcho = cached?.some((item) => item?._localEchoContent);
-        const staleStreaming =
-            cached?.length && cached[cached.length - 1]?.streaming;
-
-        if (!status.active) {
-            // Turno terminou (ou servidor reiniciou) enquanto estávamos fora:
-            // se o cache tem bolha presa em streaming, recarrega do disco.
-            if ((staleStreaming || loadingMap[sid]) && !hasLocalEcho) {
-                delete sessionCache[sid];
-                loadingMap = { ...loadingMap, [sid]: false };
-                const data = await apiForAgent(sessionAgentId, historyPath(sid), "GET");
-                if (reconcileGeneration[sid] !== generation) return;
-                const refreshed = sanitizeHistoryMessages(data || []);
-                if (refreshed.length > 0) sessionCache[sid] = refreshed;
-                markChatUnread(sid);
-                if (sid === sessionId) {
-                    history = sessionCache[sid] || history;
-                    await tick();
-                    await listRef?.scrollBottom(true);
-                }
-            }
-            return;
-        }
-
-        // Sessão ativa no servidor
-        if (cursorMap[sid] == null) {
-            // Sem estado ao vivo (página recém-aberta): o cache local pode
-            // conter tokens antigos que o replay repetiria — parte do
-            // histórico do disco, que cobre exatamente até o último commit.
-            if (!cached?.length) {
-                const data = await apiForAgent(sessionAgentId, historyPath(sid), "GET");
-                sessionCache[sid] = sanitizeHistoryMessages(data || []);
-                if (sid === sessionId) history = sessionCache[sid];
-            }
-        }
-
-        loadingMap = { ...loadingMap, [sid]: true };
-        const r = await apiForAgent(sessionAgentId, "/chat/stream/reconnect", "POST", {
-            session_id: sid,
-            epoch: cursorMap[sid]?.epoch ?? null,
-            last_event_id: cursorMap[sid]?.seq ?? null,
-        });
-        if (reconcileGeneration[sid] !== generation) return;
-        if (r?.cursor_mismatch) {
-            const data = await apiForAgent(sessionAgentId, historyPath(sid), "GET");
-            if (reconcileGeneration[sid] !== generation) return;
-            const refreshed = sanitizeHistoryMessages(data || []);
-            if (refreshed.length > 0) sessionCache[sid] = refreshed;
-            if (sid === sessionId) history = sessionCache[sid] || history;
-        }
-        for (const ev of r?.events ?? []) {
-            applyChatEvent(sid, ev.event, ev.data, Number(ev.id), ev.epoch || r.epoch);
-        }
-        if (!r?.active && !r?.done && !r?.error) {
-            loadingMap = { ...loadingMap, [sid]: false };
-        }
-        if (sid === sessionId) {
-            await tick();
-            await listRef?.scrollBottom(true);
-        }
-    }
+    function reconcileSession(...args) { return sessionLoading.reconcileSession(...args); }
 
     // ── Envio (não-bloqueante) ───────────────────────────────────────
     // POST /chat/send retorna imediatamente ({accepted} ou {queued}); os
     // tokens/steps/done chegam pelo WS via applyChatEvent. Enviar durante uma
     // resposta em andamento enfileira no servidor (estilo Claude) em vez de
     // bloquear o input.
-    async function send(e) {
-        const detail = e?.detail ?? e;
-        const text =
-            typeof detail === "object"
-                ? detail.text ?? ""
-                : String(detail ?? "");
-        const attachments =
-            typeof detail === "object" ? detail.attachments ?? [] : [];
-
-        const targetSessionId = sessionId;
-
-        if (text.trim() === "/clear") {
-            await handleClearSession(targetSessionId);
-            message = "";
-            clearComposerDraft(targetSessionId);
-            return;
-        }
-
-        if (!text && attachments.length === 0) return;
-
-        const busy = !!loadingMap[targetSessionId];
-
-        tabs = tabs.map((t) => {
-            if (t.sessionId === targetSessionId && t.name === "New Mission") {
-                const preview =
-                    text.length > 30 ? text.slice(0, 30) + "…" : text;
-                return { ...t, name: preview || "Arquivo" };
-            }
-            return t;
-        });
-
-        let llmMessageContent = text;
-        if (attachments.length > 0) {
-            const attachmentParts = attachments
-                .map((a) => {
-                    const type = a.isImage
-                        ? "image"
-                        : a.mimetype?.startsWith("video/")
-                          ? "video"
-                          : a.mimetype?.startsWith("audio/")
-                            ? "audio"
-                            : "file";
-                    const reference = `\n[Attached reference: type=${type}; path=${a.path}; mime=${a.mimetype ?? "application/octet-stream"}; name=${a.name}]\n`;
-                    if (a.isText && a.textContent)
-                        return `\n\`\`\`\n// Path: ${a.path}\n${a.textContent}\n\`\`\`\n`;
-                    if (a.ocrText)
-                        return `\n[Automatic OCR: ${a.name}]\n${a.ocrText}\n[/Automatic OCR]\n`;
-                    return reference;
-                })
-                .join("");
-            llmMessageContent = text
-                ? `${text}\n${attachmentParts}`
-                : attachmentParts;
-        }
-
-        // Eco otimista: _localEchoContent permite ao pipeline de eventos
-        // reconhecer a confirmação (user_message/queued) sem duplicar a bolha
-        const userMsg = {
-            role: "user",
-            content: text,
-            attachments,
-            metadata: detail?.metadata,
-            _localEchoContent: llmMessageContent,
-            ...(busy ? { queued: true } : {}),
-        };
-        updateSessionHistory(targetSessionId, (hist) =>
-            insertUserMessage(hist, userMsg),
-        );
-        await listRef?.scrollBottom(true);
-
-        if (!busy) {
-            loadingMap = { ...loadingMap, [targetSessionId]: true };
-            updateSessionHistory(targetSessionId, ensureStreamingAssistant);
-        }
-
-        const r = await api("/chat/send", "POST", {
-            message: llmMessageContent,
-            session_id: targetSessionId,
-            settings: detail?.settings,
-            metadata: detail?.metadata,
-            retry: detail?.retry === true,
-        });
-
-        if (!r?.accepted && !r?.queued && !r?.forwarded) {
-            // Falha de rede ou rejeição HTTP: mantém a mensagem do usuário e
-            // apresenta a causa na bolha de resposta.
-            loadingMap = { ...loadingMap, [targetSessionId]: false };
-            updateSessionHistory(targetSessionId, (hist) => {
-                const idx = hist.length - 1;
-                const last = hist[idx];
-                if (last?.role === "assistant" && last.streaming) {
-                    return hist.map((m, i) =>
-                        i === idx
-                            ? {
-                                  ...m,
-                                  content:
-                                      `Error: ${r?.error || "could not send the message (network failure)."}`,
-                                  streaming: false,
-                                  thinkingExpanded: false,
-                              }
-                            : m,
-                    );
-                }
-                return hist;
-            });
-            return;
-        }
-
-        clearComposerDraft(targetSessionId);
-        if (sessionId === targetSessionId) message = "";
-
-        if (r.forwarded) {
-            // Mensagem era resposta a uma pergunta pendente (ask_user) — não
-            // inicia turno novo; limpa o estado de fila/eco do input
-            updateSessionHistory(targetSessionId, (hist) =>
-                hist.map((m) => {
-                    if (m._localEchoContent === llmMessageContent) {
-                        const { _localEchoContent, queued, ...rest } = m;
-                        return rest;
-                    }
-                    return m;
-                }),
-            );
-        }
-        // r.accepted / r.queued: tokens e confirmações chegam via WS
-    }
+    function send(...args) { return chatCommands.send(...args); }
 
     function animateComposerToDock() {
         const first = composerStage?.getBoundingClientRect();
@@ -2049,19 +1350,7 @@
         fullSaveSessionState();
     }
 
-    async function handleClearSession(sid) {
-        const target = sid || sessionId;
-        await api(`/sessions/${target}/clear`, "GET");
-        delete sessionCache[target];
-        delete cursorMap[target];
-        reconcileGeneration[target] = (reconcileGeneration[target] || 0) + 1;
-        loadingMap = { ...loadingMap, [target]: false };
-        if (target === sessionId) {
-            history = [];
-            await tick();
-        }
-        refreshTrigger++;
-    }
+    function handleClearSession(...args) { return chatCommands.handleClearSession(...args); }
 
     // ── App tabs ─────────────────────────────────────────────────────
     let appTabs = [];
@@ -2595,45 +1884,7 @@
 
     $: chatTabsForWindows = tabs.map((t) => ({ ...t, type: "chat" }));
 
-    async function onStructuredSend(e) {
-        const handlerStep = structuredProps?.find((step) => step?.submitEvent || step?.localAction);
-        const detail = e?.detail ?? {};
-        if (!handlerStep) {
-            send(e);
-            detail.acknowledge?.();
-            return;
-        }
-        // Use a rota confirmável para aprovações de governança. O envio WS é
-        // fire-and-forget e antes fazia o botão parecer aceito sem gravar nada.
-        if (handlerStep.governanceDecisionId) {
-            const approved = detail.responses?.[structuredProps.indexOf(handlerStep)] === handlerStep.confirmLabel;
-            try {
-                const response = await fetch('/governance/confirmations/resolve', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, decisionId: handlerStep.governanceDecisionId, approved }),
-                });
-                const result = await response.json().catch(() => null);
-                if (!response.ok || result?.success === false || !(result?.data?.status || result?.status)) {
-                    throw new Error(result?.error || `Could not record approval (HTTP ${response.status}).`);
-                }
-                if (lastMessage) {
-                    lastMessage._structuredData = null;
-                    history = [...history];
-                    sessionCache[sessionId] = [...history];
-                }
-                detail.acknowledge?.();
-            } catch (error) {
-                detail.reject?.(error?.message);
-            }
-            return;
-        }
-        busEmit(handlerStep.submitEvent, {
-            sessionId, submissionId: `${sessionId}:${Date.now()}`,
-            responseEvent: handlerStep.responseEvent, steps: structuredProps,
-            responses: detail.responses, text: detail.text,
-        });
-        detail.acknowledge?.();
-    }
+    function onStructuredSend(...args) { return chatCommands.onStructuredSend(...args); }
 
     // Mantém a subscrição WS sincronizada com as abas de chat abertas
     $: agentRuntime.subscribeAll(tabs.map((t) => t.sessionId));
@@ -2661,6 +1912,121 @@
             updatedAt: new Date().toISOString(),
         };
     }
+
+    // Controllers own behavior; accessors keep Svelte responsible for rendering.
+    const chatEvents = createChatEvents({
+        state: {
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get activeTab() { return activeTab; },
+            set activeTab(value) { activeTab = value; },
+            get cursorMap() { return cursorMap; },
+            set cursorMap(value) { cursorMap = value; },
+            get history() { return history; },
+            set history(value) { history = value; },
+            get listRef() { return listRef; },
+            set listRef(value) { listRef = value; },
+            get loadingMap() { return loadingMap; },
+            set loadingMap(value) { loadingMap = value; },
+            get sessionCache() { return sessionCache; },
+            set sessionCache(value) { sessionCache = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get unreadMap() { return unreadMap; },
+            set unreadMap(value) { unreadMap = value; },
+        },
+        deps: {
+            busEmitLocal: (...args) => busEmitLocal(...args),
+            extractAttachmentRefs: (...args) => extractAttachmentRefs(...args),
+            processAssistantMessage: (...args) => processAssistantMessage(...args),
+            get window() { return window; },
+        },
+    });
+
+    const sessionLoading = createSessionLoading({
+        state: {
+            get activeAgentId() { return activeAgentId; },
+            set activeAgentId(value) { activeAgentId = value; },
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get cursorMap() { return cursorMap; },
+            set cursorMap(value) { cursorMap = value; },
+            get history() { return history; },
+            set history(value) { history = value; },
+            get historyTruncated() { return historyTruncated; },
+            set historyTruncated(value) { historyTruncated = value; },
+            get isMobile() { return isMobile; },
+            set isMobile(value) { isMobile = value; },
+            get listRef() { return listRef; },
+            set listRef(value) { listRef = value; },
+            get loadingFullHistory() { return loadingFullHistory; },
+            set loadingFullHistory(value) { loadingFullHistory = value; },
+            get loadingMap() { return loadingMap; },
+            set loadingMap(value) { loadingMap = value; },
+            get reconcileGeneration() { return reconcileGeneration; },
+            set reconcileGeneration(value) { reconcileGeneration = value; },
+            get sessionActivation() { return sessionActivation; },
+            get sessionCache() { return sessionCache; },
+            set sessionCache(value) { sessionCache = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+        },
+        deps: {
+            agentRuntime,
+            api: (...args) => api(...args),
+            applyChatEvent: (...args) => applyChatEvent(...args),
+            busEmitLocal: (...args) => busEmitLocal(...args),
+            fetch: (...args) => fetch(...args),
+            get localStorage() { return localStorage; },
+            markChatUnread: (...args) => markChatUnread(...args),
+            readSessionAgent: (...args) => readSessionAgent(...args),
+            sanitizeHistoryMessages: (...args) => sanitizeHistoryMessages(...args),
+            tick: (...args) => tick(...args),
+        },
+    });
+
+    const chatCommands = createChatCommands({
+        state: {
+            get lastMessage() { return lastMessage; },
+            set lastMessage(value) { lastMessage = value; },
+            get cursorMap() { return cursorMap; },
+            set cursorMap(value) { cursorMap = value; },
+            get history() { return history; },
+            set history(value) { history = value; },
+            get listRef() { return listRef; },
+            set listRef(value) { listRef = value; },
+            get loadingMap() { return loadingMap; },
+            set loadingMap(value) { loadingMap = value; },
+            get message() { return message; },
+            set message(value) { message = value; },
+            get reconcileGeneration() { return reconcileGeneration; },
+            set reconcileGeneration(value) { reconcileGeneration = value; },
+            get refreshTrigger() { return refreshTrigger; },
+            set refreshTrigger(value) { refreshTrigger = value; },
+            get sessionCache() { return sessionCache; },
+            set sessionCache(value) { sessionCache = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get structuredProps() { return structuredProps; },
+            set structuredProps(value) { structuredProps = value; },
+            get tabs() { return tabs; },
+            set tabs(value) { tabs = value; },
+        },
+        deps: {
+            activateSession: (...args) => activateSession(...args),
+            api: (...args) => api(...args),
+            busEmit: (...args) => busEmit(...args),
+            busEmitLocal: (...args) => busEmitLocal(...args),
+            clearComposerDraft: (...args) => clearComposerDraft(...args),
+            ensureStreamingAssistant: (...args) => ensureStreamingAssistant(...args),
+            fetch: (...args) => fetch(...args),
+            insertUserMessage: (...args) => insertUserMessage(...args),
+
+            retryTurnInput: (...args) => retryTurnInput(...args),
+            tick: (...args) => tick(...args),
+            updateSessionHistory: (...args) => updateSessionHistory(...args),
+        },
+    });
 
     onMount(() => {
         let disposed = false;
