@@ -21,10 +21,12 @@ export function createShellLifecycle({ state: contextState, deps }) {
         deps.checkMobile();
         contextState.layoutReady = true;
 
-        deps.bootstrapBackgroundViews().then(() => deps.publishBackgroundContext({ category: "chat", contextId: "chat", contextLabel: "Chat" }));
+        deps.bootstrapBackgroundViews().then(() => {
+            if (!disposed) deps.publishBackgroundContext({ category: "chat", contextId: "chat", contextLabel: "Chat" });
+        });
 
         // ── Canal WS de eventos de chat ──
-        deps.agentRuntime.on((envelope) => {
+        const offMessage = deps.agentRuntime.on((envelope) => {
             const msg = envelope.message;
             if (msg.type === "chat:event") {
                 if (envelope.agentId !== deps.readSessionAgent(deps.localStorage, msg.session_id)) return;
@@ -41,7 +43,7 @@ export function createShellLifecycle({ state: contextState, deps }) {
         // A cada (re)abertura do socket, reconcilia as sessões abertas —
         // cobre tanto o primeiro load (sessão pode estar respondendo desde
         // antes do refresh) quanto quedas de conexão no meio do stream.
-        deps.agentRuntime.onReopen((reopenedAgentId) => {
+        const offReopen = deps.agentRuntime.onReopen((reopenedAgentId) => {
             deps.agentRuntime.subscribeAll(contextState.tabs.map((t) => t.sessionId));
             deps.agentRuntime.setUiState({
                 activeChatSessionId: contextState.activeIsApp ? null : contextState.sessionId,
@@ -50,7 +52,7 @@ export function createShellLifecycle({ state: contextState, deps }) {
                 if (deps.readSessionAgent(deps.localStorage, t.sessionId) === reopenedAgentId) deps.reconcileSession(t.sessionId);
             }
         });
-        deps.agentRuntime.onCommand(({ agentId: commandAgentId, command }) => {
+        const offCommand = deps.agentRuntime.onCommand(({ agentId: commandAgentId, command }) => {
             if (commandAgentId !== contextState.activeAgentId) return;
             if (command?.type === "navigate" && typeof command.path === "string" && command.path.startsWith("/") && !command.path.startsWith("//")) {
                 deps.window.location.assign(command.path);
@@ -130,6 +132,7 @@ export function createShellLifecycle({ state: contextState, deps }) {
         // esta medida para nunca terminar atrás dele.
         let composerObserver = null;
         deps.tick().then(() => {
+            if (disposed) return;
             deps.measureComposerDock();
             if (typeof ResizeObserver !== "undefined" && contextState.composerStage) {
                 composerObserver = new ResizeObserver(deps.measureComposerDock);
@@ -144,9 +147,10 @@ export function createShellLifecycle({ state: contextState, deps }) {
 
         // ── Eventos de persistência ──
         deps.window.addEventListener("beforeunload", deps.fullSaveSessionState);
-        deps.document.addEventListener("visibilitychange", () => {
+        const onVisibilityChange = () => {
             if (deps.document.hidden) deps.fullSaveSessionState();
-        });
+        };
+        deps.document.addEventListener("visibilitychange", onVisibilityChange);
         // Salvar periodicamente
         const persistInterval = setInterval(deps.fullSaveSessionState, 30000);
 
@@ -159,13 +163,18 @@ export function createShellLifecycle({ state: contextState, deps }) {
         // foi hidratada e a WebView pode remover seu loading nativo com
         // segurança. Não depende de consultas frágeis ao DOM.
         requestAnimationFrame(() => {
+            if (disposed) return;
             contextState.showLoading = false;
             deps.postEdgeStatus({ type: "ready", surface: contextState.floatingShell ? "floating-shell" : "default" });
         });
 
         return () => {
-            composerObserver?.disconnect();
+            if (disposed) return;
             disposed = true;
+            composerObserver?.disconnect();
+            offMessage?.();
+            offReopen?.();
+            offCommand?.();
             contextState.shellDesktopControl?.stop();
             deps.disposeBackgroundViews();
             for (const off of contextState.busOffs) off?.();
@@ -180,7 +189,7 @@ export function createShellLifecycle({ state: contextState, deps }) {
             deps.window.removeEventListener("message", onDesktopMessage);
             deps.document.removeEventListener(
                 "visibilitychange",
-                deps.fullSaveSessionState,
+                onVisibilityChange,
             );
             if (contextState.reconnectTimer) clearInterval(contextState.reconnectTimer);
             if (contextState.globalLoadingTimer) clearTimeout(contextState.globalLoadingTimer);

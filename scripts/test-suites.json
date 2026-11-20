@@ -297,11 +297,27 @@
       "timeoutMs": 120000
     },
     {
-      "name": "shell-history:vitest",
+      "name": "shell:vitest",
       "cwd": ".",
       "runner": "vitest",
       "files": [
-        "packages/shell/views/lib/history_messages.test.js"
+        "packages/shell/test/agent-runtime.test.js",
+        "packages/shell/test/contract.test.js",
+        "packages/shell/test/controllers.characterization.test.js",
+        "packages/shell/test/desktop-handoff.test.js",
+        "packages/shell/test/view-ssr.test.js",
+        "packages/shell/views/app_layout.test.js",
+        "packages/shell/views/lib/bus_gestures.test.js",
+        "packages/shell/views/lib/desktop-host.test.js",
+        "packages/shell/views/lib/header_actions.test.js",
+        "packages/shell/views/lib/history_messages.test.js",
+        "packages/shell/views/lib/mobile_browser_history.test.js",
+        "packages/shell/views/lib/session_activation.test.js",
+        "packages/shell/views/lib/shell-control-bridge.test.js",
+        "packages/shell/views/lib/shell_switch.test.js",
+        "packages/shell/views/lib/tab_groups.test.js",
+        "packages/shell/views/persistence.test.js",
+        "packages/shell/test/lifecycle.characterization.test.js"
       ],
       "timeoutMs": 120000
     },
