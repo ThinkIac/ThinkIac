@@ -341,3 +341,42 @@ describe('workspace and integration characterization before extraction',()=>{
     await expect(c.shellControlCommand('delete_app',{})).rejects.toThrow('not supported');
   });
 });
+
+describe('presentation and connection characterization',()=>{
+  test('global loading ignores completion from another operation and expires',()=>{
+    vi.useFakeTimers(); const {state:s,controller:c}=setup({globalLoading:{active:false,id:null},globalLoadingTimer:null});
+    c.setGlobalLoading({id:'current'}); c.setGlobalLoading({active:false,id:'old'}); expect(s.globalLoading.active).toBe(true);
+    vi.advanceTimersByTime(120000); expect(s.globalLoading).toEqual({active:false,id:null});
+  });
+  test('matching completion clears global loading immediately',()=>{
+    vi.useFakeTimers(); const {state:s,controller:c}=setup({globalLoading:{active:false,id:null},globalLoadingTimer:null});
+    c.setGlobalLoading({id:'current'}); c.setGlobalLoading({active:false,id:'current'}); expect(s.globalLoadingTimer).toBe(null); expect(s.globalLoading.active).toBe(false);
+  });
+  test('offline reconnect registers only one probe timer and saves state',()=>{
+    vi.useFakeTimers(); const {state:s,controller:c}=setup({isOnline:true,wasOffline:false,reconnecting:false,reconnectTimer:null});
+    c.handleOffline(); const timer=s.reconnectTimer; c.handleOffline(); expect(s.isOnline).toBe(false); expect(s.reconnectTimer).toBe(timer);
+    c.handleOnline(); expect(s.isOnline).toBe(true); expect(s.reconnecting).toBe(false); expect(s.reconnectTimer).toBe(null);
+  });
+  test('runtime preferences update prefix and model from enveloped state',async()=>{
+    const {state:s,controller:c}=setup(); s.agentRuntime.request.mockResolvedValue({ok:true,json:async()=>({data:{state:{idPrefix:'team',defaultModel:'m'}}})});
+    await c.loadSessionPreferences(); expect(s.sessionPreferences).toEqual({idPrefix:'team',defaultModel:'m'});
+  });
+  test('app information shows canonical metadata and a relative route',()=>{
+    const {controller:c}=setup(); const rows=c.buildAppDetails({name:'Editor',packageName:'editor',url:'https://host/view/editor/Index',version:'1',mobileSupported:false,scriptCount:0});
+    expect(rows).toContainEqual({label:'Route',value:'/view/editor/Index'}); expect(rows).toContainEqual({label:'Mobile',value:'Not supported'}); expect(rows).toContainEqual({label:'Scripts',value:'0'}); expect(c.buildAppDetails(null)).toEqual([]);
+  });
+  test('structured governance rejects unconfirmed approval without clearing its card',async()=>{
+    const reject=vi.fn(),acknowledge=vi.fn(); const card={_structuredData:[{governanceDecisionId:'r'}]};
+    const {state:s,controller:c}=setup({structuredProps:[{submitEvent:'confirm',governanceDecisionId:'r',confirmLabel:'Allow'}],lastMessage:card,fetch:vi.fn(async()=>({ok:false,status:503,json:async()=>({error:'Unavailable'})}))});
+    await c.onStructuredSend({detail:{responses:['Allow'],reject,acknowledge}}); expect(reject).toHaveBeenCalledWith('Unavailable'); expect(acknowledge).not.toHaveBeenCalled(); expect(card._structuredData).not.toBe(null);
+  });
+  test('structured event submission carries the session and acknowledges',async()=>{
+    const acknowledge=vi.fn(); const emit=vi.fn(); const steps=[{submitEvent:'answer',responseEvent:'resolved'}];
+    const {controller:c}=setup({structuredProps:steps,busEmit:emit}); await c.onStructuredSend({detail:{responses:['yes'],text:'yes',acknowledge}});
+    expect(emit).toHaveBeenCalledWith('answer',expect.objectContaining({sessionId:'a',steps,responses:['yes'],responseEvent:'resolved'})); expect(acknowledge).toHaveBeenCalledOnce();
+  });
+  test('feedback ordinal skips user messages and blank assistant messages',async()=>{
+    const {state:s,controller:c}=setup({sessionCache:{a:[{role:'user',content:'u'},{role:'assistant',content:' '},{role:'assistant',content:'first'},{role:'assistant',content:'second'}]},api:vi.fn(async()=>({success:true,feedback:{rating:1}}))});
+    await c.handleMessageFeedback({detail:{assistantOrdinal:1,feedback:{rating:1}}}); expect(s.history[2].feedback).toBeUndefined(); expect(s.history[3].feedback).toEqual({rating:1});
+  });
+});

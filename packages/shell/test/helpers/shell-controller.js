@@ -26,3 +26,10 @@ export function createShellController(state) {
   Object.assign(state, methods);
   return methods;
 }
+
+export function createMountController(state) {
+  const source = readFileSync(new URL('../../views/Index.svelte', import.meta.url), 'utf8').split('<script>')[1].split('</script>')[0];
+  const ast = parse(source, {ecmaVersion:'latest',sourceType:'module'});
+  const mount = ast.body.find(node=>node.type==='ExpressionStatement' && node.expression.callee?.name==='onMount').expression.arguments[0];
+  return Function('state', `with (state) { return function mountShell() ${source.slice(mount.body.start,mount.body.end)}; }`)(state);
+}
