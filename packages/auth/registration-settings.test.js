@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 test('registration setting blocks public account creation', async () => {
-    await db.authsettings.push({ id: 'default', registrationEnabled: false, invitationsEnabled: true });
+    await db.authsettings.push({ id: 'default', registrationEnabled: false, invitationsEnabled: false });
     const res = response();
     await register({ body: { email: 'person@example.test', username: 'person', password: 'password' } }, res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -40,14 +40,14 @@ test('registration setting blocks public account creation', async () => {
 test('admins persist and enforce invitation availability', async () => {
     await db.user.push({ id: 'admin', role: 'admin' });
     const saved = await updateSettings({ user: { id: 'admin' }, body: { registrationEnabled: true, invitationsEnabled: false } });
-    expect(saved.settings).toEqual({ registrationEnabled: true, invitationsEnabled: false, defaultRolePackage: null, defaultRoleGroup: null });
+    expect(saved.settings).toEqual({ registrationEnabled: true, invitationsEnabled: false, defaultRoleGroupId: null, defaultRoleSelection: '' });
     await expect(createInvite({ user: { id: 'admin' } })).resolves.toMatchObject({ status: 403 });
 });
 
 test('closing registration also closes invitations', async () => {
     await db.user.push({ id: 'admin', role: 'admin' });
     const saved = await updateSettings({ user: { id: 'admin' }, body: { registrationEnabled: false, invitationsEnabled: true } });
-    expect(saved.settings).toEqual({ registrationEnabled: false, invitationsEnabled: false });
+    expect(saved.settings).toEqual({ registrationEnabled: false, invitationsEnabled: false, defaultRoleGroupId: null, defaultRoleSelection: '' });
     await expect(createInvite({ user: { id: 'admin' } })).resolves.toMatchObject({ status: 403 });
 });
 
