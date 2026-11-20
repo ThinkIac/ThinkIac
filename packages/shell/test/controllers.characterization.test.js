@@ -258,3 +258,86 @@ describe('navigation and persistence characterization',()=>{
     await c.loadRecentSessions(); expect(s.recentSessions).toHaveLength(8); expect(s.recentSessionsVisibleCount).toBe(5); c.loadMoreRecentSessions(); expect(s.recentSessionsVisibleCount).toBe(8);
   });
 });
+
+describe('workspace and integration characterization before extraction',()=>{
+  test('closing a chat does not cancel its server turn',async()=>{
+    const {state:s,controller:c}=setup({sessionCache:{a:[{role:'user',content:'old'}]},loadingMap:{a:true}}); await c.handleCloseTab('a');
+    expect(s.tabs.some(t=>t.sessionId==='a')).toBe(false); expect(s.sessionCache.a).toBeUndefined(); expect(s.loadingMap.a).toBe(false);
+    expect(s.api.mock.calls.some(call=>call[0]==='/chat/cancel')).toBe(false);
+  });
+  test('rename and pin persist tabs and accept event payloads',()=>{
+    const {state:s,controller:c}=setup(); c.handleRenameTab({detail:{sessionId:'a',name:'renamed'}}); c.handleTogglePin({detail:'a'});
+    expect(s.tabs[0]).toMatchObject({name:'renamed',pinned:true}); expect(s.saveSessionState).toHaveBeenCalledTimes(2);
+  });
+  test('new topic preserves existing tabs and gets a clean history',async()=>{
+    const {state:s,controller:c}=setup({history:[{content:'old'}]}); await c.handleNewTab();
+    expect(s.tabs).toHaveLength(2); expect(s.sessionId).not.toBe('a'); expect(s.history).toEqual([]); expect(s.activeIsApp).toBe(false);
+  });
+  test('new session ids only accept a valid configured prefix',()=>{
+    const {state:s,controller:c}=setup({sessionPreferences:{idPrefix:' TEAM ',defaultModel:null}}); expect(c.generateSessionId()).toMatch(/^team-/);
+    s.sessionPreferences.idPrefix='../bad'; expect(c.generateSessionId()).not.toContain('../bad');
+  });
+  test('new session applies its model before entering the workspace',async()=>{
+    const {state:s,controller:c}=setup({sessionPreferences:{idPrefix:'',defaultModel:'model'}}); await c.handleNewTab();
+    expect(s.agentRuntime.request).toHaveBeenCalledWith('/session/model',expect.objectContaining({method:'POST',body:JSON.stringify({session_id:s.sessionId,model:'model'})}));
+  });
+  test('mobile browser back consumes navigation without pushing another entry',async()=>{
+    const {state:s,controller:c}=setup({isMobile:true,activeTab:'app',activeIsApp:true,appTabs:[{id:'app'}],mobileNavigation:[{kind:'chat',id:'a'}],sessionCache:{a:[{role:'user',content:'cached'}]}});
+    const browser=historyStateWithMobileDestination({}, {kind:'chat',id:'a'}); await c.handleMobileBrowserBack({state:browser});
+    expect(s.activeTab).toBe('a'); expect(s.mobileNavigation).toEqual([]); expect(s.mobileForwardNavigation).toEqual([{kind:'app',id:'app'}]); expect(s.window.history.pushState).not.toHaveBeenCalled();
+  });
+  test('mobile back skips deleted destinations and forward restores the app',async()=>{
+    const {state:s,controller:c}=setup({isMobile:true,activeTab:'app',activeIsApp:true,appTabs:[{id:'app'}],mobileNavigation:[{kind:'chat',id:'a'},{kind:'chat',id:'deleted'}],sessionCache:{a:[{role:'user',content:'cached'}]}});
+    await c.goBackMobile(); expect(s.activeTab).toBe('a'); await c.goForwardMobile(); expect(s.activeTab).toBe('app'); expect(s.activeIsApp).toBe(true);
+  });
+  test('only edge swipes open drawers and inward swipes close them',()=>{
+    const {state:s,controller:c}=setup({isMobile:true}); expect(c.handleSystemSwipe({type:'swipe',direction:'right'}).handled).toBe(false);
+    expect(c.handleSystemSwipe({type:'swipe',direction:'right',fromEdge:'left'}).handled).toBe(true); expect(s.mobilePanel).toBe('left');
+    expect(c.handleSystemSwipe({type:'swipe',direction:'left'}).handled).toBe(true); expect(s.mobilePanel).toBe(null);
+  });
+  test('app open deduplicates ids, persists and closes mobile drawer',()=>{
+    vi.useFakeTimers(); const {state:s,controller:c}=setup({isMobile:true,mobilePanel:'right'});
+    c.handleOpenApp({detail:{id:'app',url:'/app',name:'App'}}); c.handleOpenApp({detail:{id:'app',url:'/other',name:'Other'}});
+    expect(s.appTabs).toHaveLength(1); expect(s.appTabs[0].url).toBe('/app'); expect(s.activeIsApp).toBe(true); expect(s.mobilePanel).toBe(null); expect(s.appLoadingMap.app).toBe(false);
+  });
+  test('closing active app returns to chat without deleting conversation',()=>{
+    const {state:s,controller:c}=setup({activeTab:'app',activeIsApp:true,appTabs:[{id:'app'}],sessionCache:{a:[{content:'keep'}]}});
+    c.handleCloseApp('app'); expect(s.activeTab).toBe('a'); expect(s.activeIsApp).toBe(false); expect(s.sessionCache.a[0].content).toBe('keep');
+  });
+  test('app with path inherits catalog metadata and URL identity',async()=>{
+    vi.useFakeTimers(); const {state:s,controller:c}=setup({api:vi.fn(async()=>[{name:'Editor',url:'/view/editor/Index',icon:'icon'}])});
+    await c.abrirAppComPath({pkg:'editor',url:'/view/editor/Embed?path=a.js'});
+    expect(s.appTabs[0]).toMatchObject({id:'open:/view/editor/Embed?path=a.js',name:'Editor',icon:'icon'});
+  });
+  test('job result prefers file manager and encodes the selected file',async()=>{
+    vi.useFakeTimers(); const {state:s,controller:c}=setup({api:vi.fn(async()=>[{name:'Files',url:'/view/file-manager/Index?mode=list'}])});
+    await c.abrirResultadoPorDeepLink({pkg:'job',file:'my folder/a b.csv'});
+    expect(s.appTabs[0].url).toBe('/view/file-manager/Index?mode=list&path=my%20folder&select=a%20b.csv');
+  });
+  test('job result falls back to its source package',async()=>{
+    vi.useFakeTimers(); const {state:s,controller:c}=setup({api:vi.fn(async()=>[{id:'job',url:'/view/job/Index'}])});
+    await c.abrirResultadoPorDeepLink({pkg:'job',file:'result.csv'}); expect(s.appTabs[0].id).toBe('job');
+  });
+  test('feature availability prevents offering absent bags and artifacts',async()=>{
+    const {state:s,controller:c}=setup({chatFeatureAvailability:{bags:false,artifacts:false}}); await c.openBag(); c.openArtifactLibrary();
+    expect(s.api).not.toHaveBeenCalled(); expect(s.appTabs).toEqual([]);
+  });
+  test('Desktop handoff consumes URL parameters once',()=>{
+    const {state:s,controller:c}=setup({handoff:' hello ',desktopSession:'sid',agentId:'agent',window:{location:{href:'https://example.test/shell?handoff=hello&desktopSession=sid&agentId=agent&keep=1#anchor'},history:{state:{keep:true},replaceState:vi.fn()}}});
+    expect(c.consumeDesktopHandoff()).toEqual({text:'hello',sessionId:'sid',agentId:'agent'}); expect(c.consumeDesktopHandoff()).toBe(null);
+    expect(s.window.history.replaceState).toHaveBeenCalledWith({keep:true},'', '/shell?keep=1#anchor');
+  });
+  test('UI bus routes backend events without introducing a second transport',()=>{
+    const listeners=new Map(); const {state:s,controller:c}=setup({busOffs:[],bootstrapPackageWidgets:vi.fn(),bootstrapMessageActions:vi.fn(),setServerForwarder:vi.fn(),busOn:vi.fn((name,fn)=>{listeners.set(name,fn);return vi.fn();}),FILE_MANAGER_PREVIEW_EVENT:'file:preview',sessionId:'a',statusModal:null});
+    c.setupWidgetBus(); s.setServerForwarder.mock.calls[0][0]('logos:test',{ok:true});
+    expect(s.agentRuntime.send).toHaveBeenCalledWith({type:'bus:emit',event:'logos:test',detail:{ok:true}});
+    listeners.get('modal-ui')({label:'Bad',url:'https://external'}); expect(s.statusModal).toBe(null);
+    listeners.get('modal-ui')({label:'Settings',url:'/settings'}); expect(s.statusModal).toEqual({label:'Settings',url:'/settings'});
+    expect(s.busOffs).toHaveLength(listeners.size);
+  });
+  test('shell control loads catalogue on its first open command',async()=>{
+    vi.useFakeTimers(); const {state:s,controller:c}=setup({shellControlApps:[],api:vi.fn(async()=>[{id:'editor',packageName:'editor',url:'/view/editor/Index',default:true}])});
+    const result=await c.shellControlCommand('open_app',{appId:'editor'}); expect(result.activeWindowId).toBe('editor'); expect(s.appTabs).toHaveLength(1);
+    await expect(c.shellControlCommand('delete_app',{})).rejects.toThrow('not supported');
+  });
+});
