@@ -104,8 +104,16 @@ da segunda extração. `google-auth.js` recebe callbacks de política do entrypo
 sem importá-lo. Os eventos de crédito foram retirados nesta continuação; tokens, cookies,
 códigos OAuth e tickets não ganham novos eventos de divulgação.
 As tabelas, TTLs, ordem de operações e tratamento de falhas foram preservados.
-Esta extração não adiciona consumo transacional de tickets/estados: a sequência
-legada de leitura e remoção não comprova exclusão mútua entre processos.
+Login and delegated ticket exchanges now require `TableProxy.delete(id)` to
+return exactly `true` before issuing a session. Scriba derives this result from
+SQLite DELETE affected rows: only the consumer that removes the row can proceed,
+even across connections/processes. Errors, hook vetoes and lost races deny access.
+The initial read is not the claim; the successful DELETE is the atomic claim.
+This relies on these ticket tables using hard deletion (no deletedAt field).
+Ticket removal and session insertion are intentionally separate: a later session
+failure burns the ticket and requires a new login. OAuth state consumption is
+unchanged. `ticket-consumption.test.js` exercises the real Scriba TableProxy with
+two SQLite connections and a barrier forcing both reads before deletion.
 
 O commit `52526656` registra os testes de caracterização antes da extração.
 `boundaries.test.js` exercita 40 casos de identidade, comandos locais, segredos,
@@ -145,5 +153,5 @@ Não se transforma o resultado de um evento de notificação em autorização.
 A extração preserva corpos de operações, TTLs, cookies e caminhos de arquivos.
 Duas correções pontuais têm testes de regressão: o gate importa o autorizador
 canônico usado pelo CNPJ; System aguarda a mutação e devolve sua falha antes de
-montar estado ou anunciar sucesso. O consumo atômico de tickets permanece uma
-pendência, sem alegar que esta reorganização a resolveu.
+montar estado ou anunciar sucesso. Ticket consumption was subsequently hardened
+as described above, independently of the modular extraction.

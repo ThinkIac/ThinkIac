@@ -13,7 +13,7 @@ function table(rows = []) {
             value?.$lt ? new Date(row[key]) < value.$lt : row[key] === value))),
         findOne: vi.fn(filter => store.query(filter)[0]),
         push: vi.fn(async value => { const row = { id: `row-${data.length}`, ...value }; data.push(row); store[row.id] = row; return row; }),
-        delete: vi.fn(async id => { const i = data.findIndex(row => row.id === id); if (i >= 0) data.splice(i, 1); delete store[id]; }),
+        delete: vi.fn(async id => { const i = data.findIndex(row => row.id === id); if (i >= 0) data.splice(i, 1); delete store[id]; return i >= 0; }),
     };
     for (const row of data) store[row.id] = row;
     return store;

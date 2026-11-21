@@ -14,9 +14,10 @@ export async function ticket(req, res) {
     const found = await db.loginticket.findOne({ token });
     if (!found) return res.redirect(loginRedirect('ticket-invalido'));
 
-    // Preserva a remoção antes das validações. Leitura e remoção separadas
-    // não garantem consumo único entre processos; ver ARCHITECTURE.md.
-    await db.loginticket.delete(found.id).catch(() => {});
+    // SQLite DELETE reports one affected row only to the winning consumer.
+    // Never issue a session when deletion fails, is vetoed, or loses a race.
+    const claimed = await db.loginticket.delete(found.id).catch(() => false);
+    if (claimed !== true) return res.redirect(loginRedirect('ticket-invalido'));
 
     if (found.consumed) return res.redirect(loginRedirect('ticket-reusado'));
     if (new Date(found.expiresAt).getTime() < Date.now()) return res.redirect(loginRedirect('ticket-expirado'));
