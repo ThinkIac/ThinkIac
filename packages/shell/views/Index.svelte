@@ -1,4 +1,5 @@
 <script>
+    import ConversationPanel from "./components/shell/ConversationPanel.svelte";
     import ComposerArea from "./components/shell/ComposerArea.svelte";
     import { createShellControllers } from './controllers/index.js';
 
@@ -10,13 +11,11 @@
     import { FILE_MANAGER_PREVIEW_EVENT, filePreviewUrl } from "../../file-manager/views/lib/protocol.js";
 
     import Sidebar from "./Sidebar.svelte";
-    import MessageList from "./MessageList.svelte";
     import Canvas from "./Canvas.svelte";
     import SessionTabs from "./SessionTabs.svelte";
 
     import AppSurface from "./components/shell/AppSurface.svelte";
     import GlobalLoading from "./components/GlobalLoading.svelte";
-    import ActivitySlot from "./components/ActivitySlot.svelte";
     import NtfyInbox from "./components/NtfyInbox.svelte";
 
     import { api } from "./api";
@@ -874,36 +873,11 @@
         {/if}
 
         <div class="tab-content">
-            <div class="chat-panel" class:hidden={activeIsApp} style={`--composer-reserve: ${composerDockHeight}px`}>
-                {#if isMobile && historyTruncated}
-                    <button
-                        class="mobile-history-expand"
-                        on:click={loadFullHistory}
-                        disabled={loadingFullHistory}
-                    >
-                        {loadingFullHistory ? "Loading full conversation…" : "Load full conversation history"}
-                    </button>
-                {/if}
-                <MessageList
-                    {history}
-                    {isMobile}
-                    agentName={activeAgent?.name ?? "Agent"}
-                    sessionId={activeTab}
-                    loading={loadingMap[activeTab] ?? false}
-                    bind:this={listRef}
-                    on:openCanvas={handleOpenCanvas}
-                    on:resolvePermission={handleResolvePermission}
-                    on:messageFeedback={handleMessageFeedback}
-                    on:retry={(e) => retryTimedOutTurn(e.detail.sessionId, e.detail.index)}
-                    on:useSuggestion={(e) => (message = e.detail)}
-                />
-
-                <ActivitySlot sessionId={activeTab} on:openSession={(e) => abrirChatPorDeepLink(e.detail)}>
-                </ActivitySlot>
-
+            <ConversationPanel {activeIsApp} {composerDockHeight} {isMobile} {historyTruncated} {loadFullHistory} {loadingFullHistory} {history} {activeAgent} {activeTab} {loadingMap} {handleOpenCanvas} {handleResolvePermission} {handleMessageFeedback} {retryTimedOutTurn} {abrirChatPorDeepLink}
+                bind:listRef bind:message>
                 <ComposerArea {structuredProps} {onStructuredSend} {onEscape} {appId} {history} {isMobile} {loadingMap} {activeTab} {isOnline} {animateComposerToDock} {send} {handleStop} {handleNewSpecialistSession} {recentSessionsLoading} {visibleRecentSessions} {recentSessions} {recentSessionInfiniteScroll} {handleRecentSessionsScroll} {openRecentSession} {recentSessionLabel} {recentSessionMeta}
                     bind:composerStage bind:message />
-            </div>
+            </ConversationPanel>
 
             <AppSurface {appTabs} {activeTab} {isMobile} {appLoadingMap}
                 {appReloadKeys} {iframeRefs} {applyThemeToDocument} {finishAppLoad} />
@@ -1910,36 +1884,5 @@
         flex: 1;
         position: relative;
         overflow: hidden;
-    }
-    .chat-panel {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        flex-direction: column;
-        transition: opacity 0.15s;
-    }
-    .mobile-history-expand {
-        position: relative;
-        z-index: 2;
-        flex: 0 0 auto;
-        align-self: center;
-        margin: 8px 12px 0;
-        padding: 7px 12px;
-        border: 1px solid var(--rail-border);
-        border-radius: 999px;
-        background: var(--rail-bg);
-        color: var(--rail-txt-2);
-        font: inherit;
-        font-size: 11px;
-        cursor: pointer;
-    }
-    .mobile-history-expand:disabled {
-        cursor: wait;
-        opacity: 0.65;
-    }
-    .chat-panel :global(.ml-root) { padding-bottom: var(--composer-reserve, 122px); }
-    .chat-panel.hidden {
-        opacity: 0;
-        pointer-events: none;
     }
 </style>
