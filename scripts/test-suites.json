@@ -108,7 +108,8 @@
         "boundaries.test.js",
         "events.test.js",
         "initial-admin.test.js",
-        "oauth-flow.test.js"
+        "oauth-flow.test.js",
+        "ticket-consumption.test.js"
       ],
       "timeoutMs": 120000
     },

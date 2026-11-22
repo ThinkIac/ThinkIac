@@ -35,7 +35,8 @@ export async function consumeDelegatedTicket(req, res) {
     const db = getProxy('auth');
     const ticket = db.delegatedTicket.findOne({ tokenHash: hash });
     if (!ticket || new Date(ticket.expiresAt).getTime() < Date.now()) return res.redirect('/auth/login');
-    await db.delegatedTicket.delete(ticket.id).catch(() => {});
+    const claimed = await db.delegatedTicket.delete(ticket.id).catch(() => false);
+    if (claimed !== true) return res.redirect('/auth/login');
     const durationMs = 8 * 60 * 60 * 1000;
     const session = await db.session.push({
         userId: ticket.userId,
