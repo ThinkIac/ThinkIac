@@ -1,4 +1,7 @@
 <script>
+    import { createShellControllers } from './controllers/index.js';
+
+    import { createHistoryMessages } from "./lib/history_messages.js";
     import { retryTurnInput } from './lib/retry-turn.js';
     import { onMount, tick } from "svelte";
     import Dialogs from "../../ui-dialogs/views/components/Dialogs.svelte";
@@ -43,7 +46,6 @@
     import { createSessionActivationGuard } from "./lib/session_activation.js";
     import { closeAllAppTabs } from "./lib/app_tabs.js";
     import { moveTab, normalizeTabOrder } from "./lib/tab_groups.js";
-    import { copyMessageTiming } from "./lib/message_time.js";
     import { adjacentTabId, desktopShortcutAction, isEditableShortcutTarget, isTextEditingShortcut } from "./lib/desktop_shortcuts.js";
     import { isHostedByDesktop } from "./lib/desktop-host.js";
     import { installShellControlBridge } from "./lib/shell-control-bridge.js";
@@ -69,34 +71,279 @@
     import { registerProfileScope } from "./lib/profiles_bootstrap.js";
     import { extractStructuredInput } from "./lib/structured_input.js";
 
-    // ── GET params ───────────────────────────────────────────────────
+    const controllers = createShellControllers({
+        state: {
+            get activeAgentId() { return activeAgentId; },
+            set activeAgentId(value) { activeAgentId = value; },
+            get activeAppInfo() { return activeAppInfo; },
+            set activeAppInfo(value) { activeAppInfo = value; },
+            get activeIsApp() { return activeIsApp; },
+            set activeIsApp(value) { activeIsApp = value; },
+            get activeTab() { return activeTab; },
+            set activeTab(value) { activeTab = value; },
+            get agentId() { return agentId; },
+            set agentId(value) { agentId = value; },
+            get allTabs() { return allTabs; },
+            set allTabs(value) { allTabs = value; },
+            get app() { return app; },
+            set app(value) { app = value; },
+            get APP_LOAD_FALLBACK_MS() { return APP_LOAD_FALLBACK_MS; },
+            get appInfoOpen() { return appInfoOpen; },
+            set appInfoOpen(value) { appInfoOpen = value; },
+            get appInfoTarget() { return appInfoTarget; },
+            set appInfoTarget(value) { appInfoTarget = value; },
+            get appLoadingMap() { return appLoadingMap; },
+            set appLoadingMap(value) { appLoadingMap = value; },
+            get appLoadTimers() { return appLoadTimers; },
+            get appMenuOpen() { return appMenuOpen; },
+            set appMenuOpen(value) { appMenuOpen = value; },
+            get appRefreshingMap() { return appRefreshingMap; },
+            set appRefreshingMap(value) { appRefreshingMap = value; },
+            get appReloadKeys() { return appReloadKeys; },
+            set appReloadKeys(value) { appReloadKeys = value; },
+            get appTabs() { return appTabs; },
+            set appTabs(value) { appTabs = value; },
+            get bagError() { return bagError; },
+            set bagError(value) { bagError = value; },
+            get bagLoading() { return bagLoading; },
+            set bagLoading(value) { bagLoading = value; },
+            get bagSheetOpen() { return bagSheetOpen; },
+            set bagSheetOpen(value) { bagSheetOpen = value; },
+            get bagStatus() { return bagStatus; },
+            set bagStatus(value) { bagStatus = value; },
+            get busOffs() { return busOffs; },
+            set busOffs(value) { busOffs = value; },
+            get canGoBackMobile() { return canGoBackMobile; },
+            set canGoBackMobile(value) { canGoBackMobile = value; },
+            get canvasOpen() { return canvasOpen; },
+            set canvasOpen(value) { canvasOpen = value; },
+            get chatFeatureAvailability() { return chatFeatureAvailability; },
+            set chatFeatureAvailability(value) { chatFeatureAvailability = value; },
+            get chatInfoOpen() { return chatInfoOpen; },
+            set chatInfoOpen(value) { chatInfoOpen = value; },
+            get chatMenuMessage() { return chatMenuMessage; },
+            set chatMenuMessage(value) { chatMenuMessage = value; },
+            get chatMenuMessageTimer() { return chatMenuMessageTimer; },
+            set chatMenuMessageTimer(value) { chatMenuMessageTimer = value; },
+            get chatMenuOpen() { return chatMenuOpen; },
+            set chatMenuOpen(value) { chatMenuOpen = value; },
+            get chatRefreshing() { return chatRefreshing; },
+            set chatRefreshing(value) { chatRefreshing = value; },
+            get composerDockHeight() { return composerDockHeight; },
+            set composerDockHeight(value) { composerDockHeight = value; },
+            get composerStage() { return composerStage; },
+            set composerStage(value) { composerStage = value; },
+            get cursorMap() { return cursorMap; },
+            set cursorMap(value) { cursorMap = value; },
+            get desktopHost() { return desktopHost; },
+            set desktopHost(value) { desktopHost = value; },
+            get desktopSession() { return desktopSession; },
+            set desktopSession(value) { desktopSession = value; },
+            get file() { return file; },
+            set file(value) { file = value; },
+            get floatingShell() { return floatingShell; },
+            set floatingShell(value) { floatingShell = value; },
+            get gestureOffs() { return gestureOffs; },
+            set gestureOffs(value) { gestureOffs = value; },
+            get globalLoading() { return globalLoading; },
+            set globalLoading(value) { globalLoading = value; },
+            get globalLoadingTimer() { return globalLoadingTimer; },
+            set globalLoadingTimer(value) { globalLoadingTimer = value; },
+            get handoff() { return handoff; },
+            set handoff(value) { handoff = value; },
+            get headerActionCatalog() { return headerActionCatalog; },
+            set headerActionCatalog(value) { headerActionCatalog = value; },
+            get history() { return history; },
+            set history(value) { history = value; },
+            get historyTruncated() { return historyTruncated; },
+            set historyTruncated(value) { historyTruncated = value; },
+            get iframeRefs() { return iframeRefs; },
+            get initialId() { return initialId; },
+            get isMobile() { return isMobile; },
+            set isMobile(value) { isMobile = value; },
+            get isOnline() { return isOnline; },
+            set isOnline(value) { isOnline = value; },
+            get lastMessage() { return lastMessage; },
+            set lastMessage(value) { lastMessage = value; },
+            get layoutReady() { return layoutReady; },
+            set layoutReady(value) { layoutReady = value; },
+            get listen() { return listen; },
+            set listen(value) { listen = value; },
+            get listRef() { return listRef; },
+            set listRef(value) { listRef = value; },
+            get loadingFullHistory() { return loadingFullHistory; },
+            set loadingFullHistory(value) { loadingFullHistory = value; },
+            get loadingMap() { return loadingMap; },
+            set loadingMap(value) { loadingMap = value; },
+            get message() { return message; },
+            set message(value) { message = value; },
+            get mobileForwardNavigation() { return mobileForwardNavigation; },
+            set mobileForwardNavigation(value) { mobileForwardNavigation = value; },
+            get mobileHeaderCollapsed() { return mobileHeaderCollapsed; },
+            set mobileHeaderCollapsed(value) { mobileHeaderCollapsed = value; },
+            get mobileNavigation() { return mobileNavigation; },
+            set mobileNavigation(value) { mobileNavigation = value; },
+            get mobilePanel() { return mobilePanel; },
+            set mobilePanel(value) { mobilePanel = value; },
+            get nativeApp() { return nativeApp; },
+            set nativeApp(value) { nativeApp = value; },
+            get open() { return open; },
+            set open(value) { open = value; },
+            get pkg() { return pkg; },
+            set pkg(value) { pkg = value; },
+            get RECENT_SESSIONS_BATCH_SIZE() { return RECENT_SESSIONS_BATCH_SIZE; },
+            get recentSessions() { return recentSessions; },
+            set recentSessions(value) { recentSessions = value; },
+            get recentSessionsLoading() { return recentSessionsLoading; },
+            set recentSessionsLoading(value) { recentSessionsLoading = value; },
+            get recentSessionsRequested() { return recentSessionsRequested; },
+            set recentSessionsRequested(value) { recentSessionsRequested = value; },
+            get recentSessionsVisibleCount() { return recentSessionsVisibleCount; },
+            set recentSessionsVisibleCount(value) { recentSessionsVisibleCount = value; },
+            get reconcileGeneration() { return reconcileGeneration; },
+            set reconcileGeneration(value) { reconcileGeneration = value; },
+            get reconnecting() { return reconnecting; },
+            set reconnecting(value) { reconnecting = value; },
+            get reconnectTimer() { return reconnectTimer; },
+            set reconnectTimer(value) { reconnectTimer = value; },
+            get refreshTrigger() { return refreshTrigger; },
+            set refreshTrigger(value) { refreshTrigger = value; },
+            get rightSidebarCollapsed() { return rightSidebarCollapsed; },
+            set rightSidebarCollapsed(value) { rightSidebarCollapsed = value; },
+            get session() { return session; },
+            set session(value) { session = value; },
+            get sessionActivation() { return sessionActivation; },
+            get sessionCache() { return sessionCache; },
+            set sessionCache(value) { sessionCache = value; },
+            get sessionId() { return sessionId; },
+            set sessionId(value) { sessionId = value; },
+            get sessionPreferences() { return sessionPreferences; },
+            set sessionPreferences(value) { sessionPreferences = value; },
+            get shellControlApps() { return shellControlApps; },
+            set shellControlApps(value) { shellControlApps = value; },
+            get shellDesktopControl() { return shellDesktopControl; },
+            set shellDesktopControl(value) { shellDesktopControl = value; },
+            get shellEl() { return shellEl; },
+            set shellEl(value) { shellEl = value; },
+            get shellScope() { return shellScope; },
+            set shellScope(value) { shellScope = value; },
+            get showLoading() { return showLoading; },
+            set showLoading(value) { showLoading = value; },
+            get sidebarCollapsed() { return sidebarCollapsed; },
+            set sidebarCollapsed(value) { sidebarCollapsed = value; },
+            get statusModal() { return statusModal; },
+            set statusModal(value) { statusModal = value; },
+            get structuredProps() { return structuredProps; },
+            set structuredProps(value) { structuredProps = value; },
+            get system() { return system; },
+            set system(value) { system = value; },
+            get tabOrder() { return tabOrder; },
+            set tabOrder(value) { tabOrder = value; },
+            get tabs() { return tabs; },
+            set tabs(value) { tabs = value; },
+            get theme() { return theme; },
+            set theme(value) { theme = value; },
+            get title() { return title; },
+            set title(value) { title = value; },
+            get unreadMap() { return unreadMap; },
+            set unreadMap(value) { unreadMap = value; },
+            get url() { return url; },
+            set url(value) { url = value; },
+            get wasOffline() { return wasOffline; },
+            set wasOffline(value) { wasOffline = value; },
+        },
+        services: {
+            get CustomEvent() { return CustomEvent; },
+            get FILE_MANAGER_PREVIEW_EVENT() { return FILE_MANAGER_PREVIEW_EVENT; },
+            get adjacentTabId() { return adjacentTabId; },
+            get agentRuntime() { return agentRuntime; },
+            get api() { return api; },
+            get bootstrapBackgroundViews() { return bootstrapBackgroundViews; },
+            get bootstrapMenuItems() { return bootstrapMenuItems; },
+            get bootstrapMessageActions() { return bootstrapMessageActions; },
+            get bootstrapPackageWidgets() { return bootstrapPackageWidgets; },
+            get busEmit() { return busEmit; },
+            get busEmitLocal() { return busEmitLocal; },
+            get busOn() { return busOn; },
+            get clearComposerDraft() { return clearComposerDraft; },
+            get closeAllAppTabs() { return closeAllAppTabs; },
+            get closeAllChatTabs() { return closeAllChatTabs; },
+            get closeChatTab() { return closeChatTab; },
+            get createGestureRouter() { return createGestureRouter; },
+            get createIframeGestureBridge() { return createIframeGestureBridge; },
+            get createNewTopicWorkspace() { return createNewTopicWorkspace; },
+            get desktopShortcutAction() { return desktopShortcutAction; },
+            get disposeBackgroundViews() { return disposeBackgroundViews; },
+            get document() { return document; },
+            get extractAttachmentRefs() { return extractAttachmentRefs; },
+            get extractStructuredInput() { return extractStructuredInput; },
+            get fetch() { return fetch; },
+            get filePreviewUrl() { return filePreviewUrl; },
+            get getTheme() { return getTheme; },
+            get handleOpenCanvas() { return handleOpenCanvas; },
+            get headerActionMessage() { return headerActionMessage; },
+            get historyStateWithMobileDestination() { return historyStateWithMobileDestination; },
+            get installEdgeSwipeDetector() { return installEdgeSwipeDetector; },
+            get installNativeGestureBridge() { return installNativeGestureBridge; },
+            get installShellControlBridge() { return installShellControlBridge; },
+            get isEditableShortcutTarget() { return isEditableShortcutTarget; },
+            get isHostedByDesktop() { return isHostedByDesktop; },
+            get isTextEditingShortcut() { return isTextEditingShortcut; },
+            get localStorage() { return localStorage; },
+            get mergeAttachments() { return mergeAttachments; },
+            get mobileDestinationFromHistoryState() { return mobileDestinationFromHistoryState; },
+            get moveTab() { return moveTab; },
+            get navigator() { return navigator; },
+            get normalizeTabOrder() { return normalizeTabOrder; },
+            get publishBackgroundContext() { return publishBackgroundContext; },
+            get readSessionAgent() { return readSessionAgent; },
+            get restoreSessionState() { return restoreSessionState; },
+            get retryTurnInput() { return retryTurnInput; },
+            get sanitizeHistoryMessages() { return sanitizeHistoryMessages; },
+            get saveSessionState() { return saveSessionState; },
+            get setServerForwarder() { return setServerForwarder; },
+            get tick() { return tick; },
+            get window() { return window; },
+            get writeSessionAgent() { return writeSessionAgent; },
+        },
+    });
+
+    const {
+        recentSessionLabel, recentSessionMeta, handleRecentSessionsScroll, recentSessionInfiniteScroll,
+        openRecentSession, generateSessionId, handleSelectTab, handleNewSpecialistSession,
+        handleRenameTab, handleTogglePin, handleMoveTab, handleCloseTab,
+        handleCloseAllChats, handleSelectSession, handleSessionDelete, handleSelectChat,
+        handleCloseChat, isMobileDestinationAvailable, goBackMobile, goForwardMobile,
+        closeActiveMobileTab, mobileHome, abrirChatPorDeepLink, finishAppLoad,
+        handleOpenApp, handleSelectApp, handleCloseApp, handleCloseAllApps,
+        handleReorderApps, handleOpenSeparateWindow, reportEdgeError, reportEdgeRejection,
+        openLeft, openRight, closePanel, dismissMobileMenus,
+        refreshMobileChat, refreshMobileApp, enterMobileFullscreen, returnToLauncher,
+        openChatInfo, openBag, openArtifactLibrary, copyActiveSessionId,
+        buildAppDetails, openAppInfo, runHeaderAction, openCatalogAppInfo,
+        closeAppInfo, animateComposerToDock, handleDesktopShortcut, processAssistantMessage,
+        onEscape, mountShell, loadFullHistory, handleResolvePermission,
+        handleMessageFeedback, handleStop, retryTimedOutTurn, send,
+        onStructuredSend,
+    } = controllers;
+
     export let open; // "chat" | "app" | "result" | "path" — deep-link vindo de notificação push (ver packages/ntfy/AGENT.md)
     export let session; // sessionId para open=chat
     export let listen; // "1" solicita ditado nativo após a Shell montar
     export let app; // id do app (getActiveApps/getPackageViews) para open=app
     export let url; // caminho interno para open=path
     export let title; // rótulo opcional para open=path
-    // open=result: um job de pacote terminou. Se `file` foi produzido e o
-    // File Manager está instalado, abre o app de arquivos com o arquivo
-    // selecionado; senão abre o próprio app do pacote (`pkg`) na tela de
-    // resultado. Usado pela notificação de "pronto" do cnpj-search.
     export let pkg; // nome do pacote de origem (ex.: "cnpj-scraper")
     export let file; // caminho relativo do resultado (ex.: "uploads/companies/x.csv")
-    // appId identifica a instalação e não representa geometria da tela.
     export let appId;
-    // Mensagem entregue pelo compositor leve do Desktop quando o Shell ainda
-    // não existia. Se já havia uma janela, ela chega por postMessage abaixo.
     export let handoff;
     export let desktopSession;
     export let agentId;
-    // Coordenada persistente atribuída pelo Desktop. Sem ela, o Shell segue
-    // standalone e usa a chave histórica, para não quebrar quem o abre direto.
     export let workspaceId;
     export let shellId;
     export let surface;
     $: floatingShell = surface === "floating-shell";
 
-    // ── Tema (black default / white) ─────────────────────────────────
     let theme = "dark";
     let desktopHost = false;
     let nativeApp = false;
@@ -115,17 +362,10 @@
         anunciarTema();
     }
 
-    // outros componentes (ex: Apps.svelte, para variante de ícone por tema)
-    // não têm acesso a este `theme` local — avisa via window event em vez de
-    // introduzir um store global só pra isso.
     function anunciarTema() {
         window.dispatchEvent(new CustomEvent("think:theme-changed", { detail: theme }));
     }
 
-    // O tema é um escopo de perfil de configuração: cada perfil carrega o
-    // próprio. Trocar de perfil reescreve a chave e chama este hydrate, que é
-    // quem repinta a UI (a variável reativa do tema vive aqui) e avisa os
-    // iframes. Registrado no corpo do módulo, junto com os outros escopos.
     registerProfileScope({
         key: THEME_KEY,
         hydrate() {
@@ -134,117 +374,21 @@
         },
     });
 
-    // ── Loading screen ──────────────────────────────────────────────
-    // A Shell já é entregue renderizada pelo servidor. Não pode iniciar com
-    // uma camada que captura toques e depender da hidratação para removê-la:
-    // no Runtime local, uma falha ou atraso de JavaScript deixava o chat
-    // permanentemente cinza e inutilizável. Carregamentos próprios dos
-    // conteúdos continuam tendo seus indicadores específicos.
-    // Cobre a primeira hidratação com o mesmo Sigma usado durante um restart.
-    // É removido no primeiro frame útil, antes que qualquer interação comece.
     let showLoading = true;
     let globalLoading = { active: false, id: null };
     let globalLoadingTimer = null;
-    // O cabeçalho mobile continua montado quando recolhido. Isso preserva seu
-    // estado e permite que os controles de tela cheia revelem a mesma superfície.
     let mobileHeaderCollapsed = false;
 
-    // O app Android usa este canal apenas como confirmação opcional de que a
-    // hidratação terminou. Fora da WebView, não há bridge e a Shell segue
-    // completamente independente dela.
-    function postEdgeStatus(payload) {
-        try {
-            const bridge = window.ThinkiacEdge;
-            if (bridge && typeof bridge.postMessage === "function") {
-                bridge.postMessage(JSON.stringify(payload));
-            }
-        } catch {
-            // A bridge nativa nunca pode impedir a Shell de iniciar.
-        }
-    }
-
-    function reportEdgeError(event) {
-        postEdgeStatus({
-            type: "error",
-            message: event?.message || "Unidentified JavaScript error.",
-        });
-    }
-
-    function reportEdgeRejection(event) {
-        const reason = event?.reason;
-        postEdgeStatus({
-            type: "error",
-            message: reason?.message || String(reason || "Promise rejeitada sem detalhe."),
-        });
-    }
-
-    // ── Offline / reconnect ─────────────────────────────────────────
     let isOnline = true;
     let wasOffline = false;
     let reconnecting = false;
     let reconnectTimer = null;
 
-    function setGlobalLoading(detail = {}) {
-        const active = detail?.active !== false;
-        if (!active && detail?.id && globalLoading.id && detail.id !== globalLoading.id) return;
-        if (globalLoadingTimer) {
-            clearTimeout(globalLoadingTimer);
-            globalLoadingTimer = null;
-        }
-        globalLoading = active
-            ? { active: true, id: typeof detail.id === "string" ? detail.id : "global" }
-            : { active: false, id: null };
-        if (active) {
-            globalLoadingTimer = setTimeout(() => {
-                globalLoading = { active: false, id: null };
-                globalLoadingTimer = null;
-            }, 120000);
-        }
-    }
-
-    function processAssistantMessage(msg) {
-        if (msg.role === "assistant" && msg.content) {
-            const structured = extractStructuredInput(msg.content);
-            msg._structuredData = structured.steps;
-            msg.content = structured.content;
-            // A IA também pode anexar arquivos: o marcador vira anexo
-            // renderizado no lugar do texto cru.
-            const refs = extractAttachmentRefs(msg.content);
-            if (refs.attachments.length) {
-                msg.content = refs.content;
-                msg.attachments = mergeAttachments(
-                    msg.attachments,
-                    refs.attachments,
-                );
-            }
-        }
-        return msg;
-    }
-
-    function handleOnline() {
-        isOnline = true;
-        reconnecting = false;
-        if (reconnectTimer) {
-            clearInterval(reconnectTimer);
-            reconnectTimer = null;
-        }
-        if (wasOffline) {
-            wasOffline = false;
-            // Pequeno delay para o servidor estabilizar
-            setTimeout(() => {
-                loadSystem();
-            }, 800);
-        }
-    }
-
-    // ── Estado do Componente Estruturado ───────────────────────────
     let structuredProps = null; // Inicializa oculto por padrão
 
-    // Reatividade: Monitora o histórico e reage à última mensagem terminada
     $: lastMessage =
         history && history.length > 0 ? history[history.length - 1] : null;
 
-    // Derivação direta: Se a última mensagem tiver dados estruturados, exibe o input correspondente
     $: structuredProps =
         lastMessage &&
         lastMessage.role === "assistant" &&
@@ -256,120 +400,6 @@
                 : null
             : null;
 
-    function onEscape() {
-        if (lastMessage) {
-            lastMessage._structuredData = null;
-            history = [...history]; // Força o Svelte a atualizar a UI e reverter para a InputBar normal
-        }
-    }
-
-    // A LLM retorna um bloco JSON? Ative o componente:
-    function handleLLMResponse(response) {
-        if (response.structuredInput) {
-            structuredProps = response.structuredInput;
-        }
-    }
-
-    async function discardResolvedGovernanceCard(sid) {
-        const source = sessionCache[sid] || [];
-        const message = source[source.length - 1];
-        const steps = Array.isArray(message?._structuredData)
-            ? message._structuredData
-            : message?._structuredData ? [message._structuredData] : [];
-        const decisionId = steps.find((step) => step?.governanceDecisionId)?.governanceDecisionId;
-        if (!decisionId) return;
-        try {
-            const response = await fetch(`/governance/confirmations/pending?sessionId=${encodeURIComponent(sid)}`);
-            const result = await response.json();
-            const pending = result?.data ?? result;
-            if (response.ok && Array.isArray(pending) && !pending.some((row) => row?.id === decisionId)) {
-                const current = sessionCache[sid] || [];
-                const index = current.indexOf(message);
-                if (index < 0) return;
-                const updated = current.map((item, itemIndex) => itemIndex === index
-                    ? { ...item, _structuredData: null }
-                    : item);
-                sessionCache[sid] = updated;
-                if (!activeIsApp && sessionId === sid) history = updated;
-            }
-        } catch {
-            // Falha fechada: sem confirmar o estado, preserva o card.
-        }
-    }
-
-    function handleOffline() {
-        isOnline = false;
-        wasOffline = true;
-        reconnecting = true;
-        startReconnectLoop();
-        fullSaveSessionState();
-    }
-
-    // ── Persistência de sessão ────────────────────────────────────────
-    function fullSaveSessionState() {
-        const state = {
-            tabs,
-            appTabs,
-            activeTab,
-            sessionId,
-            sessionCache,
-            unreadMap,
-            activeIsApp,
-            tabOrder,
-            mobileNavigation,
-        };
-        // O servidor é a fonte de verdade do histórico. Nunca o coloque no
-        // snapshot: uma conversa pode carregar anexos, resultados de tools e
-        // cards estruturados, multiplicando o uso de localStorage em cada
-        // janela aberta. O cache em memória continua deixando a troca de abas
-        // instantânea; após recarregar, activateSession busca o histórico.
-        delete state.sessionCache;
-        saveSessionState(state, shellScope);
-    }
-
-    function fullRestoreSessionState() {
-        const state = restoreSessionState(shellScope);
-        if (!state) return false;
-        try {
-            if (state.tabs && state.tabs.length > 0) {
-                tabs = state.tabs;
-            }
-            if (state.appTabs) appTabs = state.appTabs;
-            if (state.activeTab) activeTab = state.activeTab;
-            if (state.sessionId) sessionId = state.sessionId;
-            // Snapshots antigos podem conter megabytes de histórico. Não os
-            // reidratamos: o backend já é canônico e evita um parse custoso no
-            // boot. A próxima gravação substitui o snapshot antigo e o reduz.
-            if (state.unreadMap) unreadMap = state.unreadMap;
-            if (state.activeIsApp !== undefined) activeIsApp = state.activeIsApp;
-            if (Array.isArray(state.mobileNavigation)) mobileNavigation = state.mobileNavigation;
-            const persistedTabs = [...tabs, ...appTabs.map((tab) => ({ sessionId: tab.id }))];
-            tabOrder = normalizeTabOrder(state.tabOrder, persistedTabs);
-            return true;
-        } catch (e) {
-            console.warn("[Shell] Failed to restore state:", e.message);
-            return false;
-        }
-    }
-
-    function startReconnectLoop() {
-        if (reconnectTimer) return;
-        reconnectTimer = setInterval(async () => {
-            try {
-                const res = await agentRuntime.request("/provider", {
-                    method: "HEAD",
-                    cache: "no-store",
-                });
-                if (res.ok) {
-                    handleOnline();
-                }
-            } catch {
-                /* ainda offline */
-            }
-        }, 4000);
-    }
-
-    // ── Canvas ──────────────────────────────────────────────────────
     let canvasOpen = false;
     let canvasHtml = "";
 
@@ -378,9 +408,7 @@
         canvasOpen = true;
     }
 
-    // ── Chat ────────────────────────────────────────────────────────
     let message = "";
-    // Administrado em System > Sessões. Sem preferência, o ID segue aleatório.
     let sessionPreferences = { idPrefix: "", defaultModel: null };
     const initialId = generateSessionId();
     let sessionId = initialId;
@@ -389,13 +417,6 @@
     let listRef;
     let composerStage;
     let composerDockHeight = 122;
-
-    function measureComposerDock() {
-        if (!composerStage) return;
-        // O espaço extra evita a última mensagem encostar na sombra e cobre
-        // menus/seleções que aumentam a barra depois da hidratação.
-        composerDockHeight = Math.max(122, Math.ceil(composerStage.getBoundingClientRect().height + 16));
-    }
 
     let sessionCache = {};
     let recentSessions = [];
@@ -406,121 +427,10 @@
 
     $: visibleRecentSessions = recentSessions.slice(0, recentSessionsVisibleCount);
 
-    function recentSessionLabel(session) {
-        return session?.title || session?.summary || "Untitled conversation";
-    }
-
-    function recentSessionMeta(session) {
-        const timestamp = session?.updated_at || session?.created_at;
-        if (!timestamp) return "Conversation";
-        const date = new Date(timestamp);
-        if (Number.isNaN(date.getTime())) return "Conversation";
-        const elapsed = Date.now() - date.getTime();
-        if (elapsed < 60_000) return "just now";
-        if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
-        if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
-        return date.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
-    }
-
-    async function loadRecentSessions() {
-        recentSessionsLoading = true;
-        try {
-            const response = await agentRuntime.requestForAgent(activeAgentId, "/sessions/list");
-            const result = await response.json();
-            const sessions = result?.data ?? result;
-            recentSessions = Array.isArray(sessions)
-                ? sessions.filter((item) => item?.id && item.id !== initialId)
-                : [];
-            recentSessionsVisibleCount = RECENT_SESSIONS_BATCH_SIZE;
-        } catch {
-            recentSessions = [];
-        } finally {
-            recentSessionsLoading = false;
-        }
-    }
-
-    function maybeLoadRecentSessions() {
-        if (recentSessionsRequested) return;
-        recentSessionsRequested = true;
-        loadRecentSessions();
-    }
-
-    function loadMoreRecentSessions() {
-        if (recentSessionsVisibleCount >= recentSessions.length) return;
-        recentSessionsVisibleCount = Math.min(
-            recentSessionsVisibleCount + RECENT_SESSIONS_BATCH_SIZE,
-            recentSessions.length,
-        );
-    }
-
-    function handleRecentSessionsScroll(event) {
-        const list = event.currentTarget;
-        if (list.scrollTop + list.clientHeight >= list.scrollHeight - 12) {
-            loadMoreRecentSessions();
-        }
-    }
-
-    function recentSessionInfiniteScroll(node) {
-        if (typeof IntersectionObserver === "undefined") return;
-        const sentinel = node.querySelector(".recent-sessions-sentinel");
-        if (!sentinel) return;
-        const observer = new IntersectionObserver((entries) => {
-            if (entries.some((entry) => entry.isIntersecting)) loadMoreRecentSessions();
-        }, { root: node, threshold: 0.1 });
-        observer.observe(sentinel);
-        return { destroy: () => observer.disconnect() };
-    }
-
-    async function openRecentSession(sid) {
-        if (!sid) return;
-        recordMobileNavigation({ kind: "chat", id: sid });
-        if (sessionId) sessionCache[sessionId] = [...history];
-        const existing = tabs.find((tab) => tab.sessionId === sid);
-        if (!existing) {
-            const session = recentSessions.find((item) => item.id === sid);
-            tabs = [...tabs, {
-                sessionId: sid,
-                name: recentSessionLabel(session),
-                pinned: false,
-            }];
-        }
-        activeTab = sid;
-        activeIsApp = false;
-        sessionId = sid;
-        markChatRead(sid);
-        fullSaveSessionState();
-        await activateSession(sid);
-    }
-
-    function historyPath(sid, all = false) {
-        const limit = all || !isMobile ? "all" : 100;
-        return `/sessions/${encodeURIComponent(sid)}/history?limit=${limit}`;
-    }
-
     let historyTruncated = false;
     let loadingFullHistory = false;
 
-    async function loadFullHistory() {
-        if (loadingFullHistory || !historyTruncated) return;
-        const sid = sessionId;
-        const agentId = readSessionAgent(localStorage, sid);
-        loadingFullHistory = true;
-        try {
-            const data = await apiForAgent(agentId, historyPath(sid, true), "GET");
-            if (sid !== sessionId || !Array.isArray(data)) return;
-            const fullHistory = sanitizeHistoryMessages(data);
-            sessionCache[sid] = fullHistory;
-            history = fullHistory;
-            historyTruncated = false;
-            await tick();
-            await listRef?.scrollBottom(true);
-        } finally {
-            loadingFullHistory = false;
-        }
-    }
     let composerSessionId = "";
-    // Trocar de conversa salva o texto anterior e restaura apenas o rascunho
-    // da sessão que passou a ocupar o composer.
     $: if (
         typeof window !== "undefined" &&
         sessionId &&
@@ -530,7 +440,6 @@
         message = loadComposerDraft(sessionId);
         composerSessionId = sessionId;
     }
-    // A escrita é persistida conforme muda, inclusive antes de reload/fechamento.
     $: if (
         typeof window !== "undefined" &&
         composerSessionId &&
@@ -538,267 +447,19 @@
     ) {
         saveComposerDraft(composerSessionId, message);
     }
-    // Cursor composto: seq só é comparável dentro do mesmo epoch. Isso evita
-    // descartar um turno novo quando o backend reinicia ou limpa o buffer.
     let cursorMap = {};
     let reconcileGeneration = {};
     const sessionActivation = createSessionActivationGuard();
 
-    function generateSessionId() {
-        const rand = Math.random().toString(36).slice(2, 10);
-        const ts = Date.now().toString(36).slice(-4);
-        const randomId = `${rand}${ts}`;
-        const prefix = String(sessionPreferences?.idPrefix || "").trim().toLowerCase();
-        return /^[a-z][a-z0-9_-]{0,24}$/.test(prefix) ? `${prefix}-${randomId}` : randomId;
-    }
-
-    async function loadSessionPreferences() {
-        try {
-            const response = await agentRuntime.request("/system/view");
-            const payload = await response.json();
-            const state = payload?.state ?? payload?.data?.state;
-            if (response.ok && state) sessionPreferences = {
-                idPrefix: state.idPrefix || "",
-                defaultModel: state.defaultModel || null,
-            };
-        } catch {
-            // Compatível com runtimes que ainda não oferecem a surface.
-        }
-    }
-
-    async function applyDefaultModelToNewSession(id) {
-        if (!sessionPreferences?.defaultModel) return;
-        try {
-            await agentRuntime.request("/session/model", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ session_id: id, model: sessionPreferences.defaultModel }),
-            });
-        } catch (error) {
-            console.warn("Could not apply the session default model", error);
-        }
-    }
-
-    async function loadSystem() {
-        const [p, o] = await Promise.all([
-            api("/provider"),
-            api("/oauth/status"),
-        ]);
-        if (p)
-            system = {
-                ...system,
-                provider: p.provider || "—",
-                model: p.model || "—",
-            };
-        if (o?.providers)
-            system = { ...system, connections: Object.entries(o.providers) };
-    }
-
-    function contentToString(raw) {
-        if (!raw) return "";
-        if (typeof raw === "string") return raw;
-        if (Array.isArray(raw)) {
-            return raw
-                .filter((b) => b && b.type === "text" && b.text)
-                .map((b) => String(b.text))
-                .join("\n")
-                .trim();
-        }
-        if (typeof raw === "object" && raw.text) return String(raw.text);
-        return "";
-    }
-
-    // ── Anexos no texto ─────────────────────────────────────────────
-    // O histórico persistido só guarda o texto enviado ao LLM: o base64 do
-    // upload se perde. Ao reabrir uma sessão antiga, reconstruímos os anexos a
-    // partir dos marcadores do próprio texto e servimos o arquivo por
-    // O adapter resolve a rota de anexos do agente ativo.
-    // anexar um arquivo que ela gerou.
-    const ATTACH_RE =
-        /\[Attached reference:\s*type=([^;\]]*);\s*path=([^;\]]*);\s*mime=([^;\]]*);\s*name=([^\]]*)\]/g;
-    // Formato legado usado antes do marcador completo.
-    const IMAGE_PATH_RE = /\[Image Path:\s*([^\]]+)\]/g;
-
-    function attachmentUrl(p) {
-        return agentRuntime.resourceUrl(`/attachment?path=${encodeURIComponent(p)}`);
-    }
-
-    function attachmentFromRef(type, filePath, mime, name) {
-        const mimetype = (mime || "").trim() || "application/octet-stream";
-        const clean = (filePath || "").trim();
-        return {
-            name: (name || "").trim() || clean.split("/").pop() || "file",
-            path: clean,
-            mimetype,
-            isImage:
-                type === "image" || mimetype.startsWith("image/"),
-            isText: false,
-            base64: null,
-            textContent: null,
-            url: attachmentUrl(clean),
-            fromHistory: true,
-        };
-    }
-
-    // Extrai os marcadores de anexo do texto e devolve { content, attachments }
-    // com o texto já limpo (o marcador é ruído para o usuário).
-    function extractAttachmentRefs(content) {
-        const text = String(content ?? "");
-        if (!text.includes("[Attached reference:") && !text.includes("[Image Path:"))
-            return { content: text, attachments: [] };
-
-        const attachments = [];
-        let out = text.replace(ATTACH_RE, (_, type, p, mime, name) => {
-            attachments.push(
-                attachmentFromRef(type.trim(), p, mime, name),
-            );
-            return "";
+    const { extractAttachmentRefs, mergeAttachments, sanitizeHistoryMessages } =
+        createHistoryMessages({
+            resourceUrl: (path) => agentRuntime.resourceUrl(path),
+            processAssistantMessage,
         });
-        out = out.replace(IMAGE_PATH_RE, (_, p) => {
-            attachments.push(attachmentFromRef("image", p, "", ""));
-            return "";
-        });
-        return { content: out.replace(/\n{3,}/g, "\n\n").trim(), attachments };
-    }
 
-    // Anexos vindos do raw (upload recém-feito, com base64) têm prioridade;
-    // os do texto só entram se o mesmo path ainda não estiver presente.
-    function mergeAttachments(rawAtts, refAtts) {
-        const merged = [...(rawAtts ?? [])];
-        const seen = new Set(merged.map((a) => a?.path).filter(Boolean));
-        for (const a of refAtts) {
-            if (a.path && seen.has(a.path)) continue;
-            if (a.path) seen.add(a.path);
-            merged.push(a);
-        }
-        return merged;
-    }
-
-    function mergeAssistantGroup(items) {
-        const steps = [];
-        const reasoningParts = [];
-        let allReasoningText = null;
-        let lastContent = "";
-        // Modelo do último turno do grupo: é ele que assina a resposta visível.
-        let model = null, provider = null;
-        for (const item of items) {
-            const m = item.raw;
-            const content = item.content;
-            lastContent = content;
-            if (m.model) {
-                model = m.model;
-                provider = m.provider ?? null;
-            }
-            const toolCalls = m.tool_calls ?? [];
-            if (toolCalls.length > 0) {
-                for (const tc of toolCalls) {
-                    const name = tc.function?.name || tc.name || "tool";
-                    const args =
-                        tc.function?.arguments ??
-                        tc.arguments ??
-                        tc.args ??
-                        tc.input ??
-                        null;
-                    steps.push({
-                        label: name,
-                        reasoning: content || null,
-                        args,
-                        result: tc.result ?? tc.output ?? null,
-                    });
-                }
-            }
-            if (toolCalls.length > 0 && content.trim()) {
-                reasoningParts.push(content);
-            }
-            const rc = m.reasoning_content ?? m.reasoning ?? null;
-            if (rc) {
-                allReasoningText = allReasoningText
-                    ? allReasoningText + " " + rc
-                    : rc;
-            }
-        }
-        const msg = {
-            role: "assistant",
-            content: lastContent,
-            attachments: [],
-            streaming: false,
-            steps: steps,
-            allReasoning:
-                allReasoningText ||
-                (reasoningParts.length > 0 ? reasoningParts.join(" ") : null),
-            thinkingExpanded: false,
-            model,
-            provider,
-            ...copyMessageTiming(items[items.length - 1]?.raw),
-        };
-        return processAssistantMessage(msg);
-    }
-
-    function sanitizeHistoryMessages(raw) {
-        if (!Array.isArray(raw)) return [];
-        // Passo 1: intercalar user/assistant em ordem
-        const interleaved = [];
-        for (const m of raw) {
-            const role = m.role || (m.is_user ? "user" : "assistant");
-            if (role !== "user" && role !== "assistant") continue;
-            const content = contentToString(
-                m.content ?? m.message ?? m.text ?? "",
-            );
-            if (
-                role === "assistant" &&
-                !content.trim() &&
-                !m.steps?.length &&
-                (!Array.isArray(m.tool_calls) || m.tool_calls.length === 0)
-            )
-                continue;
-            if (role === "user" && !content.trim() && !m.attachments?.length)
-                continue;
-            interleaved.push({ raw: m, role, content });
-        }
-        // Passo 2: agrupar assistants consecutivos
-        const merged = [];
-        let assistantGroup = [];
-        function flushGroup() {
-            if (assistantGroup.length === 0) return;
-            merged.push(mergeAssistantGroup(assistantGroup));
-            assistantGroup = [];
-        }
-        for (const item of interleaved) {
-            if (item.role === "user") {
-                flushGroup();
-                const refs = extractAttachmentRefs(item.content);
-                merged.push({
-                    role: "user",
-                    content: refs.content,
-                    attachments: mergeAttachments(
-                        item.raw.attachments,
-                        refs.attachments,
-                    ),
-                    inputTrace: item.raw.inputTrace ?? null,
-                    streaming: false,
-                    steps: [],
-                    allReasoning: null,
-                    thinkingExpanded: false,
-                    ...copyMessageTiming(item.raw),
-                });
-            } else {
-                assistantGroup.push(item);
-            }
-        }
-        flushGroup();
-        return merged;
-    }
-
-    // ── Mobile state ────────────────────────────────────────────────
     let isMobile = false;
-    // O SSR não conhece o viewport. Em telas mobile, a guarda CSS abaixo
-    // evita que a árvore desktop inicial apareça antes de `checkMobile()`
-    // trocar para a árvore correta durante a hidratação.
     let layoutReady = false;
-    // Menu de borda aberto no mobile: 'left' (docks+sessões) | 'right' (apps) | null
     let mobilePanel = null;
-    // Histórico de navegação é deliberadamente diferente da ordem das abas:
-    // A → B → app → A deve voltar por essa sequência, não pela posição da aba.
     let mobileNavigation = [];
     let mobileForwardNavigation = [];
     let canGoBackMobile = false;
@@ -817,267 +478,8 @@
     const iframeRefs = {};
     let gestureOffs = [];
 
-    function openLeft() { mobilePanel = mobilePanel === "left" ? null : "left"; }
-    function openRight() { mobilePanel = mobilePanel === "right" ? null : "right"; }
-    function closePanel() { mobilePanel = null; }
-    function dismissMobileMenus() { chatMenuOpen = false; appMenuOpen = false; }
-
-    function currentMobileDestination() {
-        if (!activeTab) return null;
-        return activeIsApp ? { kind: "app", id: activeTab } : { kind: "chat", id: activeTab };
-    }
-
-    function isMobileDestinationAvailable(destination) {
-        if (!destination?.id) return false;
-        return destination.kind === "app"
-            ? appTabs.some((tab) => tab.id === destination.id)
-            : tabs.some((tab) => tab.sessionId === destination.id);
-    }
-
-    function recordMobileNavigation(next) {
-        if (!isMobile || !next?.id) return;
-        const current = currentMobileDestination();
-        if (!current || (current.kind === next.kind && current.id === next.id)) return;
-        mobileNavigation = [...mobileNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        mobileForwardNavigation = [];
-        // O Android/WebView só conhece history.pushState. Espelhar cada troca
-        // interna faz o botão físico voltar para a aba anterior, sem sair do
-        // Shell ou recarregar a página.
-        window.history.pushState(
-            historyStateWithMobileDestination(window.history.state, next),
-            "",
-            window.location.href,
-        );
-    }
-
-    function replaceMobileBrowserHistoryEntry() {
-        if (!isMobile) return;
-        const current = currentMobileDestination();
-        if (!current) return;
-        window.history.replaceState(
-            historyStateWithMobileDestination(window.history.state, current),
-            "",
-            window.location.href,
-        );
-    }
-
-    async function handleMobileBrowserBack(event) {
-        if (!isMobile) return;
-        const destination = mobileDestinationFromHistoryState(event.state);
-        if (!destination || !isMobileDestinationAvailable(destination)) return;
-        const current = currentMobileDestination();
-        if (current?.kind === destination.kind && current.id === destination.id) return;
-
-        const isSameDestination = (entry) => entry?.kind === destination.kind && entry.id === destination.id;
-        // Mantém os botões do Header coerentes depois do gesto/botão físico.
-        // Uma volta consome o último item da pilha anterior; um avanço consome
-        // o da pilha seguinte. O navegador já decidiu a direção para nós.
-        if (isSameDestination(mobileNavigation[mobileNavigation.length - 1])) {
-            mobileNavigation = mobileNavigation.slice(0, -1);
-            if (current) mobileForwardNavigation = [...mobileForwardNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        } else if (isSameDestination(mobileForwardNavigation[mobileForwardNavigation.length - 1])) {
-            mobileForwardNavigation = mobileForwardNavigation.slice(0, -1);
-            if (current) mobileNavigation = [...mobileNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        }
-
-        // popstate já moveu o cursor do navegador. Não chamamos
-        // recordMobileNavigation aqui, pois isso criaria uma nova entrada e
-        // quebraria o avançar nativo.
-        dismissMobileMenus();
-        closePanel();
-        await activateMobileDestination(destination);
-    }
-
     $: canGoBackMobile = mobileNavigation.some(isMobileDestinationAvailable);
     $: canGoForwardMobile = mobileForwardNavigation.some(isMobileDestinationAvailable);
-
-    async function activateMobileDestination(destination) {
-        if (!destination || !isMobileDestinationAvailable(destination)) return;
-        activeTab = destination.id;
-        activeIsApp = destination.kind === "app";
-        if (destination.kind === "chat") sessionId = destination.id;
-        fullSaveSessionState();
-        if (destination.kind === "chat") await activateSession(destination.id);
-    }
-
-    async function goBackMobile() {
-        const history = [...mobileNavigation];
-        let destination = null;
-        while (history.length && !destination) {
-            const candidate = history.pop();
-            if (isMobileDestinationAvailable(candidate)) destination = candidate;
-        }
-        mobileNavigation = history;
-        chatMenuOpen = false;
-        appMenuOpen = false;
-        if (!destination) return;
-        const current = currentMobileDestination();
-        if (current) mobileForwardNavigation = [...mobileForwardNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        await activateMobileDestination(destination);
-    }
-
-    async function goForwardMobile() {
-        const history = [...mobileForwardNavigation];
-        let destination = null;
-        while (history.length && !destination) {
-            const candidate = history.pop();
-            if (isMobileDestinationAvailable(candidate)) destination = candidate;
-        }
-        mobileForwardNavigation = history;
-        chatMenuOpen = false;
-        appMenuOpen = false;
-        if (!destination) return;
-        const current = currentMobileDestination();
-        if (current) mobileNavigation = [...mobileNavigation.filter(isMobileDestinationAvailable), current].slice(-40);
-        await activateMobileDestination(destination);
-    }
-
-    async function closeActiveMobileTab() {
-        const current = currentMobileDestination();
-        if (!current) return;
-
-        // A aba é removida antes da troca. Assim ela não pode reaparecer nos
-        // controles de voltar ou avançar, mesmo que seja o único destino salvo.
-        mobileNavigation = mobileNavigation.filter((item) => item.kind !== current.kind || item.id !== current.id);
-        mobileForwardNavigation = mobileForwardNavigation.filter((item) => item.kind !== current.kind || item.id !== current.id);
-        const previous = [...mobileNavigation].reverse().find(isMobileDestinationAvailable) ?? null;
-
-        if (current.kind === "app") {
-            appTabs = appTabs.filter((tab) => tab.id !== current.id);
-            appLoadingMap = Object.fromEntries(Object.entries(appLoadingMap).filter(([id]) => id !== current.id));
-        } else {
-            tabs = tabs.filter((tab) => tab.sessionId !== current.id);
-            tabOrder = tabOrder.filter((id) => id !== current.id);
-            loadingMap = { ...loadingMap, [current.id]: false };
-            unreadMap = { ...unreadMap, [current.id]: false };
-            delete sessionCache[current.id];
-        }
-
-        chatMenuOpen = false;
-        appMenuOpen = false;
-        if (previous && isMobileDestinationAvailable(previous)) {
-            await activateMobileDestination(previous);
-            return;
-        }
-
-        const fallbackChat = tabs[0]?.sessionId;
-        if (fallbackChat) {
-            await activateMobileDestination({ kind: "chat", id: fallbackChat });
-            return;
-        }
-        const fallbackApp = appTabs[0]?.id;
-        if (fallbackApp) {
-            await activateMobileDestination({ kind: "app", id: fallbackApp });
-            return;
-        }
-        activeTab = "";
-        sessionId = "";
-        activeIsApp = false;
-        history = [];
-        fullSaveSessionState();
-    }
-
-    // O sistema é o fallback de menor prioridade: um app ativo que declarar
-    // `gesture:register` recebe a chance de consumir antes deste handler.
-    function handleSystemSwipe(gesture) {
-        if (!isMobile || gesture.type !== "swipe") return { handled: false };
-
-        // Uma gaveta aberta fecha no gesto que a empurra de volta para a borda.
-        if (mobilePanel === "left" && gesture.direction === "left") {
-            closePanel();
-            return { handled: true };
-        }
-        if (mobilePanel === "right" && gesture.direction === "right") {
-            closePanel();
-            return { handled: true };
-        }
-
-        // Sem gaveta: somente uma borda física pode revelar o painel oposto.
-        if (!mobilePanel && gesture.fromEdge === "left" && gesture.direction === "right") {
-            openLeft();
-            return { handled: true };
-        }
-        if (!mobilePanel && gesture.fromEdge === "right" && gesture.direction === "left") {
-            openRight();
-            return { handled: true };
-        }
-        return { handled: false };
-    }
-
-    function setupGestureProtocol() {
-        const router = createGestureRouter();
-        const iframeBridge = createIframeGestureBridge({
-            getActiveFrame: () => activeIsApp ? iframeRefs[activeTab] : null,
-        });
-
-        // Apps em iframe só participam depois de opt-in; Chat usa diretamente
-        // o fallback abaixo, exatamente com a mesma semântica `handled`.
-        gestureOffs.push(router.register((gesture) => iframeBridge.dispatch(gesture), { priority: 100 }));
-        gestureOffs.push(router.register(handleSystemSwipe, { priority: 0 }));
-        window.addEventListener("message", iframeBridge.handleMessage);
-        gestureOffs.push(() => window.removeEventListener("message", iframeBridge.handleMessage));
-        gestureOffs.push(installNativeGestureBridge((gesture) => router.dispatch(gesture)));
-        gestureOffs.push(installEdgeSwipeDetector(shellEl, (gesture) => router.dispatch(gesture), () => isMobile, () => mobilePanel));
-    }
-
-    // A configuração do menu virou um MODO DE EDIÇÃO INLINE no próprio Sidebar/
-    // painéis (Reforma na Configuração dos Menus) — a engrenagem alterna o
-    // store `menuEditMode` dentro do Sidebar, sem modal aqui.
-
-    // Toque no título volta ao chat quando um app está em tela cheia
-    function mobileHome() {
-        if (canGoBackMobile) return goBackMobile();
-        if (activeIsApp && sessionId) {
-            activeIsApp = false;
-            activeTab = sessionId;
-            appMenuOpen = false;
-        }
-    }
-
-    async function refreshMobileChat() {
-        if (activeIsApp || chatRefreshing) return;
-        chatMenuOpen = false;
-        chatRefreshing = true;
-        try {
-            await refreshChat(activeTab, false);
-            refreshTrigger++;
-        } finally {
-            chatRefreshing = false;
-        }
-    }
-
-    function openChatInfo() {
-        chatMenuOpen = false;
-        chatInfoOpen = true;
-    }
-
-    async function loadChatFeatureAvailability() {
-        const result = await api("/apps/availability?packages=artifacts,bags", "GET", null, "shell");
-        if (result?.error || !result?.packages) return;
-        chatFeatureAvailability = {
-            artifacts: result.packages.artifacts === true,
-            bags: result.packages.bags === true,
-        };
-    }
-
-    async function openBag() {
-        if (!chatFeatureAvailability.bags) return;
-        const targetSessionId = activeIsApp ? sessionId : (activeTab || sessionId);
-        chatMenuOpen = false;
-        if (!targetSessionId) return;
-
-        bagSheetOpen = true;
-        bagStatus = null;
-        bagError = "";
-        bagLoading = true;
-        try {
-            const result = await api(`/status/${encodeURIComponent(targetSessionId)}`, "GET", null, "bags", { timeoutMs: 12000 });
-            if (result?.success) bagStatus = result;
-            else if (result?.error && result.code !== "route_not_found") bagError = result.error;
-        } finally {
-            bagLoading = false;
-        }
-    }
 
     function bagStepLabel(status) {
         return {
@@ -1107,75 +509,9 @@
 
     function formatChatCost(value) {
         if (!Number.isFinite(value) || value <= 0) return 'Not available';
-        return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
+        return value < 0.01 ? `${value.toFixed(4)}` : `${value.toFixed(2)}`;
     }
 
-    function openArtifactLibrary() {
-        if (!chatFeatureAvailability.artifacts) return;
-        chatMenuOpen = false;
-        const targetSessionId = activeIsApp ? sessionId : (activeTab || sessionId);
-        if (!targetSessionId) return;
-        const filter = encodeURIComponent(targetSessionId);
-        const artifactTabId = `artifacts:${targetSessionId}`;
-        // Uma aba de artefatos já aberta preserva seu próprio filtro. Um novo
-        // pedido abre outra aba, sem reutilizar ou alterar a anterior.
-        const id = appTabs.some((tab) => tab.id === artifactTabId)
-            ? `${artifactTabId}:${Date.now()}`
-            : artifactTabId;
-        handleOpenApp({ detail: {
-            id,
-            name: `Artifact - Id: ${targetSessionId}`,
-            packageName: "artifacts",
-            view: "Index",
-            url: `/view/artifacts/Index?sessionId=${filter}`,
-            description: "Artifacts generated in this conversation.",
-            native: true,
-        } });
-    }
-
-    async function copyActiveSessionId() {
-        if (!sessionId) return;
-        try {
-            await navigator.clipboard.writeText(sessionId);
-            chatMenuMessage = "Identifier copied.";
-            clearTimeout(chatMenuMessageTimer);
-            chatMenuMessageTimer = setTimeout(() => {
-                chatMenuMessage = "";
-            }, 2200);
-        } catch {
-            chatMenuMessage = "Unable to copy identifier.";
-        }
-    }
-
-    function refreshMobileApp() {
-        if (!activeIsApp) return;
-        appMenuOpen = false;
-        appRefreshingMap = { ...appRefreshingMap, [activeTab]: true };
-        reloadApp(activeTab, false);
-    }
-
-    function enterMobileFullscreen() {
-        dismissMobileMenus();
-        mobileHeaderCollapsed = true;
-    }
-
-    // A bridge é criada pelo Android WebView antes do código da página. É o
-    // sinal confiável do APK, inclusive depois que o login remove ?appId=.
-    function returnToLauncher() {
-        if (!nativeApp || !window.FlutterBridge?.postMessage) return;
-        window.FlutterBridge.postMessage("return-to-launcher");
-    }
-
-    function checkMobile() {
-        // Keep touch-first phones in the mobile layout when their WebView
-        // reports a wider layout viewport than the physical screen.
-        isMobile = window.matchMedia("(max-width: 767px)").matches
-            || window.matchMedia("(pointer: coarse)").matches;
-        maybeLoadRecentSessions();
-        if (!isMobile) mobilePanel = null;
-    }
-
-    // ── Workspace tabs ───────────────────────────────────────────────
     let tabs = [{ sessionId: initialId, name: "New Mission", pinned: false }];
     let activeTab = initialId;
     let loadingMap = {};
@@ -1183,8 +519,6 @@
     let refreshTrigger = 0;
     let sidebarCollapsed = false;
     let rightSidebarCollapsed = false;
-    // Desktop rail widths come from Sidebar.svelte. They must be part of the
-    // main layout calculation as well: tabs live here, not inside Sidebar.
     let desktopSidebarWidth = 280;
     let desktopRightSidebarWidth = 280;
     let appReloadKeys = {};
@@ -1192,1070 +526,9 @@
     let appMenuOpen = false;
     let appRefreshingMap = {};
 
-    function markChatRead(sid) {
-        if (!unreadMap[sid]) return;
-        unreadMap = { ...unreadMap, [sid]: false };
-    }
+    export function handleNewTab(...args) { return controllers.handleNewTab(...args); }
 
-    function markChatUnread(sid) {
-        if (sid === activeTab && !activeIsApp) return;
-        unreadMap = { ...unreadMap, [sid]: true };
-    }
-
-    async function loadWorkspace() {
-        if (tabs.length > 0) {
-            await activateSession(tabs[0].sessionId);
-        }
-    }
-
-    async function activateSession(sid) {
-        const activation = sessionActivation.begin(sid);
-        historyTruncated = false;
-        activeAgentId = readSessionAgent(localStorage, sid);
-        agentRuntime.activateAgent(activeAgentId);
-        // Abrir a conversa também consome seus avisos informativos. A emissão
-        // local fecha o toast imediatamente; a mensagem WS persiste a leitura.
-        busEmitLocal("ntfy:session-read", { sessionId: sid });
-        agentRuntime.send({
-            type: "bus:emit",
-            event: "ntfy:session-read",
-            detail: { sessionId: sid },
-        });
-        if (sessionCache[sid]) {
-            sessionId = sid;
-            const cachedHistory = sessionCache[sid].map((m) => ({
-                ...m,
-                thinkingExpanded: m.thinkingExpanded ?? false,
-            }));
-            historyTruncated = isMobile && cachedHistory.length >= 100;
-            sessionCache[sid] = cachedHistory;
-            if (sessionActivation.isCurrent(activation, sessionId, activeIsApp)) {
-                history = cachedHistory;
-            }
-            await discardResolvedGovernanceCard(sid);
-            if (!sessionActivation.isCurrent(activation, sessionId, activeIsApp)) return;
-            await tick();
-            await listRef?.scrollBottom(true);
-            // Cache pode estar defasado se a sessão segue respondendo
-            reconcileSession(sid);
-            return;
-        }
-        sessionId = sid;
-        const data = await api(historyPath(sid), "GET");
-        const loadedHistory = sanitizeHistoryMessages(data || []);
-        if (!sessionActivation.isCurrent(activation, sessionId, activeIsApp)) return;
-        historyTruncated = isMobile && loadedHistory.length >= 100;
-        const liveHistory = sessionCache[sid];
-        if (liveHistory?.some((item) => item?._localEchoContent)) {
-            history = liveHistory;
-            await tick();
-            await listRef?.scrollBottom(true);
-            reconcileSession(sid);
-            return;
-        }
-        history = loadedHistory;
-        if (loadedHistory.length > 0) sessionCache[sid] = loadedHistory;
-        else delete sessionCache[sid];
-        await discardResolvedGovernanceCard(sid);
-        if (!sessionActivation.isCurrent(activation, sessionId, activeIsApp)) return;
-        await tick();
-        await listRef?.scrollBottom(true);
-        // Se a sessão ainda está respondendo no servidor, reata o stream
-        reconcileSession(sid);
-    }
-
-    // Uma sessão escolhe seu próprio agente. Reconexões de abas em segundo
-    // plano não podem usar implicitamente o adapter da aba que está em foco.
-    async function apiForAgent(agentId, path, method = "GET", body = null) {
-        try {
-            const options = { method, headers: { "Content-Type": "application/json" } };
-            if (body) options.body = JSON.stringify(body);
-            const response = await agentRuntime.requestForAgent(agentId, path, options);
-            const payload = await response?.json?.();
-            return payload?.data ?? payload ?? null;
-        } catch {
-            return null;
-        }
-    }
-
-    // ── Tab event handlers ───────────────────────────────────────────
-    async function handleSelectTab(e) {
-        const sid = typeof e === "string" ? e : e?.detail ?? e;
-        if (sessionId) sessionCache[sessionId] = [...history];
-        const isApp = appTabs.some((t) => t.id === sid);
-        recordMobileNavigation({ kind: isApp ? "app" : "chat", id: sid });
-        activeTab = sid;
-        activeIsApp = isApp;
-        if (!isApp) sessionId = sid;
-        fullSaveSessionState();
-        if (!isApp) {
-            markChatRead(sid);
-            await activateSession(sid);
-        }
-        if (isMobile) closePanel();
-    }
-
-    export async function handleNewTab() {
-        const newId = generateSessionId();
-        await applyDefaultModelToNewSession(newId);
-        recordMobileNavigation({ kind: "chat", id: newId });
-        const next = createNewTopicWorkspace(newId, {
-            tabs,
-            appTabs,
-            loadingMap,
-            unreadMap,
-        });
-        tabs = next.tabs;
-        appTabs = next.appTabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        loadingMap = next.loadingMap;
-        unreadMap = next.unreadMap;
-        fullSaveSessionState();
-        refreshTrigger++;
-        if (isMobile) closePanel();
-    }
-
-    async function handleNewSpecialistSession(event) {
-        const specialistId = event?.detail?.specialistId;
-        if (!specialistId) return;
-        const newId = generateSessionId();
-        try {
-            const response = await fetch("/specialists/session", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ session_id: newId, specialist_id: specialistId }),
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        } catch (error) {
-            console.error("Failed to create specialist conversation:", error);
-            return;
-        }
-        recordMobileNavigation({ kind: "chat", id: newId });
-
-        const next = createNewTopicWorkspace(newId, {
-            tabs,
-            appTabs,
-            loadingMap,
-            unreadMap,
-        });
-        tabs = next.tabs;
-        appTabs = next.appTabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        loadingMap = next.loadingMap;
-        unreadMap = next.unreadMap;
-        fullSaveSessionState();
-        refreshTrigger++;
-        if (isMobile) closePanel();
-    }
-
-    function handleRenameTab(e) {
-        const payload = typeof e === "object" && e?.detail ? e.detail : e;
-        const { sessionId: sid, name } = payload;
-        tabs = tabs.map((t) => (t.sessionId === sid ? { ...t, name } : t));
-        fullSaveSessionState();
-    }
-
-    function handleTogglePin(e) {
-        const sid = typeof e === "string" ? e : e?.detail ?? e;
-        tabs = tabs.map((t) =>
-            t.sessionId === sid ? { ...t, pinned: !t.pinned } : t,
-        );
-        fullSaveSessionState();
-    }
-
-    function handleMoveTab(e) {
-        const { sourceId, targetId, after = false } = e?.detail ?? e ?? {};
-        if (!sourceId || !targetId) return;
-        tabOrder = moveTab(tabOrder, sourceId, targetId, after);
-        fullSaveSessionState();
-    }
-
-    async function handleCloseTab(e) {
-        const sid = typeof e === "string" ? e : e?.detail ?? e;
-        tabOrder = tabOrder.filter((id) => id !== sid);
-        const isApp = appTabs.find((t) => t.id === sid);
-        if (isApp) {
-            appTabs = appTabs.filter((t) => t.id !== sid);
-            if (activeTab === sid) {
-                activeTab = sessionId;
-                activeIsApp = false;
-            }
-            fullSaveSessionState();
-            return;
-        }
-        // Fechar a aba NÃO cancela o turno: a geração segue no servidor e a
-        // sessão reata via reconcileSession quando for reaberta.
-        loadingMap = { ...loadingMap, [sid]: false };
-        unreadMap = { ...unreadMap, [sid]: false };
-        const next = closeChatTab(sid, { tabs, activeTab, sessionId, history, activeIsApp });
-        tabs = next.tabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        fullSaveSessionState();
-        if (next.sessionId && next.sessionId !== sid) await activateSession(next.sessionId);
-        delete sessionCache[sid];
-        refreshTrigger++;
-    }
-
-    function reloadApp(id, recreate = false) {
-        const frame = iframeRefs[id];
-        if (recreate) {
-            appReloadKeys = { ...appReloadKeys, [id]: (appReloadKeys[id] || 0) + 1 };
-        } else if (frame) {
-            appLoadingMap = { ...appLoadingMap, [id]: true };
-            frame.src = frame.src;
-        }
-    }
-
-    async function refreshChat(sid, recreate = false) {
-        if (!sid) return;
-        if (recreate) delete sessionCache[sid];
-        if (sid === sessionId) await activateSession(sid);
-        else reconcileSession(sid);
-    }
-
-    async function refreshActive(recreate = false) {
-        if (activeIsApp) reloadApp(activeTab, recreate);
-        else await refreshChat(activeTab, recreate);
-    }
-
-    async function refreshAllTabs() {
-        for (const tab of appTabs) reloadApp(tab.id, false);
-        for (const tab of tabs) await refreshChat(tab.sessionId, false);
-    }
-
-    async function handleDesktopShortcut(event) {
-        if (event.isComposing) return;
-        if (event.key === "Escape" && !isMobile) {
-            if (canvasOpen) canvasOpen = false;
-            else if (!sidebarCollapsed) sidebarCollapsed = true;
-            else if (!rightSidebarCollapsed) rightSidebarCollapsed = true;
-            else return;
-            event.preventDefault();
-            return;
-        }
-
-        const action = desktopShortcutAction(event, { isMobile });
-        if (!action) return;
-        if (isEditableShortcutTarget(event.target) && isTextEditingShortcut(event, action)) return;
-        event.preventDefault();
-
-        const ordered = allTabs;
-        if (action.type === "select-index") {
-            const id = ordered[action.index]?.sessionId;
-            if (id) await handleSelectTab(id);
-        } else if (action.type === "next-tab" || action.type === "previous-tab") {
-            const id = adjacentTabId(ordered, activeTab, action.type === "next-tab" ? 1 : -1);
-            if (id) await handleSelectTab(id);
-        } else if (action.type === "close-active") {
-            if (activeTab) await handleCloseTab(activeTab);
-        } else if (action.type === "close-all") {
-            handleCloseAllApps();
-            handleCloseAllChats();
-        } else if (action.type === "toggle-sidebar") {
-            sidebarCollapsed = !sidebarCollapsed;
-        } else if (action.type === "refresh-active") {
-            await refreshActive(false);
-        } else if (action.type === "reopen-active") {
-            await refreshActive(true);
-        } else if (action.type === "refresh-all") {
-            await refreshAllTabs();
-        } else if (action.type === "recover-runtime") {
-            busEmit("open:app", "process-manager");
-        }
-    }
-
-    function handleCloseAllChats() {
-        const next = closeAllChatTabs({ tabs, activeTab, sessionId, history, activeIsApp, loadingMap, unreadMap });
-        const retainedIds = new Set(next.tabs.map((tab) => tab.sessionId));
-        const closedIds = tabs.filter((tab) => !retainedIds.has(tab.sessionId)).map((tab) => tab.sessionId);
-        tabs = next.tabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        loadingMap = next.loadingMap;
-        unreadMap = next.unreadMap;
-        fullSaveSessionState();
-        for (const sid of closedIds) delete sessionCache[sid];
-        refreshTrigger++;
-    }
-
-    function updateSessionHistory(sid, updater) {
-        const cached = sessionCache[sid] || [];
-        const updated = updater(cached);
-        sessionCache[sid] = updated;
-        if (sessionId === sid) history = updated;
-    }
-
-    // ── Stop ─────────────────────────────────────────────────────────
-    // Aprovar/negar um pedido nativo de Codex/Claude após confirmação HTTP.
-    // O evento permission_resolved também reconcilia as outras abas.
-    async function handleResolvePermission(e) {
-        const { request_id, decision } = e.detail ?? {};
-        if (!request_id) return;
-        const target = e.detail?.session_id || sessionId;
-        const result = await api("/permission/resolve", "POST", {
-            request_id, session_id: target, decision,
-        });
-        updateSessionHistory(target, (hist) =>
-            hist.map((m) =>
-                m.pendingPermissions?.some((p) => p.request_id === request_id)
-                    ? {
-                          ...m,
-                          pendingPermissions: m.pendingPermissions.map((p) =>
-                              p.request_id === request_id
-                                  ? { ...p, status: result?.ok ? decision : p.status,
-                                      error: result?.ok ? null : result?.error || "Could not record the decision. Please try again." }
-                                  : p,
-                          ),
-                      }
-                    : m,
-            ),
-        );
-        if (result?.ok) busEmitLocal("notifications:resolved", { sessionId: target, requestId: request_id });
-    }
-
-    async function handleMessageFeedback(e) {
-        const { assistantOrdinal, feedback } = e.detail ?? {};
-        if (!Number.isInteger(assistantOrdinal) || !feedback) return;
-        const result = await api(`/sessions/${sessionId}/feedback`, "POST", {
-            assistant_ordinal: assistantOrdinal,
-            ...feedback,
-        });
-        if (!result?.success) return;
-        updateSessionHistory(sessionId, (hist) => {
-            let ordinal = -1;
-            return hist.map((item) => {
-                if (item.role !== "assistant" || !String(item.content ?? "").trim()) return item;
-                ordinal += 1;
-                return ordinal === assistantOrdinal
-                    ? { ...item, feedback: result.feedback }
-                    : item;
-            });
-        });
-    }
-
-    async function handleStop(sid) {
-        const target = sid || sessionId;
-        const result = await api("/chat/cancel", "POST", { session_id: target });
-        if (!result?.success) return;
-        updateSessionHistory(target, (hist) => {
-            // Mensagens ainda na fila não serão processadas (o servidor
-            // limpa a fila no cancel) — remove para não enganar o usuário
-            const filtered = hist.filter((m) => !m.queued);
-            return filtered;
-        });
-    }
-
-    async function retryTimedOutTurn(sid, index) {
-        const target = sid || sessionId;
-        const hist = sessionCache[target] || [];
-        const input = retryTurnInput(hist, index);
-        if (!input || loadingMap[target]) return;
-        if (target !== sessionId) await activateSession(target);
-        await send({ detail: input });
-    }
-
-    // ── Pipeline de eventos de chat (WS ao vivo + replay do reconnect) ──
-    // Todas as mutações de renderização de um turno passam por aqui, venham
-    // do WS ou do replay do buffer — a aba que enviou e as demais abas da
-    // mesma sessão renderizam pelo mesmo caminho.
-    function ensureStreamingAssistant(hist) {
-        const last = hist[hist.length - 1];
-        if (last?.role === "assistant" && last.streaming) return hist;
-        return [
-            ...hist,
-            {
-                role: "assistant",
-                content: "",
-                streaming: true,
-                steps: [],
-                allReasoning: null,
-                thinkingExpanded: false,
-                pendingPermissions: [],
-            },
-        ];
-    }
-
-    // Posição da mensagem de usuário em relação à resposta em andamento.
-    //
-    // Uma mensagem JÁ ACEITA no turno pertence ao passado da conversa: entra
-    // ANTES da bolha em streaming, senão apareceria depois de uma resposta que
-    // ela ajudou a produzir.
-    //
-    // Uma mensagem EM FILA é o contrário — ainda não foi lida pelo modelo, é o
-    // próximo turno. Ela vai DEPOIS do bloco de pensamento, no fim da lista, que
-    // é onde o olho espera a última coisa que você digitou. Quando o turno a
-    // consome (queued: false), ela sobe para o lugar cronológico e o bloco de
-    // pensamento desce — a troca de lugar que o usuário vê acontecer.
-    function insertUserMessage(hist, msg) {
-        const last = hist[hist.length - 1];
-        if (!msg.queued && last?.role === "assistant" && last.streaming) {
-            return [...hist.slice(0, -1), msg, last];
-        }
-        return [...hist, msg];
-    }
-
-    // Mensagem em fila foi aceita: além de perder o `queued`, ela troca de lugar
-    // com a bolha em streaming (que estava acima dela).
-    function settleQueuedMessage(hist, i) {
-        const settled = { ...hist[i], queued: false, justSettled: true };
-        const prev = hist[i - 1];
-        if (i === hist.length - 1 && prev?.role === "assistant" && prev.streaming) {
-            return [...hist.slice(0, i - 1), settled, prev];
-        }
-        return hist.map((x, j) => (j === i ? settled : x));
-    }
-
-    function applyChatEvent(sid, event, data, seq, epoch = null) {
-        if (seq != null) {
-            const incomingEpoch = epoch || cursorMap[sid]?.epoch || "legacy";
-            const cursor = cursorMap[sid];
-            if (cursor?.epoch === incomingEpoch && cursor.seq >= seq) return;
-            cursorMap[sid] = { epoch: incomingEpoch, seq };
-        }
-
-        if (event === "start") {
-            loadingMap = { ...loadingMap, [sid]: true };
-            updateSessionHistory(sid, ensureStreamingAssistant);
-        } else if (event === "user_message") {
-            // Confirmação de mensagem enviada: consome o eco otimista local,
-            // desmarca queued, ou anexa (mensagem vinda de outra aba/replay)
-            updateSessionHistory(sid, (hist) => {
-                for (let i = hist.length - 1; i >= 0; i--) {
-                    const m = hist[i];
-                    if (m.role !== "user") continue;
-                    if (m._localEchoContent === data.text) {
-                        return hist.map((x, j) => {
-                            if (j !== i) return x;
-                            const { _localEchoContent, queued, ...rest } = x;
-                            return rest;
-                        });
-                    }
-                    if (m.queued && m.content === data.text) {
-                        return settleQueuedMessage(hist, i);
-                    }
-                    if (m.content === data.text) return hist; // já renderizada
-                }
-                const refs = extractAttachmentRefs(data.text);
-                return insertUserMessage(hist, {
-                    role: "user",
-                    content: refs.content,
-                    attachments: refs.attachments,
-                    metadata: data.metadata,
-                });
-            });
-        } else if (event === "input_trace") {
-            // A proveniência só fica pronta depois que o backend compõe o
-            // prompt. Enriquece o eco já exibido, sem criar outra mensagem.
-            updateSessionHistory(sid, (hist) => {
-                for (let i = hist.length - 1; i >= 0; i--) {
-                    const m = hist[i];
-                    if (m.role !== "user") continue;
-                    if (m.content === data.text || m._localEchoContent === data.text) {
-                        return hist.map((item, j) => j === i
-                            ? { ...item, inputTrace: data.inputTrace ?? null }
-                            : item);
-                    }
-                }
-                return hist;
-            });
-        } else if (event === "queued") {
-            updateSessionHistory(sid, (hist) => {
-                const echoed = hist.some(
-                    (m) =>
-                        m.role === "user" &&
-                        (m._localEchoContent === data.text ||
-                            (m.queued && m.content === data.text)),
-                );
-                if (echoed) return hist;
-                const refs = extractAttachmentRefs(data.text);
-                return insertUserMessage(hist, {
-                    role: "user",
-                    content: refs.content,
-                    attachments: refs.attachments,
-                    queued: true,
-                });
-            });
-        } else if (event === "token") {
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? { ...m, content: (m.content ?? "") + (data.text ?? "") }
-                        : m,
-                );
-            });
-            if (sid === sessionId) listRef?.scrollBottom();
-        } else if (event === "reasoning") {
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? {
-                              ...m,
-                              allReasoning:
-                                  (m.allReasoning ?? "") + (data.text ?? ""),
-                              thinkingExpanded: m.thinkingExpanded ?? false,
-                          }
-                        : m,
-                );
-            });
-            // Reasoning streama token a token — acompanha o scroll como o texto
-            // (condicional: só desce se o usuário estiver ancorado no fim).
-            if (sid === sessionId) listRef?.scrollBottom();
-        } else if (event === "model") {
-            // Identificador do modelo que respondeu este turno. Fica na bolha
-            // assistant em streaming; ao trocar de modelo no meio (chain de
-            // fallback), o último a falar é o que a bolha mostra.
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? {
-                              ...m,
-                              model: data.model ?? m.model ?? null,
-                              provider: data.provider ?? m.provider ?? null,
-                          }
-                        : m,
-                );
-            });
-        } else if (event === "usage") {
-            // Custo/tokens acumulados até esta iteração — atualiza a bolha
-            // assistant em streaming ao vivo, sem esperar o done.
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? { ...m, usage: data.usage ?? m.usage ?? null }
-                        : m,
-                );
-            });
-        } else if (event === "permission_request") {
-            // O provider claude-cli (modo interativo) quer usar uma ferramenta —
-            // anexa um card de aprovação na bolha assistant em streaming.
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? {
-                              ...m,
-                              pendingPermissions: [
-                                  ...(m.pendingPermissions ?? []),
-                                  {
-                                      request_id: data.request_id,
-                                      tool_name: data.tool_name,
-                                      tool_input: data.tool_input ?? {},
-                                      status: "pending",
-                                  },
-                              ],
-                          }
-                        : m,
-                );
-            });
-            // Governança exige atenção mesmo se a conversa estiver aberta em
-            // outra aba ou o usuário estiver num app. O card continua sendo a
-            // única superfície que efetivamente aprova ou nega a ação.
-            busEmitLocal("notifications:push", {
-                id: `governance:${sid}:${data.request_id}`,
-                title: "Approval required",
-                message: `${data.tool_name || "An action"} is awaiting your decision.`,
-                click: `${window.location.origin}${window.location.pathname}?open=chat&session=${encodeURIComponent(sid)}`,
-                priority: 5,
-                tags: [`notify_id:governance:${sid}:${data.request_id}`],
-                kind: "governance",
-                requestId: data.request_id,
-            });
-            if (sid === sessionId) listRef?.scrollBottom();
-        } else if (event === "permission_resolved") {
-            // Decisão chegou (deste ou de outro cliente) — atualiza o card.
-            updateSessionHistory(sid, (hist) =>
-                hist.map((m) =>
-                    m.pendingPermissions?.some(
-                        (p) => p.request_id === data.request_id,
-                    )
-                        ? {
-                              ...m,
-                              pendingPermissions: m.pendingPermissions.map((p) =>
-                                  p.request_id === data.request_id
-                                      ? { ...p, status: data.decision }
-                                      : p,
-                              ),
-                          }
-                        : m,
-                ),
-            );
-        } else if (event === "step") {
-            // O reasoning de cada step fica só nele mesmo (step.reasoning,
-            // exibido inline na timeline) — não entra mais em allReasoning.
-            // Antes entrava nos dois lugares: como allReasoning é a fase de
-            // raciocínio que vem ANTES dos steps (chega primeiro, renderizada
-            // acima na UI), acumular reasoning de step ali fazia esse bloco
-            // "de cima" continuar mudando depois que os steps (embaixo) já
-            // tinham aparecido — quebrava a leitura de timeline (cima→baixo,
-            // cronológica) que o painel deve transmitir.
-            if (data.result !== undefined) {
-                updateSessionHistory(sid, (hist) => {
-                    const h = ensureStreamingAssistant(hist);
-                    const idx = h.length - 1;
-                    return h.map((m, i) => {
-                        if (i !== idx || !m.steps?.length) return m;
-                        const steps = [...m.steps];
-                        // Codex App Server identifica cada item; APIs HTTP
-                        // carregam o id do tool call. Só no legado sem id o
-                        // último step pendente é a associação mais segura.
-                        let stepIndex = data.toolCallId
-                            ? steps.map((step) => step.toolCallId).lastIndexOf(data.toolCallId)
-                            : -1;
-                        if (stepIndex < 0) stepIndex = steps.map((step) => step.result === undefined || step.result === null).lastIndexOf(true);
-                        if (stepIndex < 0) stepIndex = steps.length - 1;
-                        steps[stepIndex] = {
-                            ...steps[stepIndex],
-                            result: data.result,
-                            completedAt: data.completedAt ?? new Date().toISOString(),
-                        };
-                        return { ...m, steps };
-                    });
-                });
-                if (sid === sessionId) listRef?.scrollBottom();
-                return;
-            }
-            const newStep = {
-                toolCallId: data.toolCallId ?? null,
-                label: data.label ?? "",
-                reasoning: data.reasoning ?? null,
-                iteration: data.iteration ?? null,
-                // args da tool p/ a tabela do timeline — aceita qualquer um dos
-                // formatos que os providers emitem (padroniza no frontend).
-                args:
-                    data.args ??
-                    data.input ??
-                    data.tool_input ??
-                    data.arguments ??
-                    null,
-                result: data.result ?? data.output ?? null,
-                startedAt: data.startedAt ?? new Date().toISOString(),
-            };
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx ? { ...m, steps: [...m.steps, newStep] } : m,
-                );
-            });
-            if (sid === sessionId) listRef?.scrollBottom();
-        } else if (event === "done") {
-            loadingMap = { ...loadingMap, [sid]: false };
-            markChatUnread(sid);
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) => {
-                    if (i !== idx) return m;
-                    return processAssistantMessage({
-                        ...m,
-                        content: data.response ?? "",
-                        streaming: false,
-                        justCompleted: true,
-                        thinkingExpanded: false,
-                        usage: data.usage ?? null,
-                        createdAt: data.timestamp ?? m.createdAt ?? null,
-                    });
-                });
-            });
-            if (sid === sessionId && !activeIsApp) {
-                listRef?.scrollBottom();
-            } else {
-                const preview = String(data.response ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
-                if (preview) busEmitLocal("notifications:push", {
-                    id: `chat:${sid}:${data.epoch ?? "turn"}:${data.seq ?? Date.now()}`,
-                    title: "Response complete", message: preview,
-                    click: `${window.location.origin}${window.location.pathname}?open=chat&session=${encodeURIComponent(sid)}`,
-                    priority: 3, tags: [`notify_id:chat:${sid}`],
-                });
-            }
-        } else if (event === "error") {
-            loadingMap = { ...loadingMap, [sid]: false };
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) =>
-                    i === idx
-                        ? {
-                              ...m,
-                              content: data.error,
-                              streaming: false,
-                              thinkingExpanded: false,
-                          }
-                        : m,
-                );
-            });
-        } else if (event === "timeout") {
-            loadingMap = { ...loadingMap, [sid]: false };
-            updateSessionHistory(sid, (hist) => {
-                const h = ensureStreamingAssistant(hist);
-                const idx = h.length - 1;
-                return h.map((m, i) => i === idx ? { ...m, content: "", streaming: false, timedOut: true, thinkingExpanded: false } : m);
-            });
-        }
-        // 'commit' é ignorado ao vivo — serve ao slicing do replay no servidor
-    }
-
-    // ── Reconexão de sessão ──────────────────────────────────────────
-    // Reata uma sessão possivelmente em andamento: se o agente ainda está
-    // respondendo, recarrega o histórico persistido (cobre tudo até o último
-    // commit) e replaya do buffer apenas o estado parcial não-persistido; o
-    // WS continua ao vivo dali em diante.
-    async function reconcileSession(sid) {
-        if (!sid) return;
-        const sessionAgentId = readSessionAgent(localStorage, sid);
-        const generation = (reconcileGeneration[sid] || 0) + 1;
-        reconcileGeneration[sid] = generation;
-        const status = await apiForAgent(sessionAgentId, `/sessions/${sid}/status`, "GET");
-        if (reconcileGeneration[sid] !== generation) return;
-        if (!status) return; // servidor inacessível — não mexe no estado
-
-        const cached = sessionCache[sid];
-        // A mensagem enviada localmente ainda pode não existir no histórico
-        // persistido quando o socket reconecta. Preserve esse eco até o replay
-        // confirmar `user_message`, pois ele é a única cópia visível neste
-        // intervalo.
-        const hasLocalEcho = cached?.some((item) => item?._localEchoContent);
-        const staleStreaming =
-            cached?.length && cached[cached.length - 1]?.streaming;
-
-        if (!status.active) {
-            // Turno terminou (ou servidor reiniciou) enquanto estávamos fora:
-            // se o cache tem bolha presa em streaming, recarrega do disco.
-            if ((staleStreaming || loadingMap[sid]) && !hasLocalEcho) {
-                delete sessionCache[sid];
-                loadingMap = { ...loadingMap, [sid]: false };
-                const data = await apiForAgent(sessionAgentId, historyPath(sid), "GET");
-                if (reconcileGeneration[sid] !== generation) return;
-                const refreshed = sanitizeHistoryMessages(data || []);
-                if (refreshed.length > 0) sessionCache[sid] = refreshed;
-                markChatUnread(sid);
-                if (sid === sessionId) {
-                    history = sessionCache[sid] || history;
-                    await tick();
-                    await listRef?.scrollBottom(true);
-                }
-            }
-            return;
-        }
-
-        // Sessão ativa no servidor
-        if (cursorMap[sid] == null) {
-            // Sem estado ao vivo (página recém-aberta): o cache local pode
-            // conter tokens antigos que o replay repetiria — parte do
-            // histórico do disco, que cobre exatamente até o último commit.
-            if (!cached?.length) {
-                const data = await apiForAgent(sessionAgentId, historyPath(sid), "GET");
-                sessionCache[sid] = sanitizeHistoryMessages(data || []);
-                if (sid === sessionId) history = sessionCache[sid];
-            }
-        }
-
-        loadingMap = { ...loadingMap, [sid]: true };
-        const r = await apiForAgent(sessionAgentId, "/chat/stream/reconnect", "POST", {
-            session_id: sid,
-            epoch: cursorMap[sid]?.epoch ?? null,
-            last_event_id: cursorMap[sid]?.seq ?? null,
-        });
-        if (reconcileGeneration[sid] !== generation) return;
-        if (r?.cursor_mismatch) {
-            const data = await apiForAgent(sessionAgentId, historyPath(sid), "GET");
-            if (reconcileGeneration[sid] !== generation) return;
-            const refreshed = sanitizeHistoryMessages(data || []);
-            if (refreshed.length > 0) sessionCache[sid] = refreshed;
-            if (sid === sessionId) history = sessionCache[sid] || history;
-        }
-        for (const ev of r?.events ?? []) {
-            applyChatEvent(sid, ev.event, ev.data, Number(ev.id), ev.epoch || r.epoch);
-        }
-        if (!r?.active && !r?.done && !r?.error) {
-            loadingMap = { ...loadingMap, [sid]: false };
-        }
-        if (sid === sessionId) {
-            await tick();
-            await listRef?.scrollBottom(true);
-        }
-    }
-
-    // ── Envio (não-bloqueante) ───────────────────────────────────────
-    // POST /chat/send retorna imediatamente ({accepted} ou {queued}); os
-    // tokens/steps/done chegam pelo WS via applyChatEvent. Enviar durante uma
-    // resposta em andamento enfileira no servidor (estilo Claude) em vez de
-    // bloquear o input.
-    async function send(e) {
-        const detail = e?.detail ?? e;
-        const text =
-            typeof detail === "object"
-                ? detail.text ?? ""
-                : String(detail ?? "");
-        const attachments =
-            typeof detail === "object" ? detail.attachments ?? [] : [];
-
-        const targetSessionId = sessionId;
-
-        if (text.trim() === "/clear") {
-            await handleClearSession(targetSessionId);
-            message = "";
-            clearComposerDraft(targetSessionId);
-            return;
-        }
-
-        if (!text && attachments.length === 0) return;
-
-        const busy = !!loadingMap[targetSessionId];
-
-        tabs = tabs.map((t) => {
-            if (t.sessionId === targetSessionId && t.name === "New Mission") {
-                const preview =
-                    text.length > 30 ? text.slice(0, 30) + "…" : text;
-                return { ...t, name: preview || "Arquivo" };
-            }
-            return t;
-        });
-
-        let llmMessageContent = text;
-        if (attachments.length > 0) {
-            const attachmentParts = attachments
-                .map((a) => {
-                    const type = a.isImage
-                        ? "image"
-                        : a.mimetype?.startsWith("video/")
-                          ? "video"
-                          : a.mimetype?.startsWith("audio/")
-                            ? "audio"
-                            : "file";
-                    const reference = `\n[Attached reference: type=${type}; path=${a.path}; mime=${a.mimetype ?? "application/octet-stream"}; name=${a.name}]\n`;
-                    if (a.isText && a.textContent)
-                        return `\n\`\`\`\n// Path: ${a.path}\n${a.textContent}\n\`\`\`\n`;
-                    if (a.ocrText)
-                        return `\n[Automatic OCR: ${a.name}]\n${a.ocrText}\n[/Automatic OCR]\n`;
-                    return reference;
-                })
-                .join("");
-            llmMessageContent = text
-                ? `${text}\n${attachmentParts}`
-                : attachmentParts;
-        }
-
-        // Eco otimista: _localEchoContent permite ao pipeline de eventos
-        // reconhecer a confirmação (user_message/queued) sem duplicar a bolha
-        const userMsg = {
-            role: "user",
-            content: text,
-            attachments,
-            metadata: detail?.metadata,
-            _localEchoContent: llmMessageContent,
-            ...(busy ? { queued: true } : {}),
-        };
-        updateSessionHistory(targetSessionId, (hist) =>
-            insertUserMessage(hist, userMsg),
-        );
-        await listRef?.scrollBottom(true);
-
-        if (!busy) {
-            loadingMap = { ...loadingMap, [targetSessionId]: true };
-            updateSessionHistory(targetSessionId, ensureStreamingAssistant);
-        }
-
-        const r = await api("/chat/send", "POST", {
-            message: llmMessageContent,
-            session_id: targetSessionId,
-            settings: detail?.settings,
-            metadata: detail?.metadata,
-            retry: detail?.retry === true,
-        });
-
-        if (!r?.accepted && !r?.queued && !r?.forwarded) {
-            // Falha de rede ou rejeição HTTP: mantém a mensagem do usuário e
-            // apresenta a causa na bolha de resposta.
-            loadingMap = { ...loadingMap, [targetSessionId]: false };
-            updateSessionHistory(targetSessionId, (hist) => {
-                const idx = hist.length - 1;
-                const last = hist[idx];
-                if (last?.role === "assistant" && last.streaming) {
-                    return hist.map((m, i) =>
-                        i === idx
-                            ? {
-                                  ...m,
-                                  content:
-                                      `Error: ${r?.error || "could not send the message (network failure)."}`,
-                                  streaming: false,
-                                  thinkingExpanded: false,
-                              }
-                            : m,
-                    );
-                }
-                return hist;
-            });
-            return;
-        }
-
-        clearComposerDraft(targetSessionId);
-        if (sessionId === targetSessionId) message = "";
-
-        if (r.forwarded) {
-            // Mensagem era resposta a uma pergunta pendente (ask_user) — não
-            // inicia turno novo; limpa o estado de fila/eco do input
-            updateSessionHistory(targetSessionId, (hist) =>
-                hist.map((m) => {
-                    if (m._localEchoContent === llmMessageContent) {
-                        const { _localEchoContent, queued, ...rest } = m;
-                        return rest;
-                    }
-                    return m;
-                }),
-            );
-        }
-        // r.accepted / r.queued: tokens e confirmações chegam via WS
-    }
-
-    function animateComposerToDock() {
-        const first = composerStage?.getBoundingClientRect();
-        if (!first) return;
-        tick().then(() => {
-            const last = composerStage?.getBoundingClientRect();
-            if (!last) return;
-            const dx = first.left - last.left;
-            const dy = first.top - last.top;
-            composerStage.style.transition = "none";
-            composerStage.style.transform = `translate(${dx}px, ${dy}px) scale(1.035)`;
-            requestAnimationFrame(() => {
-                composerStage.style.transition = "transform 320ms cubic-bezier(.22,.8,.2,1)";
-                composerStage.style.transform = "";
-                window.setTimeout(() => {
-                    if (composerStage) composerStage.style.transition = "";
-                }, 340);
-            });
-        });
-    }
-
-    async function openDesktopComposition(payload) {
-        const detail = typeof payload === "object" && payload ? payload : { text: payload };
-        const text = String(detail.text ?? "").trim();
-        if (!text) return;
-
-        const suppliedId = String(detail.sessionId ?? desktopSession ?? "").trim();
-        const newId = /^[A-Za-z0-9_-]{1,200}$/.test(suppliedId) ? suppliedId : generateSessionId();
-        if (!suppliedId) await applyDefaultModelToNewSession(newId);
-        const next = createNewTopicWorkspace(newId, {
-            tabs,
-            appTabs,
-            loadingMap,
-            unreadMap,
-        });
-        tabs = next.tabs;
-        appTabs = next.appTabs;
-        activeTab = next.activeTab;
-        sessionId = next.sessionId;
-        history = next.history;
-        activeIsApp = next.activeIsApp;
-        loadingMap = next.loadingMap;
-        unreadMap = next.unreadMap;
-        refreshTrigger++;
-        if (detail.agentId) {
-            activeAgentId = writeSessionAgent(localStorage, newId, detail.agentId);
-            agentRuntime.activateAgent(activeAgentId);
-        }
-        await send({ detail: { ...detail, text } });
-    }
-
-    // O handoff inicial chega pela URL somente quando o Desktop ainda não tem
-    // uma janela do Shell. Ele precisa ser consumido antes do envio: caso a
-    // janela seja recriada (hot reload, restauração do Desktop ou navegação),
-    // manter `handoff` na URL faria a mesma mensagem ser enviada novamente.
-    function consumeDesktopHandoff() {
-        const text = String(handoff ?? "").trim();
-        if (!text) return null;
-
-        const detail = { text, sessionId: desktopSession, agentId };
-        handoff = undefined;
-        desktopSession = undefined;
-        agentId = undefined;
-
-        const url = new URL(window.location.href);
-        url.searchParams.delete("handoff");
-        url.searchParams.delete("desktopSession");
-        url.searchParams.delete("agentId");
-        window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-
-        return detail;
-    }
-
-    async function handleSelectSession(e) {
-        const { sessionId: newId, history: newHistory } = e.detail;
-        recordMobileNavigation({ kind: "chat", id: newId });
-        if (sessionCache[sessionId]) sessionCache[sessionId] = [...history];
-        const existing = tabs.find((t) => t.sessionId === newId);
-        if (!existing) {
-            tabs = [
-                ...tabs,
-                { sessionId: newId, name: "New Mission", pinned: false },
-            ];
-        }
-        activeTab = newId;
-        activeIsApp = false;
-        sessionId = newId;
-        fullSaveSessionState();
-        await activateSession(newId);
-        if (isMobile) closePanel();
-    }
-
-    async function handleSessionDelete(e) {
-        const payload = e?.detail ?? e;
-        const sid =
-            typeof payload === "string"
-                ? payload
-                : payload?.sessionId ?? payload;
-        tabs = tabs.filter((t) => t.sessionId !== sid);
-        appTabs = appTabs.filter((t) => t.id !== sid);
-        delete sessionCache[sid];
-        if (activeTab === sid) {
-            const fallback = tabs[0]?.sessionId;
-            activeTab = fallback;
-            activeIsApp = false;
-            fullSaveSessionState();
-            await activateSession(fallback);
-        }
-        fullSaveSessionState();
-    }
-
-    async function handleClearSession(sid) {
-        const target = sid || sessionId;
-        await api(`/sessions/${target}/clear`, "GET");
-        delete sessionCache[target];
-        delete cursorMap[target];
-        reconcileGeneration[target] = (reconcileGeneration[target] || 0) + 1;
-        loadingMap = { ...loadingMap, [target]: false };
-        if (target === sessionId) {
-            history = [];
-            await tick();
-        }
-        refreshTrigger++;
-    }
-
-    // ── App tabs ─────────────────────────────────────────────────────
     let appTabs = [];
-    // Workstation keeps a deterministic icon preview: iframe pixel capture is
-    // inconsistent under sandbox and origin restrictions.
     let activeIsApp = false;
     $: {
         const current = activeIsApp ? appTabs.find((tab) => tab.id === activeTab) : null;
@@ -2264,29 +537,9 @@
             : { category: "chat", contextId: "chat", contextLabel: "Chat" });
     }
     let appLoadingMap = {};
-    // Um iframe pode carregar antes de o listener ser associado em uma troca
-    // rápida de abas, ou nunca disparar `load` quando o navegador cancela uma
-    // navegação em segundo plano. O Workstation não pode ficar bloqueado por
-    // esse estado transitório: o indicador é apenas visual e expira rápido.
     const appLoadTimers = {};
     const APP_LOAD_FALLBACK_MS = 1200;
 
-    function finishAppLoad(id) {
-        if (!id) return;
-        if (appLoadTimers[id]) {
-            clearTimeout(appLoadTimers[id]);
-            delete appLoadTimers[id];
-        }
-        if (appLoadingMap[id]) appLoadingMap = { ...appLoadingMap, [id]: false };
-        if (appRefreshingMap[id]) appRefreshingMap = { ...appRefreshingMap, [id]: false };
-    }
-
-    function startAppLoad(id) {
-        if (!id) return;
-        finishAppLoad(id);
-        appLoadingMap = { ...appLoadingMap, [id]: true };
-        appLoadTimers[id] = setTimeout(() => finishAppLoad(id), APP_LOAD_FALLBACK_MS);
-    }
     let statusModal = null;
     let notificationCenterOpen = false;
     let notificationCount = 0;
@@ -2323,68 +576,6 @@
     $: appInfoInitials = String(appInfoTarget?.name || appInfoTarget?.packageName || "App")
         .trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "AP";
     $: appInfoDetails = buildAppDetails(appInfoTarget);
-    function buildAppDetails(app) {
-        if (!app) return [];
-        // The tab id is an internal compatibility key and can originate in an
-        // external opener. The sheet intentionally displays only canonical,
-        // safe package catalog metadata.
-        const relativeUrl = String(app.url || "").replace(/^https?:\/\/[^/]+/i, "") || "Not available";
-        return [
-            { label: "Package", value: app.packageName || "Unknown" },
-            ...(app.version ? [{ label: "Version", value: app.version }] : []),
-            ...(app.description ? [{ label: "Description", value: app.description }] : []),
-            ...(app.view ? [{ label: "View", value: app.view }] : []),
-            { label: "View role", value: app.default ? "Package home" : "Additional view" },
-            { label: "Mobile", value: app.mobileSupported === false ? "Not supported" : "Supported" },
-            ...(app.entrypoint ? [{ label: "Entrypoint", value: app.entrypoint }] : []),
-            ...(app.packageType ? [{ label: "Module type", value: app.packageType }] : []),
-            ...(app.license ? [{ label: "License", value: app.license }] : []),
-            ...(app.author ? [{ label: "Author", value: app.author }] : []),
-            ...(app.nodeEngine ? [{ label: "Node.js", value: app.nodeEngine }] : []),
-            ...(app.viewCount ? [{ label: "Package views", value: String(app.viewCount) }] : []),
-            ...(Number.isFinite(app.scriptCount) ? [{ label: "Scripts", value: String(app.scriptCount) }] : []),
-            ...(Number.isFinite(app.dependencyCount) ? [{ label: "Dependencies", value: String(app.dependencyCount) }] : []),
-            ...(app.keywords?.length ? [{ label: "Keywords", value: app.keywords.join(", ") }] : []),
-            ...(app.homepage ? [{ label: "Homepage", value: app.homepage }] : []),
-            ...(app.repository ? [{ label: "Repository", value: app.repository }] : []),
-            { label: "Route", value: relativeUrl },
-        ];
-    }
-
-    function openAppInfo() {
-        appMenuOpen = false;
-        appInfoTarget = activeAppInfo;
-        appInfoOpen = true;
-    }
-
-    async function bootstrapHeaderActions() {
-        try {
-            const catalog = await api("/apps/list", "GET", null, "shell");
-            if (Array.isArray(catalog)) headerActionCatalog = catalog;
-        } catch (error) {
-            // Ações de cabeçalho são extensão opcional. O app ativo segue
-            // disponível mesmo se o catálogo não puder ser atualizado.
-            console.warn("[header-actions] failed to load contributions:", error);
-        }
-    }
-
-    function runHeaderAction(action) {
-        const frame = iframeRefs[activeTab];
-        if (!action || !activeAppInfo || !frame?.contentWindow) return;
-        appMenuOpen = false;
-        frame.contentWindow.postMessage(headerActionMessage(action, activeAppInfo), window.location.origin);
-    }
-
-    function openCatalogAppInfo(event) {
-        appMenuOpen = false;
-        appInfoTarget = event.detail;
-        appInfoOpen = true;
-    }
-
-    function closeAppInfo() {
-        appInfoOpen = false;
-        appInfoTarget = null;
-    }
 
     $: rawTabs = [
         ...tabs.map((t) => ({ ...t, type: "chat" })),
@@ -2399,102 +590,6 @@
     }
     $: allTabs = tabOrder.map((id) => rawTabs.find((tab) => tab.sessionId === id)).filter(Boolean);
 
-    function handleOpenApp(e) {
-        const app = e.detail;
-        const existing = appTabs.find((t) => t.id === app.id);
-        recordMobileNavigation({ kind: "app", id: app.id });
-        if (existing) {
-            activeTab = app.id;
-            activeIsApp = true;
-            finishAppLoad(app.id);
-            appMenuOpen = false;
-            fullSaveSessionState();
-            if (isMobile) closePanel();
-            return;
-        }
-        const newAppTab = { ...app, type: "app" };
-        appTabs = [...appTabs, newAppTab];
-        activeTab = app.id;
-        activeIsApp = true;
-        appMenuOpen = false;
-        startAppLoad(app.id);
-        fullSaveSessionState();
-        if (isMobile) closePanel();
-    }
-
-    function shellControlState() {
-        const windows = appTabs.map((tab) => {
-            const catalogApp = shellControlApps.find((item) => item.id === tab.id || item.url === tab.url);
-            return {
-                id: tab.id,
-                appId: catalogApp?.appId || tab.id,
-                title: tab.name || catalogApp?.name || "App",
-                workspace: "shell",
-                isMinimized: false,
-                isMaximized: false,
-                isFocused: activeIsApp && activeTab === tab.id,
-            };
-        });
-        return {
-            activeWorkspace: "shell",
-            workspaces: [{ id: "shell", name: "Shell" }],
-            activeWindowId: activeIsApp ? activeTab : null,
-            windows,
-            apps: shellControlApps.map((item) => ({
-                appId: item.appId,
-                name: item.name,
-                description: item.description,
-                isOpen: windows.some((win) => win.appId === item.appId),
-                windowIds: windows.filter((win) => win.appId === item.appId).map((win) => win.id),
-            })),
-        };
-    }
-
-    async function loadShellControlApps() {
-        const response = await api("/apps/list", "GET", null, "shell");
-        const list = Array.isArray(response) ? response : [];
-        shellControlApps = list
-            .filter((item) => item?.url && item.default === true)
-            .map((item) => ({
-                appId: item.packageName || item.id || item.url,
-                id: item.id || item.url,
-                name: item.name || item.packageName || "App",
-                description: item.description || "",
-                url: item.url,
-                source: item,
-            }));
-        return shellControlApps;
-    }
-
-    async function shellControlCommand(action, payload) {
-        if (action === "list_apps" || action === "list_windows" || action === "get_state") return shellControlState();
-        if (action !== "open_app") throw new Error("Action is not supported by Shell");
-        const appId = String(payload?.appId || "").trim();
-        // O Desktop pode pedir uma aba assim que o WebSocket abre, antes de a
-        // consulta inicial do catálogo terminar. Resolve o catálogo aqui para
-        // que esse primeiro comando não seja descartado como "não encontrado".
-        if (!shellControlApps.length) await loadShellControlApps();
-        const target = shellControlApps.find((item) => item.appId === appId);
-        if (!target) throw new Error("App was not found in the Shell catalog");
-        handleOpenApp({ detail: target.source });
-        await tick();
-        return shellControlState();
-    }
-
-    function installShellDesktopControl() {
-        const bridge = installShellControlBridge({
-            sessionId: () => sessionId,
-            state: shellControlState,
-            execute: shellControlCommand,
-        });
-        // Não bloqueia a conexão da ponte: o primeiro comando ainda pode
-        // carregar o catálogo via shellControlCommand.
-        loadShellControlApps().catch((error) => {
-            console.warn("[desktop-control] Shell could not load the catalog", error);
-        });
-        return bridge;
-    }
-
     $: {
         sessionId;
         appTabs;
@@ -2504,278 +599,8 @@
         shellDesktopControl?.updateState();
     }
 
-    // ── Deep-link (notificação push — ver packages/ntfy/AGENT.md) ────
-    // Abre (criando a aba se preciso) a sessão de chat de um sessionId que
-    // pode nem estar entre as abas já abertas neste device.
-    async function abrirChatPorDeepLink(sid) {
-        if (!sid) return;
-        recordMobileNavigation({ kind: "chat", id: sid });
-        const existing = tabs.find((t) => t.sessionId === sid);
-        if (!existing) {
-            tabs = [
-                ...tabs,
-                { sessionId: sid, name: "New Mission", pinned: false },
-            ];
-        }
-        activeTab = sid;
-        activeIsApp = false;
-        await activateSession(sid);
-        if (isMobile) closePanel();
-    }
-
-    // Resolve o app pelo id (mesma fonte que alimenta Apps.svelte/Sidebar:
-    // getActiveApps()/getPackageViews()) e reusa handleOpenApp para abrir a
-    // aba. Se o id for desconhecido, não faz nada (a Home abre normal).
-    async function abrirAppPorDeepLink(appTargetId) {
-        if (!appTargetId) return;
-        const existing = appTabs.find((t) => t.id === appTargetId);
-        if (existing) {
-            handleOpenApp({ detail: existing });
-            return;
-        }
-        const apps = await api("/apps/list", "GET", null, "shell");
-        const found = Array.isArray(apps)
-            ? apps.find((a) => a.id === appTargetId)
-            : null;
-        if (!found) {
-            console.warn(`[deep-link] app "${appTargetId}" not found`);
-            return;
-        }
-        handleOpenApp({ detail: found });
-    }
-
-    // open=result: abre o resultado de um job de pacote. Se há `file` e o File
-    // Manager está instalado, abre-o com o arquivo selecionado; senão cai pro
-    // app do próprio pacote (`pkg`) na sua tela de resultado.
-    async function abrirResultadoPorDeepLink({ pkg: sourcePkg, file: resultFile }) {
-        const apps = await api("/apps/list", "GET", null, "shell");
-        const list = Array.isArray(apps) ? apps : [];
-        const fileApp = resultFile
-            ? list.find((a) => a?.url?.includes("/view/file-manager/"))
-            : null;
-        if (fileApp) {
-            const parts = resultFile.split("/");
-            const name = parts.pop();
-            const folder = parts.join("/");
-            const sep = fileApp.url.includes("?") ? "&" : "?";
-            const url = `${fileApp.url}${sep}path=${encodeURIComponent(folder)}&select=${encodeURIComponent(name)}`;
-            const id = `open:${url}`;
-            const existing = appTabs.find((t) => t.id === id);
-            if (existing) return handleOpenApp({ detail: existing });
-            return handleOpenApp({ detail: { id, name: fileApp.name || "Files", url, icon: fileApp.icon } });
-        }
-        // Fallback: abre o app do pacote de origem (mostra sua tela de resultado).
-        const pkgApp = sourcePkg
-            ? list.find((a) => a?.url?.includes(`/view/${sourcePkg}/`))
-            : null;
-        if (pkgApp) return handleOpenApp({ detail: pkgApp });
-        console.warn(`[deep-link] open=result: nem file-manager nem "${sourcePkg}" encontrados`);
-    }
-
-    // ── Bus de UI: open:app / open:iframe / open:canvas (ver views/lib/bus.js) ──
-    // Permite que qualquer widget/app dispare `$("open:app", pkg)` para um
-    // app abrir outro, `$("open:iframe", { url, title })` para abrir uma
-    // aba iframe arbitrária (o título vira o nome da aba), ou
-    // `$("open:canvas", { html })` para abrir o Canvas de verdade com HTML.
-    async function abrirAppPorPacote(pkg) {
-        if (!pkg) return;
-        // pkg pode ser o nome do pacote, o id do app, ou a própria url.
-        const existing = appTabs.find(
-            (t) => t.id === pkg || t.name === pkg || t.url === pkg,
-        );
-        if (existing) return handleOpenApp({ detail: existing });
-        const apps = await api("/apps/list", "GET", null, "shell");
-        const list = Array.isArray(apps) ? apps : [];
-        const target = String(pkg).toLowerCase();
-        const found =
-            list.find((a) => a.id === pkg || a.url === pkg) ||
-            list.find((a) => a?.url?.includes(`/view/${pkg}/`)) ||
-            list.find((a) => (a.name || "").toLowerCase() === target);
-        if (!found) {
-            console.warn(`[bus] open:app: "${pkg}" not found`);
-            return;
-        }
-        handleOpenApp({ detail: found });
-    }
-
-    function abrirIframe(d = {}) {
-        const { url, title } = d;
-        if (!url) return;
-        const id = `iframe:${url}`;
-        const existing = appTabs.find((t) => t.id === id);
-        if (existing) return handleOpenApp({ detail: existing });
-        handleOpenApp({ detail: { id, name: title || "App", url } });
-    }
-
-    // Abre um arquivo como aba de App real — bridge do File Manager "Abrir em…".
-    // `d = { pkg?, url, title?, path? }`. A `url` já traz o path num query param,
-    // que a camada de views entrega como `export let` da página do App (ex.
-    // /view/code-editor/Embed?path=foo.js → `export let path`).
-    async function abrirAppComPath(d = {}) {
-        const { pkg, url, title } = d;
-        if (!url) return;
-        const id = `open:${url}`; // url inclui o path → uma aba por arquivo
-        const existing = appTabs.find((t) => t.id === id);
-        if (existing) return handleOpenApp({ detail: existing });
-        // Tenta herdar nome/ícone do App a partir de /apps/list (mesma fonte de
-        // abrirAppPorPacote); se não achar, usa só o título do opener.
-        let name = title || "App";
-        let icon;
-        try {
-            const apps = await api("/apps/list", "GET", null, "shell");
-            const list = Array.isArray(apps) ? apps : [];
-            const found = pkg
-                ? list.find((a) => a?.url?.includes(`/view/${pkg}/`))
-                : null;
-            if (found) {
-                name = title || found.name || name;
-                icon = found.icon;
-            }
-        } catch {
-            /* segue sem ícone/nome do catálogo */
-        }
-        handleOpenApp({ detail: { id, name, url, icon } });
-    }
-
-    function abrirCaminhoInterno(path, label = "Page") {
-        if (typeof path !== "string" || !path.startsWith("/") || path.startsWith("//")) return;
-        return abrirAppComPath({ url: path, title: label });
-    }
-
-    function abrirPreviewNoFileManager(detail = {}) {
-        const url = filePreviewUrl(detail);
-        if (!url) return;
-        return abrirAppComPath({ pkg: "file-manager", url, title: detail.title || detail.name || "Preview" });
-    }
-
     let busOffs = [];
-    function setupWidgetBus() {
-        bootstrapPackageWidgets();
-        bootstrapMessageActions();
-        // Ponte front→back: eventos logos:/think: (ou {server:true}) viajam
-        // pelo WS e viram dispatchEvent no backend.
-        setServerForwarder((event, detail) =>
-            agentRuntime.send({ type: "bus:emit", event, detail }),
-        );
-        busOffs.push(busOn("open:app", (pkg) => abrirAppPorPacote(pkg)));
-        busOffs.push(busOn("shell:loading", (detail) => setGlobalLoading(detail)));
-        busOffs.push(busOn("shell:reload", () => {
-            // O widget vive em iframe; o Shell é quem pode resetar toda a
-            // página e reconstruir os widgets usando o cache já limpo.
-            window.location.reload();
-        }));
-        busOffs.push(busOn("agent:deep-link", (target) => {
-            if (target?.type === "chat") return abrirChatPorDeepLink(target.session);
-            if (target?.type === "app") return abrirAppPorDeepLink(target.app);
-            if (target?.type === "result") return abrirResultadoPorDeepLink(target);
-        }));
-        busOffs.push(busOn("open:iframe", (d) => abrirIframe(d)));
-        busOffs.push(busOn("open:with", (d) => abrirAppComPath(d)));
-        busOffs.push(busOn(FILE_MANAGER_PREVIEW_EVENT, (d) => abrirPreviewNoFileManager(d)));
-        // Um pacote ou controle local pode pedir uma view modal sem precisar
-        // conhecer o estado visual do Shell. URLs relativas evitam que esse
-        // canal vire uma abertura arbitrária de conteúdo externo.
-        busOffs.push(busOn("modal-ui", (modal) => {
-            if (!modal?.label || typeof modal.url !== "string" || !modal.url.startsWith("/")) return;
-            statusModal = { label: modal.label, url: modal.url };
-        }));
-        // Permite que um package (rodando em iframe) abra o Canvas de verdade
-        // via parent.postMessage({source:"aurora", type:"open:canvas", detail:{html}}),
-        // mesmo caminho que MessageList usa internamente (handleOpenCanvas).
-        busOffs.push(busOn("open:canvas", (d) => handleOpenCanvas({ detail: d || {} })));
-        busOffs.push(busOn("message-actions:refresh", () => bootstrapMessageActions()));
-        // A menu contribution runs one iframe below the Shell. Forward a
-        // selected central notification to the Desktop host, which owns the
-        // native governance approval overlay.
-        busOffs.push(busOn("notifications:activate", (notification) => {
-            if (window.parent === window) return;
-            window.parent.postMessage({
-                source: "thinkiac-shell",
-                type: "notifications:activate",
-                detail: notification,
-            }, window.location.origin);
-        }));
-        busOffs.push(busOn("structured-input:resolved", (detail) => {
-            if (!detail?.text || detail.sessionId !== sessionId) return;
-            send({ detail: { text: detail.text } });
-        }));
-        // Observabilidade da volta (back→front): loga o pong da demo.
-        busOffs.push(
-            busOn("logos:pong", (d) => console.log("[bus] logos:pong", d)),
-        );
-    }
 
-    // ── Windows: handlers vindos do Sidebar / Windows ────────────────
-    function handleSelectApp(e) {
-        const id = typeof e === "string" ? e : e?.detail ?? e;
-        if (!appTabs.some((tab) => tab.id === id)) return;
-        activeTab = id;
-        activeIsApp = true;
-        // A tab can be selected again after its iframe load event was dropped
-        // while it was backgrounded. Never let that stale loading state cover
-        // the restored package view.
-        finishAppLoad(id);
-        fullSaveSessionState();
-        if (isMobile) closePanel();
-    }
-
-    function handleCloseApp(e) {
-        const id = typeof e === "string" ? e : e?.detail ?? e;
-        finishAppLoad(id);
-        appTabs = appTabs.filter((t) => t.id !== id);
-        if (activeTab === id) {
-            activeTab = sessionId;
-            activeIsApp = false;
-        }
-        fullSaveSessionState();
-    }
-
-    function handleCloseAllApps() {
-        Object.keys(appLoadTimers).forEach(finishAppLoad);
-        const next = closeAllAppTabs({ appTabs, activeTab, activeIsApp, sessionId });
-        appTabs = next.appTabs;
-        activeTab = next.activeTab;
-        activeIsApp = next.activeIsApp;
-        fullSaveSessionState();
-    }
-
-    function handleReorderApps(event) {
-        const { id, targetId } = event?.detail || {};
-        const from = appTabs.findIndex((tab) => tab.id === id);
-        const to = appTabs.findIndex((tab) => tab.id === targetId);
-        if (from < 0 || to < 0 || from === to) return;
-        const next = [...appTabs];
-        const [tab] = next.splice(from, 1);
-        next.splice(to, 0, tab);
-        appTabs = next;
-        fullSaveSessionState();
-    }
-
-    function handleOpenSeparateWindow(event) {
-        if (!desktopHost) return;
-        const tab = event?.detail;
-        if (!tab?.sessionId) return;
-        const detail = tab.type === "app"
-            ? { kind: "app", appId: tab.id || tab.sessionId }
-            : { kind: "chat", sessionId: tab.sessionId };
-        window.parent.postMessage({
-            source: "thinkiac-shell",
-            type: "open:shell-window",
-            detail,
-        }, window.location.origin);
-    }
-
-    function handleSelectChat(e) {
-        const id = typeof e === "string" ? e : e?.detail ?? e;
-        handleSelectTab(id);
-    }
-
-    function handleCloseChat(e) {
-        const id = typeof e === "string" ? e : e?.detail ?? e;
-        handleCloseTab(id);
-    }
-
-    // ── Nome da sessão ativa ─────────────────────────────────────────
     $: activeTabName = (() => {
         if (activeIsApp)
             return appTabs.find((t) => t.id === activeTab)?.name ?? "App";
@@ -2784,47 +609,6 @@
 
     $: chatTabsForWindows = tabs.map((t) => ({ ...t, type: "chat" }));
 
-    async function onStructuredSend(e) {
-        const handlerStep = structuredProps?.find((step) => step?.submitEvent || step?.localAction);
-        const detail = e?.detail ?? {};
-        if (!handlerStep) {
-            send(e);
-            detail.acknowledge?.();
-            return;
-        }
-        // Use a rota confirmável para aprovações de governança. O envio WS é
-        // fire-and-forget e antes fazia o botão parecer aceito sem gravar nada.
-        if (handlerStep.governanceDecisionId) {
-            const approved = detail.responses?.[structuredProps.indexOf(handlerStep)] === handlerStep.confirmLabel;
-            try {
-                const response = await fetch('/governance/confirmations/resolve', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, decisionId: handlerStep.governanceDecisionId, approved }),
-                });
-                const result = await response.json().catch(() => null);
-                if (!response.ok || result?.success === false || !(result?.data?.status || result?.status)) {
-                    throw new Error(result?.error || `Could not record approval (HTTP ${response.status}).`);
-                }
-                if (lastMessage) {
-                    lastMessage._structuredData = null;
-                    history = [...history];
-                    sessionCache[sessionId] = [...history];
-                }
-                detail.acknowledge?.();
-            } catch (error) {
-                detail.reject?.(error?.message);
-            }
-            return;
-        }
-        busEmit(handlerStep.submitEvent, {
-            sessionId, submissionId: `${sessionId}:${Date.now()}`,
-            responseEvent: handlerStep.responseEvent, steps: structuredProps,
-            responses: detail.responses, text: detail.text,
-        });
-        detail.acknowledge?.();
-    }
-
-    // Mantém a subscrição WS sincronizada com as abas de chat abertas
     $: agentRuntime.subscribeAll(tabs.map((t) => t.sessionId));
     $: if (agentRuntime.isReady()) {
         agentRuntime.setUiState({
@@ -2832,207 +616,7 @@
         });
     }
 
-    function createUiSnapshot() {
-        const elements = [...document.querySelectorAll("button, a, input, textarea, [role='button']")]
-            .slice(0, 120)
-            .map((el, index) => ({
-                index,
-                tag: el.tagName.toLowerCase(),
-                label: (el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent || "")
-                    .trim().replace(/\s+/g, " ").slice(0, 120),
-                disabled: !!el.disabled,
-            }))
-            .filter((el) => el.label);
-        return {
-            route: `${window.location.pathname}${window.location.search}`,
-            activeChatSessionId: activeIsApp ? null : sessionId,
-            elements,
-            updatedAt: new Date().toISOString(),
-        };
-    }
-
-    onMount(() => {
-        let disposed = false;
-        nativeApp = Boolean(window.FlutterBridge?.postMessage);
-        desktopHost = isHostedByDesktop(window);
-        if (!desktopHost) {
-            const bridge = installShellDesktopControl();
-            if (disposed) bridge.stop();
-            else shellDesktopControl = bridge;
-        }
-        theme = getTheme();
-        activeAgentId = readSessionAgent(localStorage, sessionId);
-        agentRuntime.activateAgent(activeAgentId);
-        loadSessionPreferences();
-        checkMobile();
-        layoutReady = true;
-
-        bootstrapBackgroundViews().then(() => publishBackgroundContext({ category: "chat", contextId: "chat", contextLabel: "Chat" }));
-
-        // ── Canal WS de eventos de chat ──
-        agentRuntime.on((envelope) => {
-            const msg = envelope.message;
-            if (msg.type === "chat:event") {
-                if (envelope.agentId !== readSessionAgent(localStorage, msg.session_id)) return;
-                applyChatEvent(msg.session_id, msg.event, msg.data, msg.seq, msg.epoch);
-            } else if (msg.type === "sessions:updated") {
-                refreshTrigger++;
-                if (history.length === 0) maybeLoadRecentSessions();
-            } else if (msg.type === "bus:event") {
-                // Evento vindo do backend → re-emite no bus local (sem
-                // reencaminhar, para não criar loop).
-                busEmitLocal(msg.event, msg.detail);
-            }
-        });
-        // A cada (re)abertura do socket, reconcilia as sessões abertas —
-        // cobre tanto o primeiro load (sessão pode estar respondendo desde
-        // antes do refresh) quanto quedas de conexão no meio do stream.
-        agentRuntime.onReopen((reopenedAgentId) => {
-            agentRuntime.subscribeAll(tabs.map((t) => t.sessionId));
-            agentRuntime.setUiState({
-                activeChatSessionId: activeIsApp ? null : sessionId,
-            });
-            for (const t of tabs) {
-                if (readSessionAgent(localStorage, t.sessionId) === reopenedAgentId) reconcileSession(t.sessionId);
-            }
-        });
-        agentRuntime.onCommand(({ agentId: commandAgentId, command }) => {
-            if (commandAgentId !== activeAgentId) return;
-            if (command?.type === "navigate" && typeof command.path === "string" && command.path.startsWith("/") && !command.path.startsWith("//")) {
-                window.location.assign(command.path);
-            } else if (command?.type === "request-snapshot") {
-                agentRuntime.sendSnapshot(createUiSnapshot());
-            }
-        });
-        agentRuntime.connectAll();
-
-        // Registra widgets contribuídos por pacotes e liga o bus de UI.
-        setupWidgetBus();
-        // Descobre itens de menu contribuídos por pacotes (manifest.menu).
-        bootstrapMenuItems();
-        // Descobre ações de cabeçalho declaradas por addons e pacotes.
-        bootstrapHeaderActions();
-        // As ações contextuais não tornam seus pacotes apps do catálogo.
-        // Consulta a disponibilidade explicitamente para nunca oferecer uma
-        // rota que não está instalada neste Runtime.
-        loadChatFeatureAvailability();
-
-        // Tentar restaurar estado antes de carregar o workspace
-        const restored = fullRestoreSessionState();
-        if (restored && tabs.length > 0) {
-            // Se restaurou, ativar a sessão restaurada
-            if (activeIsApp) {
-                // App tabs são mantidas, não ativa sessão de chat
-            } else {
-                // Ativar a sessão restaurada
-                activateSession(sessionId).catch(() => {});
-            }
-        }
-        loadSystem();
-        if (!restored || !tabs.length) loadWorkspace();
-
-        // A entrada atual é a base da navegação interna. Ela é substituída,
-        // nunca acrescentada, para preservar a rota que abriu o Shell.
-        replaceMobileBrowserHistoryEntry();
-
-        // Deep-link vindo de notificação push (ver packages/ntfy/AGENT.md)
-        // — tem prioridade sobre a sessão restaurada/padrão acima.
-        if (open === "chat" && session) {
-            abrirChatPorDeepLink(session);
-        } else if (open === "app" && app) {
-            abrirAppPorDeepLink(app);
-        } else if (open === "result") {
-            abrirResultadoPorDeepLink({ pkg, file });
-        } else if (open === "path") {
-            abrirCaminhoInterno(url, title || "Home page");
-        }
-        if (open === "chat" && listen === "1") {
-            tick().then(() => window.dispatchEvent(
-                new CustomEvent("thinkiac:shell:start-dictation"),
-            ));
-        }
-
-        // A URL é usada somente para a primeira abertura. Nas seguintes, o
-        // Desktop envia diretamente ao iframe focado para não recarregar a
-        // janela nem criar uma segunda sessão.
-        const initialDesktopHandoff = consumeDesktopHandoff();
-        if (initialDesktopHandoff) openDesktopComposition(initialDesktopHandoff);
-        const onDesktopMessage = (event) => {
-            const data = event.data;
-            if (data?.source !== "thinkiac-desktop") return;
-            if (data.type === "shell:new-message") {
-                openDesktopComposition(data.detail);
-            } else if (data.type === "shell:open-session") {
-                handleSelectSession({ detail: { sessionId: data.detail?.sessionId } });
-            } else if (data.type === "shell:stop") {
-                handleStop(data.detail?.sessionId);
-            }
-        };
-        window.addEventListener("message", onDesktopMessage);
-        setupGestureProtocol();
-
-        // A altura do composer não é fixa: o textarea, anexos e controles
-        // opcionais podem crescer sem uma nova mensagem. A MessageList usa
-        // esta medida para nunca terminar atrás dele.
-        let composerObserver = null;
-        tick().then(() => {
-            measureComposerDock();
-            if (typeof ResizeObserver !== "undefined" && composerStage) {
-                composerObserver = new ResizeObserver(measureComposerDock);
-                composerObserver.observe(composerStage);
-            }
-        });
-
-        window.addEventListener("resize", checkMobile);
-        window.addEventListener("popstate", handleMobileBrowserBack);
-        window.addEventListener("online", handleOnline);
-        window.addEventListener("offline", handleOffline);
-
-        // ── Eventos de persistência ──
-        window.addEventListener("beforeunload", fullSaveSessionState);
-        document.addEventListener("visibilitychange", () => {
-            if (document.hidden) fullSaveSessionState();
-        });
-        // Salvar periodicamente
-        const persistInterval = setInterval(fullSaveSessionState, 30000);
-
-        // Verifica estado inicial
-        if (!navigator.onLine) {
-            handleOffline();
-        }
-
-        // A confirmação ocorre no próximo frame, quando a árvore Svelte já
-        // foi hidratada e a WebView pode remover seu loading nativo com
-        // segurança. Não depende de consultas frágeis ao DOM.
-        requestAnimationFrame(() => {
-            showLoading = false;
-            postEdgeStatus({ type: "ready", surface: floatingShell ? "floating-shell" : "default" });
-        });
-
-        return () => {
-            composerObserver?.disconnect();
-            disposed = true;
-            shellDesktopControl?.stop();
-            disposeBackgroundViews();
-            for (const off of busOffs) off?.();
-            busOffs = [];
-            for (const off of gestureOffs) off?.();
-            gestureOffs = [];
-            window.removeEventListener("resize", checkMobile);
-            window.removeEventListener("popstate", handleMobileBrowserBack);
-            window.removeEventListener("online", handleOnline);
-            window.removeEventListener("offline", handleOffline);
-            window.removeEventListener("beforeunload", fullSaveSessionState);
-            window.removeEventListener("message", onDesktopMessage);
-            document.removeEventListener(
-                "visibilitychange",
-                fullSaveSessionState,
-            );
-            if (reconnectTimer) clearInterval(reconnectTimer);
-            if (globalLoadingTimer) clearTimeout(globalLoadingTimer);
-            if (persistInterval) clearInterval(persistInterval);
-        };
-    });
+    onMount(() => mountShell());
 </script>
 
 <svelte:head>
