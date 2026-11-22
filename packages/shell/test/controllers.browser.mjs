@@ -87,6 +87,14 @@ try{
     await page.waitForSelector('iframe[title="Preview"]');
     await page.waitForFunction(()=>!document.querySelector('.iframe-panel .app-loader'));
     assert.equal(await page.$eval('.iframe-panel iframe', el=>el.getAttribute('sandbox')), 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals');
+    const frameTheme = await page.$eval('iframe[title="Preview"]', el => {
+      const frameDocument = el.contentDocument;
+      return {
+        mode: frameDocument.documentElement.dataset.thinkiacThemeMode,
+        scrollbarWidth: el.contentWindow.getComputedStyle(frameDocument.documentElement).scrollbarWidth,
+      };
+    });
+    assert.deepEqual(frameTheme, {mode: theme, scrollbarWidth: 'thin'});
     await page.evaluate(()=>{window.originalFrame=document.querySelector('.iframe-panel iframe');});
     if(mobile){
       await page.click('button[aria-label="App options"]');

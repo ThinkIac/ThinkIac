@@ -6,9 +6,8 @@ const root = new URL('../../', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
 
 test('Agent and Shell define a theme-aware, compact global scrollbar', async () => {
-  const [home, shell, agentTheme, shellTheme] = await Promise.all([
+  const [home, agentTheme, shellTheme] = await Promise.all([
     read('agent/views/Home.svelte'),
-    read('shell/views/Index.svelte'),
     read('agent/views/theme.js'),
     read('shell/views/theme.js'),
   ]);
@@ -23,19 +22,21 @@ test('Agent and Shell define a theme-aware, compact global scrollbar', async () 
   assert.match(agentTheme, /export function applyThemeScrollbarToDocument/);
   assert.match(agentTheme, /export function applyThemeToDocument/);
   assert.match(home, /applyThemeToDocument\(iframeRefs\[tab\.id\]\?\.contentDocument\)/);
-  assert.match(shell, /applyThemeToDocument\(iframeRefs\[tab\.id\]\?\.contentDocument\)/);
   assert.match(shellTheme, /--thinkiac-scrollbar-thumb:\s*rgba\(245, 245, 245, \.14\)/);
   assert.match(shellTheme, /--thinkiac-scrollbar-thumb-hover:\s*rgba\(245, 245, 245, \.30\)/);
   assert.match(shellTheme, /!important/);
 });
 
 test('Shell aplica o contrato de scrollbar aos seus iframes same-origin', async () => {
-  const [shell, theme] = await Promise.all([
+  const [shell, appSurface, theme] = await Promise.all([
     read('shell/views/Index.svelte'),
+    read('shell/views/components/shell/AppSurface.svelte'),
     read('shell/views/theme.js'),
   ]);
 
-  assert.match(shell, /applyThemeToDocument\(iframeRefs\[tab\.id\]\?\.contentDocument\)/);
+  assert.match(shell, /import AppSurface from "\.\/components\/shell\/AppSurface\.svelte"/);
+  assert.match(shell, /<AppSurface\b[^>]*\{iframeRefs\}[^>]*\{applyThemeToDocument\}/);
+  assert.match(appSurface, /applyThemeToDocument\(iframeRefs\[tab\.id\]\?\.contentDocument\)/);
   assert.match(theme, /thinkiac-theme-scrollbar/);
   assert.match(theme, /--thinkiac-scrollbar-thumb/);
 });
