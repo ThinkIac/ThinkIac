@@ -1,25 +1,20 @@
 <script>
+    import MobileHeader from "./components/shell/MobileHeader.svelte";
+    import ShellOverlays from "./components/shell/ShellOverlays.svelte";
+    import ConversationPanel from "./components/shell/ConversationPanel.svelte";
+    import ComposerArea from "./components/shell/ComposerArea.svelte";
     import { createShellControllers } from './controllers/index.js';
 
     import { createHistoryMessages } from "./lib/history_messages.js";
     import { retryTurnInput } from './lib/retry-turn.js';
     import { onMount, tick } from "svelte";
-    import Dialogs from "../../ui-dialogs/views/components/Dialogs.svelte";
-    import ModalSheet from "../../ui-dialogs/views/components/ModalSheet.svelte";
     import { FILE_MANAGER_PREVIEW_EVENT, filePreviewUrl } from "../../file-manager/views/lib/protocol.js";
 
     import Sidebar from "./Sidebar.svelte";
-    import MessageList from "./MessageList.svelte";
-    import Canvas from "./Canvas.svelte";
     import SessionTabs from "./SessionTabs.svelte";
 
-    import StructuredInput from "./components/StructuredInput.svelte";
-    import SigmaLoader from "./components/SigmaLoader.svelte";
+    import AppSurface from "./components/shell/AppSurface.svelte";
     import GlobalLoading from "./components/GlobalLoading.svelte";
-    import ActivitySlot from "./components/ActivitySlot.svelte";
-    import InputBar from "./InputBar.svelte";
-    import NotifyOptIn from "./components/NotifyOptIn.svelte";
-    import NtfyInbox from "./components/NtfyInbox.svelte";
 
     import { api } from "./api";
     import {
@@ -776,350 +771,53 @@
         <!-- Os menus de Widget permanecem acessíveis também nas views de
              pacote. Os controles específicos do pacote entram ao lado do
              nome, sem substituir os atalhos declarativos das gavetas. -->
-        {#if isMobile && !floatingShell}
-            <div class="mobile-topbar-dock" class:collapsed={mobileHeaderCollapsed}>
-            <div
-                class="mobile-topbar"
-                class:collapsed={mobileHeaderCollapsed}
-                aria-hidden={mobileHeaderCollapsed}
-                inert={mobileHeaderCollapsed}
-            >
-                {#if activeIsApp}
-                    <button class="mtb-btn" on:click={openLeft} aria-label="Docks and sessions"><svg viewBox="0 0 16 16" fill="none" width="17" height="17"><path d="M2 4.5h12M2 8h12M2 11.5h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-                    <button class="mtb-btn" on:click={mobileHome} aria-label="Back" title="Back">
-                        <svg viewBox="0 0 16 16" fill="none" width="17" height="17"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <button class="mtb-btn" on:click={goForwardMobile} disabled={!canGoForwardMobile} aria-label="Forward" title="Forward">
-                        <svg viewBox="0 0 16 16" fill="none" width="17" height="17" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <button
-                        type="button"
-                        class="mtb-app-title"
-                        on:click={() => (mobileHeaderCollapsed = true)}
-                        aria-label={`Collapse header for ${activeTabName}`}
-                        title="Collapse header"
-                    >{activeTabName}</button>
-                    <div class="mtb-app-menu" on:click|stopPropagation>
-                        <button class="mtb-btn" class:active={appMenuOpen} on:click={() => (appMenuOpen = !appMenuOpen)} aria-label="App options" aria-expanded={appMenuOpen}>
-                            <svg viewBox="0 0 16 16" fill="currentColor" width="17" height="17" aria-hidden="true"><circle cx="3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="13" cy="8" r="1.25"/></svg>
-                        </button>
-                        {#if appMenuOpen}
-                            <div class="mtb-app-dropdown" role="menu" aria-label="App options">
-                                {#each activeHeaderActions as action (`${action.sourcePackage}:${action.id}`)}
-                                    <button type="button" role="menuitem" class="mtb-header-action" on:click={() => runHeaderAction(action)}>
-                                        <span><strong>{action.label}</strong>{#if action.description}<small>{action.description}</small>{/if}</span>
-                                    </button>
-                                {/each}
-                                <div class="mtb-menu-actions" aria-label="Package actions">
-                                    <button type="button" role="menuitem" on:click={openAppInfo} aria-label="Information" title="Information"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.35"/><path d="M8 7.1v4M8 4.75v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={enterMobileFullscreen} aria-label="Full Screen" title="Full Screen"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6.25 2.75-3.5 3.5m0 0V3.4m0 2.85H5.6m4.15 7 3.5-3.5m0 0v2.85m0-2.85H10.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={refreshMobileApp} disabled={appRefreshingMap[activeTab]} aria-label="Refresh" title="Refresh"><svg class:refreshing={appRefreshingMap[activeTab]} viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 5.5A5.5 5.5 0 1 0 13.2 10M13 2.7v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={closeActiveMobileTab} aria-label="Close" title="Close"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m5 5 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/></svg></button>
-                                </div>
-                            </div>
-                        {/if}
-                    </div>
-                    <button class="mtb-btn" on:click={openRight} aria-label="Apps"><svg viewBox="0 0 20 20" fill="none" width="17" height="17"><rect x="2" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/></svg></button>
-                {:else}
-                    <button class="mtb-btn" on:click={openLeft} aria-label="Docks and sessions"><svg viewBox="0 0 16 16" fill="none" width="17" height="17"><path d="M2 4.5h12M2 8h12M2 11.5h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-                    <button class="mtb-btn" on:click={goBackMobile} disabled={!canGoBackMobile} aria-label="Back" title="Back">
-                        <svg viewBox="0 0 16 16" fill="none" width="17" height="17" aria-hidden="true"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <button class="mtb-btn" on:click={goForwardMobile} disabled={!canGoForwardMobile} aria-label="Forward" title="Forward">
-                        <svg viewBox="0 0 16 16" fill="none" width="17" height="17" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <button
-                        type="button"
-                        class="mtb-title"
-                        on:click={() => (mobileHeaderCollapsed = true)}
-                        aria-label={`Collapse header for ${activeTabName}`}
-                        title="Collapse header"
-                    ><span class="mtb-title-text">{activeTabName}</span></button>
-                    <div class="mtb-app-menu" on:click|stopPropagation>
-                        <button class="mtb-btn" class:active={chatMenuOpen} on:click={() => (chatMenuOpen = !chatMenuOpen)} aria-label="Chat options" aria-expanded={chatMenuOpen}>
-                            <svg viewBox="0 0 16 16" fill="currentColor" width="17" height="17" aria-hidden="true"><circle cx="3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="13" cy="8" r="1.25"/></svg>
-                        </button>
-                        {#if chatMenuOpen}
-                            <div class="mtb-app-dropdown" role="menu" aria-label="Chat options">
-                                <div class="mtb-menu-actions" aria-label="Chat actions">
-                                    <button type="button" role="menuitem" on:click={openChatInfo} aria-label="Information" title="Information"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.35"/><path d="M8 7.1v4M8 4.75v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={enterMobileFullscreen} aria-label="Full Screen" title="Full Screen"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6.25 2.75-3.5 3.5m0 0V3.4m0 2.85H5.6m4.15 7 3.5-3.5m0 0v2.85m0-2.85H10.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={refreshMobileChat} disabled={chatRefreshing} aria-label="Refresh" title="Refresh"><svg class:refreshing={chatRefreshing} viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 5.5A5.5 5.5 0 1 0 13.2 10M13 2.7v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={closeActiveMobileTab} aria-label="Close" title="Close"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m5 5 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/></svg></button>
-                                </div>
-                                {#if chatFeatureAvailability.artifacts}
-                                    <button type="button" role="menuitem" on:click={openArtifactLibrary}>
-                                        <span class="mtb-menu-icon"><svg viewBox="0 0 16 16" fill="none" width="16" height="16" aria-hidden="true"><path d="M3 2.75h6.2l3.8 3.8v6.7H3z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M9.2 2.75v3.8H13M5.4 9.25h5.2m-5.2 2.25h3.4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-                                        <span><strong>Artifacts</strong><small>Browse generated files</small></span>
-                                    </button>
-                                {/if}
-                                {#if chatFeatureAvailability.bags}
-                                    <button type="button" role="menuitem" on:click={openBag}>
-                                        <span class="mtb-menu-icon"><svg viewBox="0 0 16 16" fill="none" width="16" height="16" aria-hidden="true"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M5.25 5.5h5.5M5.25 8h5.5M5.25 10.5h3.4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></span>
-                                        <span><strong>Bag</strong><small>View session plan</small></span>
-                                    </button>
-                                {/if}
-                            </div>
-                        {/if}
-                    </div>
-                    <button class="mtb-btn" on:click={openRight} aria-label="Apps"><svg viewBox="0 0 20 20" fill="none" width="17" height="17"><rect x="2" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/></svg></button>
-                {/if}
-            </div>
-            {#if mobileHeaderCollapsed}
-                <div class="mobile-fullscreen-center">
-                    <button type="button" class="mobile-topbar-toggle" on:click={() => (mobileHeaderCollapsed = false)} aria-expanded="false" aria-label="Show header" title="Show header">
-                        <svg viewBox="0 0 20 12" width="18" height="11" fill="none" aria-hidden="true"><path d="M3 3.5 10 9l7-5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                    </button>
-                </div>
-            {/if}
-            </div>
-        {/if}
+        <MobileHeader
+            {isMobile} {floatingShell} {activeIsApp} {openLeft}
+            {mobileHome} {goForwardMobile} {canGoForwardMobile} {activeTabName}
+            {activeHeaderActions} {runHeaderAction} {openAppInfo} {enterMobileFullscreen}
+            {refreshMobileApp} {appRefreshingMap} {activeTab} {closeActiveMobileTab}
+            {openRight} {goBackMobile} {canGoBackMobile} {openChatInfo}
+            {refreshMobileChat} {chatRefreshing} {chatFeatureAvailability} {openArtifactLibrary}
+            {openBag}
+            bind:mobileHeaderCollapsed bind:appMenuOpen bind:chatMenuOpen />
 
         <div class="tab-content">
-            <div class="chat-panel" class:hidden={activeIsApp} style={`--composer-reserve: ${composerDockHeight}px`}>
-                {#if isMobile && historyTruncated}
-                    <button
-                        class="mobile-history-expand"
-                        on:click={loadFullHistory}
-                        disabled={loadingFullHistory}
-                    >
-                        {loadingFullHistory ? "Loading full conversation…" : "Load full conversation history"}
-                    </button>
-                {/if}
-                <MessageList
-                    {history}
-                    {isMobile}
-                    agentName={activeAgent?.name ?? "Agent"}
-                    sessionId={activeTab}
-                    loading={loadingMap[activeTab] ?? false}
-                    bind:this={listRef}
-                    on:openCanvas={handleOpenCanvas}
-                    on:resolvePermission={handleResolvePermission}
-                    on:messageFeedback={handleMessageFeedback}
-                    on:retry={(e) => retryTimedOutTurn(e.detail.sessionId, e.detail.index)}
-                    on:useSuggestion={(e) => (message = e.detail)}
-                />
+            <ConversationPanel
+                {activeIsApp} {composerDockHeight} {isMobile} {historyTruncated}
+                {loadFullHistory} {loadingFullHistory} {history} {activeAgent}
+                {activeTab} {loadingMap} {handleOpenCanvas} {handleResolvePermission}
+                {handleMessageFeedback} {retryTimedOutTurn} {abrirChatPorDeepLink}
+                bind:listRef bind:message>
+                <ComposerArea
+                    {structuredProps} {onStructuredSend} {onEscape} {appId}
+                    {history} {isMobile} {loadingMap} {activeTab}
+                    {isOnline} {animateComposerToDock} {send} {handleStop}
+                    {handleNewSpecialistSession} {recentSessionsLoading} {visibleRecentSessions} {recentSessions}
+                    {recentSessionInfiniteScroll} {handleRecentSessionsScroll} {openRecentSession} {recentSessionLabel}
+                    {recentSessionMeta}
+                    bind:composerStage bind:message />
+            </ConversationPanel>
 
-                <ActivitySlot sessionId={activeTab} on:openSession={(e) => abrirChatPorDeepLink(e.detail)}>
-                </ActivitySlot>
-
-                {#if structuredProps}
-                    <StructuredInput
-                        steps={structuredProps}
-                        on:send={onStructuredSend}
-                        on:escape={onEscape}
-                    />
-                {:else}
-                    <NotifyOptIn {appId} />
-                    <div bind:this={composerStage} class="composer-stage" class:initial={history.length === 0}>
-                        {#if history.length === 0}
-                            <h1 class="composer-title">What will we build today?</h1>
-                        {/if}
-                        <InputBar
-                            bind:value={message}
-                            initial={history.length === 0}
-                            {isMobile}
-                            loading={loadingMap[activeTab] ?? false}
-                            sessionId={activeTab}
-                            disabled={!isOnline}
-                            on:depart={animateComposerToDock}
-                            on:send={send}
-                            on:stop={(e) => handleStop(e?.detail)}
-                            on:newSpecialistSession={handleNewSpecialistSession}
-                        />
-                    </div>
-                    {#if !isMobile && history.length === 0 && (recentSessionsLoading || visibleRecentSessions.length)}
-                        <section class="recent-sessions" aria-label="Recent conversations">
-                            {#if visibleRecentSessions.length}
-                                <div
-                                    class="recent-session-list"
-                                    use:recentSessionInfiniteScroll
-                                    on:scroll={handleRecentSessionsScroll}
-                                >
-                                    {#each visibleRecentSessions as recent (recent.id)}
-                                        <button
-                                            type="button"
-                                            class="recent-session"
-                                            on:click={() => openRecentSession(recent.id)}
-                                            title={recentSessionLabel(recent)}
-                                        >
-                                            <span class="recent-session-title">{recentSessionLabel(recent)}</span>
-                                            <span class="recent-session-meta">{recentSessionMeta(recent)}</span>
-                                        </button>
-                                    {/each}
-                                    {#if visibleRecentSessions.length < recentSessions.length}
-                                        <div class="recent-sessions-sentinel" aria-hidden="true"></div>
-                                    {/if}
-                                </div>
-                            {:else}
-                                <span class="recent-sessions-loading">Loading recent conversations…</span>
-                            {/if}
-                        </section>
-                    {/if}
-                {/if}
-            </div>
-
-            {#each appTabs as tab (tab.id)}
-                <div class="iframe-panel" class:hidden={activeTab !== tab.id} class:with-refresh-rail={isMobile && activeTab === tab.id}>
-                    {#if appLoadingMap[tab.id]}
-                        <div class="app-loader">
-                            <SigmaLoader size={32} color="#fff" />
-                        </div>
-                    {/if}
-                    {#key appReloadKeys[tab.id] || 0}
-                        <iframe
-                            bind:this={iframeRefs[tab.id]}
-                            src={tab.url}
-                            title={tab.name}
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-                            allowfullscreen
-                            on:load={() => {
-                                try {
-                                    applyThemeToDocument(iframeRefs[tab.id]?.contentDocument);
-                                } catch {
-                                    // URLs externas podem ser cross-origin e não são tematizáveis.
-                                }
-                                finishAppLoad(tab.id);
-                            }}
-                            on:error={() => finishAppLoad(tab.id)}
-                        ></iframe>
-                    {/key}
-                </div>
-            {/each}
+            <AppSurface
+                {appTabs} {activeTab} {isMobile} {appLoadingMap}
+                {appReloadKeys} {iframeRefs} {applyThemeToDocument} {finishAppLoad} />
         </div>
 
     </div>
 
-    <Canvas
-        html={canvasHtml}
-        open={canvasOpen}
-        on:close={() => (canvasOpen = false)}
-    />
-
-    <NtfyInbox bind:centerOpen={notificationCenterOpen} on:count={(event) => (notificationCount = event.detail.count)} />
-
-    {#if statusModal}
-        <div class="status-modal-backdrop" role="presentation" on:click={() => (statusModal = null)}>
-            <section class="status-modal" role="dialog" aria-modal="true" aria-label={statusModal.label} on:click|stopPropagation>
-                <header>
-                    <h2>{statusModal.label}</h2>
-                    <button type="button" aria-label="Close {statusModal.label}" on:click={() => (statusModal = null)}>×</button>
-                </header>
-                <iframe src={statusModal.url} title={statusModal.label} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>
-            </section>
-        </div>
-    {/if}
-
-    {#if appInfoTarget}
-        <ModalSheet open={appInfoOpen} centered label="Package information" on:close={closeAppInfo}>
-                <div class="app-info-hero">
-                    <div class="app-info-icon" aria-hidden="true">
-                        {#if appInfoIcon?.kind === "svg"}
-                            <span class="app-info-icon-svg">{@html appInfoIcon.value}</span>
-                        {:else if appInfoIcon?.kind === "image"}
-                            <img src={appInfoIcon.value} alt="" />
-                        {:else}
-                            <span class="app-info-initials">{appInfoInitials}</span>
-                        {/if}
-                    </div>
-                    <div>
-                        <p class="app-info-eyebrow">Package information</p>
-                        <h2 id="app-info-title">{appInfoTarget.name || appInfoTarget.packageName || "Application"}</h2>
-                        {#if appInfoTarget.version}<p class="app-info-version">Version {appInfoTarget.version}</p>{/if}
-                    </div>
-                </div>
-                <div class="app-info-details" aria-label="Package details">
-                    {#each appInfoDetails as detail}
-                        <div class="app-info-row"><dt>{detail.label}</dt><dd>{detail.value}</dd></div>
-                    {/each}
-                </div>
-        </ModalSheet>
-    {/if}
-
-    <ModalSheet open={chatInfoOpen} centered label="Chat information" on:close={() => (chatInfoOpen = false)}>
-        <div class="app-info-hero">
-            <div class="app-info-icon chat-info-icon" aria-hidden="true">Σ</div>
-            <div><p class="app-info-eyebrow">Chat information</p><h2>Current conversation</h2></div>
-        </div>
-        <div class="app-info-details" aria-label="Chat details">
-            <div class="app-info-row"><dt>Identifier</dt><dd><button type="button" class="chat-info-identifier" on:click={copyActiveSessionId} title="Copy identifier">{chatMenuMessage || sessionId}</button></dd></div>
-            <div class="app-info-row"><dt>Context</dt><dd>{formatChatNumber(chatInfoMessages)} messages</dd></div>
-            <div class="app-info-row"><dt>Input tokens</dt><dd>{formatChatNumber(chatInfoUsage.prompt)}</dd></div>
-            <div class="app-info-row"><dt>Output tokens</dt><dd>{formatChatNumber(chatInfoUsage.completion)}</dd></div>
-            <div class="app-info-row"><dt>Total usage</dt><dd>{formatChatNumber(chatInfoTotalTokens)} tokens</dd></div>
-            <div class="app-info-row"><dt>Cost</dt><dd>{formatChatCost(chatInfoUsage.cost)}</dd></div>
-        </div>
-    </ModalSheet>
-
-    <ModalSheet open={bagSheetOpen} centered label="Session bag" on:close={() => (bagSheetOpen = false)}>
-        <div class="app-info-hero">
-            <div class="app-info-icon chat-info-icon" aria-hidden="true">□</div>
-            <div><p class="app-info-eyebrow">Session bag</p><h2>Plan and progress</h2></div>
-        </div>
-        {#if bagLoading}
-            <p class="bag-sheet-message">Loading plan…</p>
-        {:else if bagError}
-            <p class="bag-sheet-message bag-sheet-error">{bagError}</p>
-        {:else if !bagStatus}
-            <p class="bag-sheet-message">No plan has been created for this conversation.</p>
-        {:else}
-            <div class="bag-sheet-summary">
-                <p>{bagStatus.objective}</p>
-                <span>{bagStatus.status === "done" ? "Complete" : "In progress"} · {bagStatus.steps?.filter((step) => step.status === "done" || step.status === "skipped").length ?? 0}/{bagStatus.steps?.length ?? 0} steps</span>
-            </div>
-            {#if bagStatus.steps?.length}
-                <ol class="bag-sheet-steps" aria-label="Plan steps">
-                    {#each bagStatus.steps as step (step.seq)}
-                        <li class:done={step.status === "done" || step.status === "skipped"} class:failed={step.status === "failed"}>
-                            <span class="bag-step-state">{step.seq}</span>
-                            <span><strong>{step.description}</strong><small>{bagStepLabel(step.status)}{step.result ? ` · ${step.result}` : ""}</small></span>
-                        </li>
-                    {/each}
-                </ol>
-            {/if}
-        {/if}
-    </ModalSheet>
-
-    <!-- Pai direto dos apps em abas: recebe os pedidos postMessage deles. -->
-    <Dialogs host={true} />
+    <ShellOverlays
+        {canvasHtml} {appInfoTarget} {appInfoOpen} {closeAppInfo}
+        {appInfoIcon} {appInfoInitials} {appInfoDetails} {copyActiveSessionId}
+        {chatMenuMessage} {sessionId} {formatChatNumber} {chatInfoMessages}
+        {chatInfoUsage} {chatInfoTotalTokens} {formatChatCost} {bagLoading}
+        {bagError} {bagStatus} {bagStepLabel}
+        bind:canvasOpen bind:notificationCenterOpen bind:notificationCount bind:statusModal bind:chatInfoOpen bind:bagSheetOpen />
 
 </div>
 
 <style>
     /* Sobre Canvas, drawers e qualquer app em modo tela cheia. */
     :global(.dlg-backdrop) { z-index: 2147483647; }
-    .status-modal-backdrop { position: fixed; inset: 0; z-index: 2147483645; display: grid; place-items: center; padding: 2rem; background: color-mix(in srgb, var(--tk-bg) 74%, transparent); }
-    .status-modal { display: flex; width: min(100%, 58rem); height: min(78dvh, 46rem); flex-direction: column; overflow: hidden; border: 1px solid var(--tk-border); border-radius: var(--tk-radius-lg); background: var(--tk-surface); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-    .status-modal header { display: flex; align-items: center; justify-content: space-between; min-height: 2.75rem; padding: 0 .75rem 0 1rem; border-bottom: 1px solid var(--tk-border); color: var(--tk-text); }
-    .status-modal h2 { margin: 0; font-size: .875rem; font-weight: 600; }.status-modal button { width: 2rem; height: 2rem; border: 0; border-radius: var(--tk-radius-md); background: transparent; color: var(--tk-text); font-size: 1.25rem; cursor: pointer; }.status-modal button:hover, .status-modal button:focus-visible { background: var(--tk-surface-2); outline: none; }.status-modal iframe { min-height: 0; flex: 1; border: 0; }
-    .app-info-backdrop { position: fixed; inset: 0; z-index: 2147483646; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, var(--tk-bg) 78%, transparent); backdrop-filter: blur(14px); }
-    .app-info-modal { position: relative; width: min(100%, 23rem); max-height: calc(100dvh - 2rem); overflow: auto; border: 1px solid color-mix(in srgb, var(--tk-border) 72%, transparent); border-radius: 1.1rem; padding: 1.15rem; background: color-mix(in srgb, var(--tk-surface) 96%, transparent); color: var(--tk-text); box-shadow: 0 1.2rem 3.5rem color-mix(in srgb, var(--tk-bg) 65%, transparent); outline: none; }
-    .app-info-close { position: absolute; top: .55rem; right: .55rem; width: 1.8rem; height: 1.8rem; border: 0; border-radius: 999px; background: transparent; color: var(--tk-text-muted, var(--tk-text)); font: 400 1.15rem/1 system-ui; cursor: pointer; }
-    .app-info-hero { display: flex; align-items: center; gap: .85rem; padding-right: 1.75rem; }
-    .app-info-icon { display: grid; width: 3.8rem; height: 3.8rem; flex: 0 0 auto; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--tk-border) 60%, transparent); border-radius: .95rem; background: linear-gradient(145deg, var(--tk-surface-2), var(--tk-surface)); box-shadow: 0 .45rem 1rem color-mix(in srgb, var(--tk-bg) 32%, transparent); }
-    .app-info-icon img, .app-info-icon-svg, .app-info-icon-svg :global(svg) { display: block; width: 100%; height: 100%; object-fit: cover; }
-    .app-info-initials { font-size: 1.25rem; font-weight: 720; letter-spacing: -.04em; color: var(--tk-text); }
-    .app-info-eyebrow { margin: 0 0 .18rem; color: var(--tk-text-muted, var(--tk-text)); font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-    .app-info-modal h2 { margin: 0; font-size: 1.15rem; letter-spacing: -.025em; }
-    .app-info-version { margin: .18rem 0 0; color: var(--tk-text-muted, var(--tk-text)); font-size: .74rem; }
-    .app-info-description { margin: .85rem 0 0; color: var(--tk-text-muted, var(--tk-text)); font-size: .82rem; line-height: 1.42; }
-    .app-info-details { display: grid; margin-top: .9rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--tk-border) 70%, transparent); border-radius: .7rem; background: color-mix(in srgb, var(--tk-surface-2) 58%, transparent); }
-    .app-info-row { display: grid; grid-template-columns: minmax(4.8rem, .72fr) minmax(0, 1.28fr); gap: .65rem; padding: .5rem .65rem; border-bottom: 1px solid color-mix(in srgb, var(--tk-border) 55%, transparent); }
-    .app-info-row:last-child { border-bottom: 0; }
-    .app-info-row dt { color: var(--tk-text-muted, var(--tk-text)); font-size: .69rem; font-weight: 600; }
-    .app-info-row dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--tk-text); font-size: .69rem; text-align: right; }
-    .chat-info-icon { color: var(--tk-accent, var(--tk-text)); font-size: 1.25rem; }
-    .chat-info-identifier { max-width: 100%; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: right; text-decoration: underline; cursor: copy; overflow-wrap: anywhere; }
-    .bag-sheet-message { margin: 1rem 0 0; color: var(--tk-text-muted, var(--tk-text)); font-size: .82rem; line-height: 1.45; }
-    .bag-sheet-error { color: var(--tk-danger, #d14d4d); }
-    .bag-sheet-summary { display: grid; gap: .35rem; margin-top: .9rem; padding: .7rem; border: 1px solid color-mix(in srgb, var(--tk-border) 70%, transparent); border-radius: .7rem; background: color-mix(in srgb, var(--tk-surface-2) 58%, transparent); }
-    .bag-sheet-summary p { margin: 0; color: var(--tk-text); font-size: .84rem; font-weight: 600; line-height: 1.4; }
-    .bag-sheet-summary span, .bag-sheet-steps small { color: var(--tk-text-muted, var(--tk-text)); font-size: .7rem; }
-    .bag-sheet-steps { display: grid; gap: .5rem; margin: .8rem 0 0; padding: 0; list-style: none; }
-    .bag-sheet-steps li { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr); gap: .55rem; align-items: start; padding: .5rem; border: 1px solid color-mix(in srgb, var(--tk-border) 58%, transparent); border-radius: .65rem; }
-    .bag-sheet-steps li.done { opacity: .7; }.bag-sheet-steps li.failed { border-color: color-mix(in srgb, var(--tk-danger, #d14d4d) 60%, var(--tk-border)); }
-    .bag-step-state { display: grid; width: 1.5rem; height: 1.5rem; place-items: center; border-radius: 999px; background: var(--tk-surface-2); color: var(--tk-text-muted, var(--tk-text)); font-size: .68rem; font-weight: 700; }
-    .bag-sheet-steps strong, .bag-sheet-steps small { display: block; }.bag-sheet-steps strong { color: var(--tk-text); font-size: .76rem; line-height: 1.35; }.bag-sheet-steps small { margin-top: .12rem; line-height: 1.35; }
     .widget-panel-toggle {
         position: fixed;
         bottom: 1.25rem;
@@ -1142,93 +840,6 @@
         border-color: var(--border-strong);
     }
 
-    /* ── Top bar mobile ── */
-    .mobile-topbar-dock {
-        --mobile-topbar-height: calc(56px + var(--safe-top, env(safe-area-inset-top)));
-        position: relative;
-        z-index: 10;
-        flex: 0 0 auto;
-        height: var(--mobile-topbar-height);
-        transition: height 280ms cubic-bezier(0.22, 0.75, 0.18, 1);
-    }
-    .mobile-topbar-dock::after {
-        content: "";
-        position: absolute;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        z-index: 0;
-        height: 18px;
-        background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg) 28%, transparent));
-        pointer-events: none;
-        transition: opacity 180ms ease;
-    }
-    .mobile-topbar-dock.collapsed {
-        /* Em fullscreen, o controle não reserva uma faixa do cabeçalho: ele
-           flutua sobre o conteúdo, como as setas das laterais. */
-        height: 0;
-    }
-    .mobile-topbar-dock.collapsed::after {
-        opacity: 0;
-    }
-    .mobile-topbar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        height: calc(56px + var(--safe-top, env(safe-area-inset-top)));
-        padding: var(--safe-top, env(safe-area-inset-top)) 10px 0;
-        position: absolute;
-        inset: 0 0 auto;
-        z-index: 1;
-        border: 0;
-        border-bottom: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
-        background: transparent;
-        opacity: 1;
-        transform: translateY(0);
-        transition: transform 280ms cubic-bezier(0.22, 0.75, 0.18, 1), opacity 180ms ease;
-    }
-    .mobile-topbar.collapsed {
-        opacity: 0;
-        pointer-events: none;
-        transform: translateY(calc(-1 * var(--mobile-topbar-height)));
-    }
-    .mobile-fullscreen-center {
-        position: absolute;
-        z-index: 2;
-        top: 0;
-        left: 50%;
-        display: flex;
-        height: 38px;
-        align-items: center;
-        justify-content: center;
-        gap: 5px;
-        transform: translateX(-50%);
-    }
-    .mobile-topbar-toggle {
-        display: flex;
-        width: 38px;
-        height: 38px;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        border: 0;
-        border-radius: 0;
-        background-color: transparent;
-        box-shadow: none;
-        color: var(--txt-2);
-        opacity: 0.52;
-        cursor: pointer;
-        transition: color 150ms ease, opacity 150ms ease;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .mobile-topbar-toggle:active {
-        color: var(--txt);
-        opacity: 0.9;
-    }
-    .mobile-topbar-toggle:focus-visible {
-        outline: 2px solid var(--border-strong);
-        outline-offset: 2px;
-    }
     /* Em tela cheia o cabeçalho deixa de ocupar espaço, mas os dois destinos
        de navegação continuam acessíveis no centro das bordas. A área de toque
        conserva o tamanho de uma aba mobile, embora a seta fique sem superfície
@@ -1236,7 +847,8 @@
     .mobile-fullscreen-sidebar-controls {
         position: fixed;
         inset: 0;
-        z-index: 25;
+        /* Keep the buttons above the swipe edges at z-index 31. */
+        z-index: 32;
         pointer-events: none;
     }
     .mobile-fullscreen-sidebar-toggle {
@@ -1254,6 +866,7 @@
         cursor: pointer;
         opacity: .42;
         pointer-events: auto;
+        touch-action: pan-y;
         transform: translateY(-50%);
         transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1), color 180ms ease, opacity 180ms ease;
         -webkit-tap-highlight-color: transparent;
@@ -1287,136 +900,6 @@
         outline-offset: 2px;
         opacity: 1;
     }
-    .mtb-btn {
-        width: 40px;
-        height: 40px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 12px;
-        border: 1px solid transparent;
-        background: transparent;
-        color: var(--txt-2);
-        cursor: pointer;
-        flex-shrink: 0;
-        -webkit-tap-highlight-color: transparent;
-        transition: background 0.15s, color 0.15s, border-color 0.15s;
-    }
-    .mtb-btn:active {
-        background: var(--w06);
-        color: var(--txt);
-        border-color: var(--border);
-        transform: scale(0.93);
-    }
-    .mtb-title {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: 0 6px;
-        background: transparent;
-        border: none;
-        color: var(--txt);
-        font-family: var(--font-body);
-        font-size: 15px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        cursor: pointer;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .mtb-title-text {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .mtb-app-title {
-        flex: 1;
-        min-width: 0;
-        padding: 0 6px;
-        border: 0;
-        background: transparent;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        color: var(--txt);
-        font: 600 15px var(--font-body);
-        letter-spacing: 0.01em;
-        text-align: center;
-        cursor: pointer;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .mtb-title:focus-visible,
-    .mtb-app-title:focus-visible {
-        outline: 2px solid var(--border-strong);
-        outline-offset: 2px;
-        border-radius: 4px;
-    }
-    .mtb-app-menu { position: relative; flex-shrink: 0; }
-    .mtb-btn.active { background: var(--w06); color: var(--txt); border-color: var(--border); }
-    .mtb-btn.refreshing { cursor: wait; }
-    .mtb-btn.refreshing svg { animation: mtb-refresh-spin .7s linear infinite; }
-    .mtb-btn:disabled { cursor: not-allowed; opacity: .48; }
-    @keyframes mtb-refresh-spin { to { transform: rotate(360deg); } }
-    .mtb-app-dropdown {
-        position: absolute;
-        top: calc(100% + 5px);
-        right: 0;
-        min-width: 158px;
-        padding: 4px;
-        border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-        border-radius: 10px;
-        background: color-mix(in srgb, var(--bg) 94%, transparent);
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
-        backdrop-filter: blur(20px) saturate(1.15);
-        animation: mtb-menu-in 160ms cubic-bezier(.22,.75,.18,1);
-    }
-    .mtb-menu-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
-    .mtb-header-action { min-height: 42px; text-align: left; }
-    .mtb-header-action + .mtb-header-action { border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent); }
-    .mtb-header-action > span { display: grid; gap: 2px; }
-    .mtb-app-dropdown .mtb-menu-actions button {
-        display: grid;
-        width: 30px;
-        height: 30px;
-        min-height: 30px;
-        place-items: center;
-        padding: 0;
-        border: 1px solid transparent;
-        border-radius: 7px;
-        color: var(--txt-2);
-    }
-    .mtb-app-dropdown .mtb-menu-actions button:hover, .mtb-app-dropdown .mtb-menu-actions button:focus-visible { border-color: color-mix(in srgb, var(--border) 72%, transparent); background: var(--w06); color: var(--txt); outline: none; }
-    .mtb-menu-actions button svg { width: 15px; height: 15px; }
-    .mtb-app-dropdown > button {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        min-height: 36px;
-        margin-top: 3px;
-        padding: 6px;
-        border: 0;
-        border-radius: 7px;
-        background: transparent;
-        color: var(--txt);
-        font: 500 12px var(--font-body);
-        text-align: left;
-        transition: background 140ms ease, transform 140ms ease;
-    }
-    .mtb-app-dropdown > button:hover, .mtb-app-dropdown > button:focus-visible { background: var(--w06); outline: none; }
-    .mtb-app-dropdown > button:active { background: var(--w06); transform: scale(.985); }
-    .mtb-app-dropdown button:disabled { cursor: wait; opacity: .62; }
-    .mtb-menu-icon { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border: 1px solid color-mix(in srgb, var(--border) 65%, transparent); border-radius: 9px; background: var(--w03); color: var(--txt-2); }
-    .mtb-app-dropdown button > span:last-child { display: grid; gap: 2px; }
-    .mtb-app-dropdown strong { font: 600 13px var(--font-body); }
-    .mtb-app-dropdown small { color: var(--txt-3); font: 400 10px var(--font-body); }
-    .mtb-session-id small { max-width: 148px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, ui-monospace, monospace); }
-    .mtb-app-dropdown svg { flex: 0 0 auto; }
-    .mtb-app-dropdown svg.refreshing { animation: mtb-refresh-spin .7s linear infinite; }
-    @keyframes mtb-menu-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-
     @media (max-width: 767px) {
         .widget-panel-toggle {
             display: none;
@@ -1989,165 +1472,5 @@
         flex: 1;
         position: relative;
         overflow: hidden;
-    }
-    .chat-panel {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        flex-direction: column;
-        transition: opacity 0.15s;
-    }
-    .mobile-history-expand {
-        position: relative;
-        z-index: 2;
-        flex: 0 0 auto;
-        align-self: center;
-        margin: 8px 12px 0;
-        padding: 7px 12px;
-        border: 1px solid var(--rail-border);
-        border-radius: 999px;
-        background: var(--rail-bg);
-        color: var(--rail-txt-2);
-        font: inherit;
-        font-size: 11px;
-        cursor: pointer;
-    }
-    .mobile-history-expand:disabled {
-        cursor: wait;
-        opacity: 0.65;
-    }
-    .composer-stage {
-        position: absolute;
-        z-index: 4;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        transform-origin: center bottom;
-    }
-    .composer-stage.initial {
-        top: 50%;
-        bottom: auto;
-        transform: translateY(-50%);
-        transform-origin: center center;
-    }
-    .composer-title {
-        margin: 0 0 1rem;
-        color: var(--txt, #f5f5f5);
-        font-size: clamp(1.5rem, 2.6vw, 2rem);
-        font-weight: 650;
-        letter-spacing: -.035em;
-        line-height: 1.15;
-        text-align: center;
-    }
-    .recent-sessions {
-        position: absolute;
-        z-index: 3;
-        right: 0;
-        bottom: max(1.5rem, env(safe-area-inset-bottom));
-        left: 0;
-        display: flex;
-        width: min(100% - 2rem, 38rem);
-        min-height: 2rem;
-        box-sizing: border-box;
-        align-items: stretch;
-        margin: 0 auto;
-    }
-    .recent-session-list {
-        display: grid;
-        width: 100%;
-        max-height: 8.25rem;
-        gap: .2rem;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        scrollbar-width: none;
-    }
-    .recent-session-list::-webkit-scrollbar { display: none; }
-    .recent-session {
-        display: grid;
-        min-width: 0;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: .75rem;
-        border: 0;
-        border-radius: .5rem;
-        background: transparent;
-        padding: .3rem .45rem;
-        color: var(--tk-muted, #888);
-        font: inherit;
-        text-align: left;
-        cursor: pointer;
-        opacity: .72;
-        transition: background 160ms ease, color 160ms ease, opacity 160ms ease;
-    }
-    .recent-session:hover,
-    .recent-session:focus-visible {
-        background: color-mix(in srgb, var(--tk-surface, #181818) 76%, transparent);
-        color: var(--tk-text, #f5f5f5);
-        opacity: 1;
-        outline: none;
-    }
-    .recent-session:focus-visible { box-shadow: 0 0 0 1px var(--tk-border-hi, rgba(255,255,255,.2)); }
-    .recent-session-title {
-        overflow: hidden;
-        font-size: .76rem;
-        font-weight: 500;
-        letter-spacing: -.01em;
-        line-height: 1.35;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    .recent-session-meta {
-        color: var(--tk-muted-2, #666);
-        font: 400 .65rem var(--tk-mono, monospace);
-        line-height: 1.55;
-        white-space: nowrap;
-    }
-    .recent-sessions-sentinel { height: 1px; }
-    .recent-sessions-loading {
-        margin: auto;
-        color: var(--tk-muted-2, #666);
-        font: 400 .67rem var(--tk-mono, monospace);
-    }
-    .chat-panel :global(.ml-root) { padding-bottom: var(--composer-reserve, 122px); }
-    @media (max-width: 560px) {
-        .composer-stage.initial { top: 46%; }
-    }
-    .chat-panel.hidden {
-        opacity: 0;
-        pointer-events: none;
-    }
-    .iframe-panel {
-        position: absolute;
-        inset: 0;
-        transform: translateY(0);
-        transition: opacity 0.18s ease, transform 0.22s ease-out;
-    }
-    .iframe-panel.hidden {
-        opacity: 0;
-        transform: translateY(-10px);
-        pointer-events: none;
-    }
-    .iframe-panel iframe {
-        display: block;
-        width: 100%;
-        height: 100%;
-        border: none;
-        /* Transparente (era #fff): apps temáticos pintam o próprio fundo full-bleed;
-           branco fixo causava flash branco no load e gutters brancos em views
-           centralizadas. */
-        background: transparent;
-    }
-    .app-loader {
-        position: absolute;
-        inset: 0;
-        z-index: 10;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--bg);
-        /* O app continua recebendo interação enquanto o iframe termina de
-           iniciar. Alguns WebViews não emitem `load` para navegação em aba
-           oculta; o indicador jamais pode segurar a superfície por isso. */
-        pointer-events: none;
     }
 </style>

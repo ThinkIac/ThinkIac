@@ -5,7 +5,11 @@ import { readPinnedApps } from '../views/lib/pinned_apps.js'
 const read = (path) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
   if (path !== '../views/Index.svelte') return source
-  return source + readdirSync(new URL('../views/controllers/', import.meta.url)).filter(file => file.endsWith('.js')).map(file => readFileSync(new URL(`../views/controllers/${file}`, import.meta.url), 'utf8')).join('\n')
+  // Source contracts follow the extracted composition boundaries as well.
+  return source + ['../views/controllers/', '../views/components/shell/'].map(directory =>
+    readdirSync(new URL(directory, import.meta.url)).filter(file => /\.(js|svelte)$/.test(file)).sort()
+      .map(file => readFileSync(new URL(directory + file, import.meta.url), 'utf8')).join('\n')
+  ).join('\n')
 }
 
 describe('contrato do ThinkIac Shell', () => {

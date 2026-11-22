@@ -1,5 +1,6 @@
 import { spawn, execFileSync } from 'node:child_process'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -27,9 +28,22 @@ try {
   const cwd = join(target, 'thinkiac-runtime')
   const port = await freePort()
   const mcpPort = await freePort()
+  const email = 'desktop@example.test'
+  const password = randomUUID()
   child = spawn(join(cwd, 'node', 'node.exe'), ['index.js'], {
     cwd,
-    env: { ...process.env, THINKIAC_DESKTOP: '1', LOGOS_DATA_DIR: join(target, 'data'), HOST: '127.0.0.1', PORT: String(port), MCP_PORT: String(mcpPort) },
+    env: {
+      ...process.env,
+      THINKIAC_DESKTOP: '1',
+      LOGOS_DATA_DIR: join(target, 'data'),
+      HOST: '127.0.0.1',
+      PORT: String(port),
+      MCP_PORT: String(mcpPort),
+      INITIAL_AUTH_USER: 'desktopsmoke',
+      INITIAL_AUTH_EMAIL: email,
+      INITIAL_AUTH_PASSWORD: password,
+      INITIAL_AUTH_NAME: 'Desktop Smoke',
+    },
     stdio: 'inherit',
     windowsHide: true,
   })
@@ -68,17 +82,14 @@ try {
   }
   let cookie
   await verifyPage('/view/auth/Login?next=%2Fview%2Fshell%2FIndex')
-  const setup = await localFetch('/auth/initial-admin', {
+  const login = await localFetch('/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: 'Desktop Smoke', username: 'desktopsmoke',
-      email: 'desktop@example.test', password: 'ThinkIac Test password 123!',
-    }),
+    body: JSON.stringify({ email, password }),
   })
-  cookie = setup.headers.getSetCookie().map((value) => value.split(';', 1)[0]).join('; ')
-  if (!setup.ok || !(await setup.json()).success || !cookie) {
-    throw new Error(`Falha ao criar a conta local de teste (${setup.status}).`)
+  cookie = login.headers.getSetCookie().map((value) => value.split(';', 1)[0]).join('; ')
+  if (!login.ok || !(await login.json()).success || !cookie) {
+    throw new Error(`Falha ao autenticar a conta local de teste (${login.status}).`)
   }
   await verifyPage('/view/shell/Index')
 } finally {
