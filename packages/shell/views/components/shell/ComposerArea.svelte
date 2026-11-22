@@ -27,60 +27,60 @@
     export let message;
 </script>
 
-                {#if structuredProps}
-                    <StructuredInput
-                        steps={structuredProps}
-                        on:send={onStructuredSend}
-                        on:escape={onEscape}
-                    />
-                {:else}
-                    <NotifyOptIn {appId} />
-                    <div bind:this={composerStage} class="composer-stage" class:initial={history.length === 0}>
-                        {#if history.length === 0}
-                            <h1 class="composer-title">What will we build today?</h1>
-                        {/if}
-                        <InputBar
-                            bind:value={message}
-                            initial={history.length === 0}
-                            {isMobile}
-                            loading={loadingMap[activeTab] ?? false}
-                            sessionId={activeTab}
-                            disabled={!isOnline}
-                            on:depart={animateComposerToDock}
-                            on:send={send}
-                            on:stop={(e) => handleStop(e?.detail)}
-                            on:newSpecialistSession={handleNewSpecialistSession}
-                        />
-                    </div>
-                    {#if !isMobile && history.length === 0 && (recentSessionsLoading || visibleRecentSessions.length)}
-                        <section class="recent-sessions" aria-label="Recent conversations">
-                            {#if visibleRecentSessions.length}
-                                <div
-                                    class="recent-session-list"
-                                    use:recentSessionInfiniteScroll
-                                    on:scroll={handleRecentSessionsScroll}
-                                >
-                                    {#each visibleRecentSessions as recent (recent.id)}
-                                        <button
-                                            type="button"
-                                            class="recent-session"
-                                            on:click={() => openRecentSession(recent.id)}
-                                            title={recentSessionLabel(recent)}
-                                        >
-                                            <span class="recent-session-title">{recentSessionLabel(recent)}</span>
-                                            <span class="recent-session-meta">{recentSessionMeta(recent)}</span>
-                                        </button>
-                                    {/each}
-                                    {#if visibleRecentSessions.length < recentSessions.length}
-                                        <div class="recent-sessions-sentinel" aria-hidden="true"></div>
-                                    {/if}
-                                </div>
-                            {:else}
-                                <span class="recent-sessions-loading">Loading recent conversations…</span>
-                            {/if}
-                        </section>
+{#if structuredProps}
+    <StructuredInput
+        steps={structuredProps}
+        on:send={onStructuredSend}
+        on:escape={onEscape}
+    />
+{:else}
+    <NotifyOptIn {appId} />
+    <div bind:this={composerStage} class="composer-stage" class:initial={history.length === 0}>
+        {#if history.length === 0}
+            <h1 class="composer-title">What will we build today?</h1>
+        {/if}
+        <InputBar
+            bind:value={message}
+            initial={history.length === 0}
+            {isMobile}
+            loading={loadingMap[activeTab] ?? false}
+            sessionId={activeTab}
+            disabled={!isOnline}
+            on:depart={animateComposerToDock}
+            on:send={send}
+            on:stop={(e) => handleStop(e?.detail)}
+            on:newSpecialistSession={handleNewSpecialistSession}
+        />
+    </div>
+    {#if !isMobile && history.length === 0 && (recentSessionsLoading || visibleRecentSessions.length)}
+        <section class="recent-sessions" aria-label="Recent conversations">
+            {#if visibleRecentSessions.length}
+                <div
+                    class="recent-session-list"
+                    use:recentSessionInfiniteScroll
+                    on:scroll={handleRecentSessionsScroll}
+                >
+                    {#each visibleRecentSessions as recent (recent.id)}
+                        <button
+                            type="button"
+                            class="recent-session"
+                            on:click={() => openRecentSession(recent.id)}
+                            title={recentSessionLabel(recent)}
+                        >
+                            <span class="recent-session-title">{recentSessionLabel(recent)}</span>
+                            <span class="recent-session-meta">{recentSessionMeta(recent)}</span>
+                        </button>
+                    {/each}
+                    {#if visibleRecentSessions.length < recentSessions.length}
+                        <div class="recent-sessions-sentinel" aria-hidden="true"></div>
                     {/if}
-                {/if}
+                </div>
+            {:else}
+                <span class="recent-sessions-loading">Loading recent conversations…</span>
+            {/if}
+        </section>
+    {/if}
+{/if}
 
 <style>
     .composer-stage {

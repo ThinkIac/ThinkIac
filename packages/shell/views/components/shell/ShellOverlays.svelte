@@ -30,98 +30,98 @@
     export let bagSheetOpen;
 </script>
 
-    <Canvas
-        html={canvasHtml}
-        open={canvasOpen}
-        on:close={() => (canvasOpen = false)}
-    />
+<Canvas
+    html={canvasHtml}
+    open={canvasOpen}
+    on:close={() => (canvasOpen = false)}
+/>
 
-    <NtfyInbox bind:centerOpen={notificationCenterOpen} on:count={(event) => (notificationCount = event.detail.count)} />
+<NtfyInbox bind:centerOpen={notificationCenterOpen} on:count={(event) => (notificationCount = event.detail.count)} />
 
-    {#if statusModal}
-        <div class="status-modal-backdrop" role="presentation" on:click={() => (statusModal = null)}>
-            <section class="status-modal" role="dialog" aria-modal="true" aria-label={statusModal.label} on:click|stopPropagation>
-                <header>
-                    <h2>{statusModal.label}</h2>
-                    <button type="button" aria-label="Close {statusModal.label}" on:click={() => (statusModal = null)}>×</button>
-                </header>
-                <iframe src={statusModal.url} title={statusModal.label} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>
-            </section>
-        </div>
-    {/if}
+{#if statusModal}
+    <div class="status-modal-backdrop" role="presentation" on:click={() => (statusModal = null)}>
+        <section class="status-modal" role="dialog" aria-modal="true" aria-label={statusModal.label} on:click|stopPropagation>
+            <header>
+                <h2>{statusModal.label}</h2>
+                <button type="button" aria-label="Close {statusModal.label}" on:click={() => (statusModal = null)}>×</button>
+            </header>
+            <iframe src={statusModal.url} title={statusModal.label} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>
+        </section>
+    </div>
+{/if}
 
-    {#if appInfoTarget}
-        <ModalSheet open={appInfoOpen} centered label="Package information" on:close={closeAppInfo}>
-                <div class="app-info-hero">
-                    <div class="app-info-icon" aria-hidden="true">
-                        {#if appInfoIcon?.kind === "svg"}
-                            <span class="app-info-icon-svg">{@html appInfoIcon.value}</span>
-                        {:else if appInfoIcon?.kind === "image"}
-                            <img src={appInfoIcon.value} alt="" />
-                        {:else}
-                            <span class="app-info-initials">{appInfoInitials}</span>
-                        {/if}
-                    </div>
-                    <div>
-                        <p class="app-info-eyebrow">Package information</p>
-                        <h2 id="app-info-title">{appInfoTarget.name || appInfoTarget.packageName || "Application"}</h2>
-                        {#if appInfoTarget.version}<p class="app-info-version">Version {appInfoTarget.version}</p>{/if}
-                    </div>
+{#if appInfoTarget}
+    <ModalSheet open={appInfoOpen} centered label="Package information" on:close={closeAppInfo}>
+            <div class="app-info-hero">
+                <div class="app-info-icon" aria-hidden="true">
+                    {#if appInfoIcon?.kind === "svg"}
+                        <span class="app-info-icon-svg">{@html appInfoIcon.value}</span>
+                    {:else if appInfoIcon?.kind === "image"}
+                        <img src={appInfoIcon.value} alt="" />
+                    {:else}
+                        <span class="app-info-initials">{appInfoInitials}</span>
+                    {/if}
                 </div>
-                <div class="app-info-details" aria-label="Package details">
-                    {#each appInfoDetails as detail}
-                        <div class="app-info-row"><dt>{detail.label}</dt><dd>{detail.value}</dd></div>
-                    {/each}
+                <div>
+                    <p class="app-info-eyebrow">Package information</p>
+                    <h2 id="app-info-title">{appInfoTarget.name || appInfoTarget.packageName || "Application"}</h2>
+                    {#if appInfoTarget.version}<p class="app-info-version">Version {appInfoTarget.version}</p>{/if}
                 </div>
-        </ModalSheet>
-    {/if}
-
-    <ModalSheet open={chatInfoOpen} centered label="Chat information" on:close={() => (chatInfoOpen = false)}>
-        <div class="app-info-hero">
-            <div class="app-info-icon chat-info-icon" aria-hidden="true">Σ</div>
-            <div><p class="app-info-eyebrow">Chat information</p><h2>Current conversation</h2></div>
-        </div>
-        <div class="app-info-details" aria-label="Chat details">
-            <div class="app-info-row"><dt>Identifier</dt><dd><button type="button" class="chat-info-identifier" on:click={copyActiveSessionId} title="Copy identifier">{chatMenuMessage || sessionId}</button></dd></div>
-            <div class="app-info-row"><dt>Context</dt><dd>{formatChatNumber(chatInfoMessages)} messages</dd></div>
-            <div class="app-info-row"><dt>Input tokens</dt><dd>{formatChatNumber(chatInfoUsage.prompt)}</dd></div>
-            <div class="app-info-row"><dt>Output tokens</dt><dd>{formatChatNumber(chatInfoUsage.completion)}</dd></div>
-            <div class="app-info-row"><dt>Total usage</dt><dd>{formatChatNumber(chatInfoTotalTokens)} tokens</dd></div>
-            <div class="app-info-row"><dt>Cost</dt><dd>{formatChatCost(chatInfoUsage.cost)}</dd></div>
-        </div>
-    </ModalSheet>
-
-    <ModalSheet open={bagSheetOpen} centered label="Session bag" on:close={() => (bagSheetOpen = false)}>
-        <div class="app-info-hero">
-            <div class="app-info-icon chat-info-icon" aria-hidden="true">□</div>
-            <div><p class="app-info-eyebrow">Session bag</p><h2>Plan and progress</h2></div>
-        </div>
-        {#if bagLoading}
-            <p class="bag-sheet-message">Loading plan…</p>
-        {:else if bagError}
-            <p class="bag-sheet-message bag-sheet-error">{bagError}</p>
-        {:else if !bagStatus}
-            <p class="bag-sheet-message">No plan has been created for this conversation.</p>
-        {:else}
-            <div class="bag-sheet-summary">
-                <p>{bagStatus.objective}</p>
-                <span>{bagStatus.status === "done" ? "Complete" : "In progress"} · {bagStatus.steps?.filter((step) => step.status === "done" || step.status === "skipped").length ?? 0}/{bagStatus.steps?.length ?? 0} steps</span>
             </div>
-            {#if bagStatus.steps?.length}
-                <ol class="bag-sheet-steps" aria-label="Plan steps">
-                    {#each bagStatus.steps as step (step.seq)}
-                        <li class:done={step.status === "done" || step.status === "skipped"} class:failed={step.status === "failed"}>
-                            <span class="bag-step-state">{step.seq}</span>
-                            <span><strong>{step.description}</strong><small>{bagStepLabel(step.status)}{step.result ? ` · ${step.result}` : ""}</small></span>
-                        </li>
-                    {/each}
-                </ol>
-            {/if}
-        {/if}
+            <div class="app-info-details" aria-label="Package details">
+                {#each appInfoDetails as detail}
+                    <div class="app-info-row"><dt>{detail.label}</dt><dd>{detail.value}</dd></div>
+                {/each}
+            </div>
     </ModalSheet>
+{/if}
 
-    <!-- Pai direto dos apps em abas: recebe os pedidos postMessage deles. -->
-    <Dialogs host={true} />
+<ModalSheet open={chatInfoOpen} centered label="Chat information" on:close={() => (chatInfoOpen = false)}>
+    <div class="app-info-hero">
+        <div class="app-info-icon chat-info-icon" aria-hidden="true">Σ</div>
+        <div><p class="app-info-eyebrow">Chat information</p><h2>Current conversation</h2></div>
+    </div>
+    <div class="app-info-details" aria-label="Chat details">
+        <div class="app-info-row"><dt>Identifier</dt><dd><button type="button" class="chat-info-identifier" on:click={copyActiveSessionId} title="Copy identifier">{chatMenuMessage || sessionId}</button></dd></div>
+        <div class="app-info-row"><dt>Context</dt><dd>{formatChatNumber(chatInfoMessages)} messages</dd></div>
+        <div class="app-info-row"><dt>Input tokens</dt><dd>{formatChatNumber(chatInfoUsage.prompt)}</dd></div>
+        <div class="app-info-row"><dt>Output tokens</dt><dd>{formatChatNumber(chatInfoUsage.completion)}</dd></div>
+        <div class="app-info-row"><dt>Total usage</dt><dd>{formatChatNumber(chatInfoTotalTokens)} tokens</dd></div>
+        <div class="app-info-row"><dt>Cost</dt><dd>{formatChatCost(chatInfoUsage.cost)}</dd></div>
+    </div>
+</ModalSheet>
+
+<ModalSheet open={bagSheetOpen} centered label="Session bag" on:close={() => (bagSheetOpen = false)}>
+    <div class="app-info-hero">
+        <div class="app-info-icon chat-info-icon" aria-hidden="true">□</div>
+        <div><p class="app-info-eyebrow">Session bag</p><h2>Plan and progress</h2></div>
+    </div>
+    {#if bagLoading}
+        <p class="bag-sheet-message">Loading plan…</p>
+    {:else if bagError}
+        <p class="bag-sheet-message bag-sheet-error">{bagError}</p>
+    {:else if !bagStatus}
+        <p class="bag-sheet-message">No plan has been created for this conversation.</p>
+    {:else}
+        <div class="bag-sheet-summary">
+            <p>{bagStatus.objective}</p>
+            <span>{bagStatus.status === "done" ? "Complete" : "In progress"} · {bagStatus.steps?.filter((step) => step.status === "done" || step.status === "skipped").length ?? 0}/{bagStatus.steps?.length ?? 0} steps</span>
+        </div>
+        {#if bagStatus.steps?.length}
+            <ol class="bag-sheet-steps" aria-label="Plan steps">
+                {#each bagStatus.steps as step (step.seq)}
+                    <li class:done={step.status === "done" || step.status === "skipped"} class:failed={step.status === "failed"}>
+                        <span class="bag-step-state">{step.seq}</span>
+                        <span><strong>{step.description}</strong><small>{bagStepLabel(step.status)}{step.result ? ` · ${step.result}` : ""}</small></span>
+                    </li>
+                {/each}
+            </ol>
+        {/if}
+    {/if}
+</ModalSheet>
+
+<!-- Pai direto dos apps em abas: recebe os pedidos postMessage deles. -->
+<Dialogs host={true} />
 
 <style>
     .status-modal-backdrop { position: fixed; inset: 0; z-index: 2147483645; display: grid; place-items: center; padding: 2rem; background: color-mix(in srgb, var(--tk-bg) 74%, transparent); }

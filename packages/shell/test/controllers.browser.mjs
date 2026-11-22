@@ -45,15 +45,16 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 let browser;
 try{
   browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
-  for(const mobile of [false,true]){
+  for(const theme of ['dark','light']) for(const mobile of [false,true]){
     const context=await browser.createBrowserContext();
     const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.setViewport(mobile?{width:390,height:844,isMobile:true,hasTouch:true}:{width:1440,height:1000});
-    await page.evaluateOnNewDocument(()=>{window.WebSocket=undefined;});
+    await page.evaluateOnNewDocument(theme=>{window.WebSocket=undefined;localStorage.setItem('think:theme',theme);},theme);
     await page.setRequestInterception(true);
     page.on('request',req=>req.url().startsWith('http://127.0.0.1:')?req.continue():req.abort());
     await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle0'});
     await page.waitForSelector('.shell.layout-ready');
+    assert.equal(await page.$eval('.shell',el=>el.dataset.theme),theme);
     // Characterize the real composed view before moving visual boundaries.
     await page.waitForSelector('.composer-stage.initial textarea');
     assert.equal(await page.$eval('.composer-title', el=>el.textContent), 'What will we build today?');
@@ -73,6 +74,7 @@ try{
       assert.equal(await page.$eval('.mobile-topbar', el=>el.inert), false);
       await page.waitForFunction(()=>document.querySelector('.mobile-topbar-dock').getBoundingClientRect().height >= 56);
     }
+    await page.type('.composer-stage textarea', 'Draft survives application navigation');
     const first=await page.evaluate(()=>window.testRuntime.sessions()[0]); assert.ok(first);
     await page.evaluate(id=>{
       window.testRuntime.emit({type:'chat:event',session_id:id,event:'start',data:{},seq:1,epoch:'e'});
@@ -98,7 +100,7 @@ try{
     })));
     const snapshotPath=process.env.SHELL_VISUAL_BASELINE;
     if(snapshotPath){
-      const filename=snapshotPath+(mobile?'-mobile.json':'-desktop.json');
+      const filename=snapshotPath+'-'+theme+(mobile?'-mobile.json':'-desktop.json');
       if(process.env.SHELL_RECORD_BASELINE) writeFileSync(filename,JSON.stringify(styles,null,2));
       else assert.deepEqual(styles,JSON.parse(readFileSync(filename,'utf8')));
     }
@@ -109,14 +111,19 @@ try{
       await page.click('button[aria-label="Forward"]');
       await page.waitForFunction(()=>document.querySelector('iframe[title="Preview"]')?.getBoundingClientRect().width>0);
     }
+    assert.equal(await page.$eval('.composer-stage textarea',el=>el.value),'Draft survives application navigation');
     await page.evaluate(()=>window.testShell.handleNewTab());
     await page.waitForFunction(id=>window.testRuntime.sessions().some(s=>s!==id),{},first);
     const second=await page.evaluate(id=>window.testRuntime.sessions().find(s=>s!==id),first); assert.ok(second);
     await page.evaluate(id=>window.testRuntime.emit({type:'chat:event',session_id:id,event:'done',data:{response:'New session visible'},seq:1,epoch:'new'}),second);
     await page.waitForFunction(()=>document.body.innerText.includes('New session visible'));
+    await page.evaluate(id=>window.testRuntime.emit({type:'chat:event',session_id:id,event:'done',data:{response:'```thinkiac\n[{"type":"prompt","question":"Characterized question"}]\n```'},seq:2,epoch:'new'}),second);
+    await page.waitForSelector('.si-wrap');
+    assert.equal(await page.$('.composer-stage'),null);
+    assert.ok((await page.$eval('.si-question',el=>el.textContent)).includes('Characterized question'));
     await page.evaluate(()=>window.destroyShell());
     assert.deepEqual(errors,[]);
-    console.log(`PASS ${mobile?'mobile':'desktop'}: mount, stream, completion, app bus, new session, unmount${mobile?', back/forward':''}`);
+    console.log(`PASS ${theme} ${mobile?'mobile':'desktop'}: mount, stream, completion, app bus, new session, unmount${mobile?', back/forward':''}`);
     await context.close();
   }
 }finally{

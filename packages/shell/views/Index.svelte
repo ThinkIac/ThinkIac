@@ -771,23 +771,46 @@
         <!-- Os menus de Widget permanecem acessíveis também nas views de
              pacote. Os controles específicos do pacote entram ao lado do
              nome, sem substituir os atalhos declarativos das gavetas. -->
-        <MobileHeader {isMobile} {floatingShell} {activeIsApp} {openLeft} {mobileHome} {goForwardMobile} {canGoForwardMobile} {activeTabName} {activeHeaderActions} {runHeaderAction} {openAppInfo} {enterMobileFullscreen} {refreshMobileApp} {appRefreshingMap} {activeTab} {closeActiveMobileTab} {openRight} {goBackMobile} {canGoBackMobile} {openChatInfo} {refreshMobileChat} {chatRefreshing} {chatFeatureAvailability} {openArtifactLibrary} {openBag}
+        <MobileHeader
+            {isMobile} {floatingShell} {activeIsApp} {openLeft}
+            {mobileHome} {goForwardMobile} {canGoForwardMobile} {activeTabName}
+            {activeHeaderActions} {runHeaderAction} {openAppInfo} {enterMobileFullscreen}
+            {refreshMobileApp} {appRefreshingMap} {activeTab} {closeActiveMobileTab}
+            {openRight} {goBackMobile} {canGoBackMobile} {openChatInfo}
+            {refreshMobileChat} {chatRefreshing} {chatFeatureAvailability} {openArtifactLibrary}
+            {openBag}
             bind:mobileHeaderCollapsed bind:appMenuOpen bind:chatMenuOpen />
 
         <div class="tab-content">
-            <ConversationPanel {activeIsApp} {composerDockHeight} {isMobile} {historyTruncated} {loadFullHistory} {loadingFullHistory} {history} {activeAgent} {activeTab} {loadingMap} {handleOpenCanvas} {handleResolvePermission} {handleMessageFeedback} {retryTimedOutTurn} {abrirChatPorDeepLink}
+            <ConversationPanel
+                {activeIsApp} {composerDockHeight} {isMobile} {historyTruncated}
+                {loadFullHistory} {loadingFullHistory} {history} {activeAgent}
+                {activeTab} {loadingMap} {handleOpenCanvas} {handleResolvePermission}
+                {handleMessageFeedback} {retryTimedOutTurn} {abrirChatPorDeepLink}
                 bind:listRef bind:message>
-                <ComposerArea {structuredProps} {onStructuredSend} {onEscape} {appId} {history} {isMobile} {loadingMap} {activeTab} {isOnline} {animateComposerToDock} {send} {handleStop} {handleNewSpecialistSession} {recentSessionsLoading} {visibleRecentSessions} {recentSessions} {recentSessionInfiniteScroll} {handleRecentSessionsScroll} {openRecentSession} {recentSessionLabel} {recentSessionMeta}
+                <ComposerArea
+                    {structuredProps} {onStructuredSend} {onEscape} {appId}
+                    {history} {isMobile} {loadingMap} {activeTab}
+                    {isOnline} {animateComposerToDock} {send} {handleStop}
+                    {handleNewSpecialistSession} {recentSessionsLoading} {visibleRecentSessions} {recentSessions}
+                    {recentSessionInfiniteScroll} {handleRecentSessionsScroll} {openRecentSession} {recentSessionLabel}
+                    {recentSessionMeta}
                     bind:composerStage bind:message />
             </ConversationPanel>
 
-            <AppSurface {appTabs} {activeTab} {isMobile} {appLoadingMap}
+            <AppSurface
+                {appTabs} {activeTab} {isMobile} {appLoadingMap}
                 {appReloadKeys} {iframeRefs} {applyThemeToDocument} {finishAppLoad} />
         </div>
 
     </div>
 
-    <ShellOverlays {canvasHtml} {appInfoTarget} {appInfoOpen} {closeAppInfo} {appInfoIcon} {appInfoInitials} {appInfoDetails} {copyActiveSessionId} {chatMenuMessage} {sessionId} {formatChatNumber} {chatInfoMessages} {chatInfoUsage} {chatInfoTotalTokens} {formatChatCost} {bagLoading} {bagError} {bagStatus} {bagStepLabel}
+    <ShellOverlays
+        {canvasHtml} {appInfoTarget} {appInfoOpen} {closeAppInfo}
+        {appInfoIcon} {appInfoInitials} {appInfoDetails} {copyActiveSessionId}
+        {chatMenuMessage} {sessionId} {formatChatNumber} {chatInfoMessages}
+        {chatInfoUsage} {chatInfoTotalTokens} {formatChatCost} {bagLoading}
+        {bagError} {bagStatus} {bagStepLabel}
         bind:canvasOpen bind:notificationCenterOpen bind:notificationCount bind:statusModal bind:chatInfoOpen bind:bagSheetOpen />
 
 </div>

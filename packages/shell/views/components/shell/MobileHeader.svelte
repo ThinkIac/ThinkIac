@@ -29,105 +29,104 @@
     export let chatMenuOpen;
 </script>
 
-        {#if isMobile && !floatingShell}
-            <div class="mobile-topbar-dock" class:collapsed={mobileHeaderCollapsed}>
-            <div
-                class="mobile-topbar"
-                class:collapsed={mobileHeaderCollapsed}
-                aria-hidden={mobileHeaderCollapsed}
-                inert={mobileHeaderCollapsed}
-            >
-                {#if activeIsApp}
-                    <button class="mtb-btn" on:click={openLeft} aria-label="Docks and sessions"><svg viewBox="0 0 16 16" fill="none" width="17" height="17"><path d="M2 4.5h12M2 8h12M2 11.5h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-                    <button class="mtb-btn" on:click={mobileHome} aria-label="Back" title="Back">
-                        <svg viewBox="0 0 16 16" fill="none" width="17" height="17"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <button class="mtb-btn" on:click={goForwardMobile} disabled={!canGoForwardMobile} aria-label="Forward" title="Forward">
-                        <svg viewBox="0 0 16 16" fill="none" width="17" height="17" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <button
-                        type="button"
-                        class="mtb-app-title"
-                        on:click={() => (mobileHeaderCollapsed = true)}
-                        aria-label={`Collapse header for ${activeTabName}`}
-                        title="Collapse header"
-                    >{activeTabName}</button>
-                    <div class="mtb-app-menu" on:click|stopPropagation>
-                        <button class="mtb-btn" class:active={appMenuOpen} on:click={() => (appMenuOpen = !appMenuOpen)} aria-label="App options" aria-expanded={appMenuOpen}>
-                            <svg viewBox="0 0 16 16" fill="currentColor" width="17" height="17" aria-hidden="true"><circle cx="3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="13" cy="8" r="1.25"/></svg>
-                        </button>
-                        {#if appMenuOpen}
-                            <div class="mtb-app-dropdown" role="menu" aria-label="App options">
-                                {#each activeHeaderActions as action (`${action.sourcePackage}:${action.id}`)}
-                                    <button type="button" role="menuitem" class="mtb-header-action" on:click={() => runHeaderAction(action)}>
-                                        <span><strong>{action.label}</strong>{#if action.description}<small>{action.description}</small>{/if}</span>
-                                    </button>
-                                {/each}
-                                <div class="mtb-menu-actions" aria-label="Package actions">
-                                    <button type="button" role="menuitem" on:click={openAppInfo} aria-label="Information" title="Information"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.35"/><path d="M8 7.1v4M8 4.75v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={enterMobileFullscreen} aria-label="Full Screen" title="Full Screen"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6.25 2.75-3.5 3.5m0 0V3.4m0 2.85H5.6m4.15 7 3.5-3.5m0 0v2.85m0-2.85H10.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={refreshMobileApp} disabled={appRefreshingMap[activeTab]} aria-label="Refresh" title="Refresh"><svg class:refreshing={appRefreshingMap[activeTab]} viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 5.5A5.5 5.5 0 1 0 13.2 10M13 2.7v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={closeActiveMobileTab} aria-label="Close" title="Close"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m5 5 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/></svg></button>
-                                </div>
-                            </div>
-                        {/if}
+{#if isMobile && !floatingShell}
+    <div class="mobile-topbar-dock" class:collapsed={mobileHeaderCollapsed}>
+    <div
+        class="mobile-topbar"
+        class:collapsed={mobileHeaderCollapsed}
+        aria-hidden={mobileHeaderCollapsed}
+        inert={mobileHeaderCollapsed}
+    >
+        {#if activeIsApp}
+            <button class="mtb-btn" on:click={openLeft} aria-label="Docks and sessions"><svg viewBox="0 0 16 16" fill="none" width="17" height="17"><path d="M2 4.5h12M2 8h12M2 11.5h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+            <button class="mtb-btn" on:click={mobileHome} aria-label="Back" title="Back">
+                <svg viewBox="0 0 16 16" fill="none" width="17" height="17"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="mtb-btn" on:click={goForwardMobile} disabled={!canGoForwardMobile} aria-label="Forward" title="Forward">
+                <svg viewBox="0 0 16 16" fill="none" width="17" height="17" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button
+                type="button"
+                class="mtb-app-title"
+                on:click={() => (mobileHeaderCollapsed = true)}
+                aria-label={`Collapse header for ${activeTabName}`}
+                title="Collapse header"
+            >{activeTabName}</button>
+            <div class="mtb-app-menu" on:click|stopPropagation>
+                <button class="mtb-btn" class:active={appMenuOpen} on:click={() => (appMenuOpen = !appMenuOpen)} aria-label="App options" aria-expanded={appMenuOpen}>
+                    <svg viewBox="0 0 16 16" fill="currentColor" width="17" height="17" aria-hidden="true"><circle cx="3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="13" cy="8" r="1.25"/></svg>
+                </button>
+                {#if appMenuOpen}
+                    <div class="mtb-app-dropdown" role="menu" aria-label="App options">
+                        {#each activeHeaderActions as action (`${action.sourcePackage}:${action.id}`)}
+                            <button type="button" role="menuitem" class="mtb-header-action" on:click={() => runHeaderAction(action)}>
+                                <span><strong>{action.label}</strong>{#if action.description}<small>{action.description}</small>{/if}</span>
+                            </button>
+                        {/each}
+                        <div class="mtb-menu-actions" aria-label="Package actions">
+                            <button type="button" role="menuitem" on:click={openAppInfo} aria-label="Information" title="Information"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.35"/><path d="M8 7.1v4M8 4.75v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+                            <button type="button" role="menuitem" on:click={enterMobileFullscreen} aria-label="Full Screen" title="Full Screen"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6.25 2.75-3.5 3.5m0 0V3.4m0 2.85H5.6m4.15 7 3.5-3.5m0 0v2.85m0-2.85H10.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                            <button type="button" role="menuitem" on:click={refreshMobileApp} disabled={appRefreshingMap[activeTab]} aria-label="Refresh" title="Refresh"><svg class:refreshing={appRefreshingMap[activeTab]} viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 5.5A5.5 5.5 0 1 0 13.2 10M13 2.7v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                            <button type="button" role="menuitem" on:click={closeActiveMobileTab} aria-label="Close" title="Close"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m5 5 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/></svg></button>
+                        </div>
                     </div>
-                    <button class="mtb-btn" on:click={openRight} aria-label="Apps"><svg viewBox="0 0 20 20" fill="none" width="17" height="17"><rect x="2" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/></svg></button>
-                {:else}
-                    <button class="mtb-btn" on:click={openLeft} aria-label="Docks and sessions"><svg viewBox="0 0 16 16" fill="none" width="17" height="17"><path d="M2 4.5h12M2 8h12M2 11.5h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-                    <button class="mtb-btn" on:click={goBackMobile} disabled={!canGoBackMobile} aria-label="Back" title="Back">
-                        <svg viewBox="0 0 16 16" fill="none" width="17" height="17" aria-hidden="true"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <button class="mtb-btn" on:click={goForwardMobile} disabled={!canGoForwardMobile} aria-label="Forward" title="Forward">
-                        <svg viewBox="0 0 16 16" fill="none" width="17" height="17" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <button
-                        type="button"
-                        class="mtb-title"
-                        on:click={() => (mobileHeaderCollapsed = true)}
-                        aria-label={`Collapse header for ${activeTabName}`}
-                        title="Collapse header"
-                    ><span class="mtb-title-text">{activeTabName}</span></button>
-                    <div class="mtb-app-menu" on:click|stopPropagation>
-                        <button class="mtb-btn" class:active={chatMenuOpen} on:click={() => (chatMenuOpen = !chatMenuOpen)} aria-label="Chat options" aria-expanded={chatMenuOpen}>
-                            <svg viewBox="0 0 16 16" fill="currentColor" width="17" height="17" aria-hidden="true"><circle cx="3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="13" cy="8" r="1.25"/></svg>
-                        </button>
-                        {#if chatMenuOpen}
-                            <div class="mtb-app-dropdown" role="menu" aria-label="Chat options">
-                                <div class="mtb-menu-actions" aria-label="Chat actions">
-                                    <button type="button" role="menuitem" on:click={openChatInfo} aria-label="Information" title="Information"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.35"/><path d="M8 7.1v4M8 4.75v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={enterMobileFullscreen} aria-label="Full Screen" title="Full Screen"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6.25 2.75-3.5 3.5m0 0V3.4m0 2.85H5.6m4.15 7 3.5-3.5m0 0v2.85m0-2.85H10.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={refreshMobileChat} disabled={chatRefreshing} aria-label="Refresh" title="Refresh"><svg class:refreshing={chatRefreshing} viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 5.5A5.5 5.5 0 1 0 13.2 10M13 2.7v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                                    <button type="button" role="menuitem" on:click={closeActiveMobileTab} aria-label="Close" title="Close"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m5 5 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/></svg></button>
-                                </div>
-                                {#if chatFeatureAvailability.artifacts}
-                                    <button type="button" role="menuitem" on:click={openArtifactLibrary}>
-                                        <span class="mtb-menu-icon"><svg viewBox="0 0 16 16" fill="none" width="16" height="16" aria-hidden="true"><path d="M3 2.75h6.2l3.8 3.8v6.7H3z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M9.2 2.75v3.8H13M5.4 9.25h5.2m-5.2 2.25h3.4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-                                        <span><strong>Artifacts</strong><small>Browse generated files</small></span>
-                                    </button>
-                                {/if}
-                                {#if chatFeatureAvailability.bags}
-                                    <button type="button" role="menuitem" on:click={openBag}>
-                                        <span class="mtb-menu-icon"><svg viewBox="0 0 16 16" fill="none" width="16" height="16" aria-hidden="true"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M5.25 5.5h5.5M5.25 8h5.5M5.25 10.5h3.4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></span>
-                                        <span><strong>Bag</strong><small>View session plan</small></span>
-                                    </button>
-                                {/if}
-                            </div>
-                        {/if}
-                    </div>
-                    <button class="mtb-btn" on:click={openRight} aria-label="Apps"><svg viewBox="0 0 20 20" fill="none" width="17" height="17"><rect x="2" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/></svg></button>
                 {/if}
             </div>
-            {#if mobileHeaderCollapsed}
-                <div class="mobile-fullscreen-center">
-                    <button type="button" class="mobile-topbar-toggle" on:click={() => (mobileHeaderCollapsed = false)} aria-expanded="false" aria-label="Show header" title="Show header">
-                        <svg viewBox="0 0 20 12" width="18" height="11" fill="none" aria-hidden="true"><path d="M3 3.5 10 9l7-5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                    </button>
-                </div>
-            {/if}
+            <button class="mtb-btn" on:click={openRight} aria-label="Apps"><svg viewBox="0 0 20 20" fill="none" width="17" height="17"><rect x="2" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/></svg></button>
+        {:else}
+            <button class="mtb-btn" on:click={openLeft} aria-label="Docks and sessions"><svg viewBox="0 0 16 16" fill="none" width="17" height="17"><path d="M2 4.5h12M2 8h12M2 11.5h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+            <button class="mtb-btn" on:click={goBackMobile} disabled={!canGoBackMobile} aria-label="Back" title="Back">
+                <svg viewBox="0 0 16 16" fill="none" width="17" height="17" aria-hidden="true"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="mtb-btn" on:click={goForwardMobile} disabled={!canGoForwardMobile} aria-label="Forward" title="Forward">
+                <svg viewBox="0 0 16 16" fill="none" width="17" height="17" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button
+                type="button"
+                class="mtb-title"
+                on:click={() => (mobileHeaderCollapsed = true)}
+                aria-label={`Collapse header for ${activeTabName}`}
+                title="Collapse header"
+            ><span class="mtb-title-text">{activeTabName}</span></button>
+            <div class="mtb-app-menu" on:click|stopPropagation>
+                <button class="mtb-btn" class:active={chatMenuOpen} on:click={() => (chatMenuOpen = !chatMenuOpen)} aria-label="Chat options" aria-expanded={chatMenuOpen}>
+                    <svg viewBox="0 0 16 16" fill="currentColor" width="17" height="17" aria-hidden="true"><circle cx="3" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="13" cy="8" r="1.25"/></svg>
+                </button>
+                {#if chatMenuOpen}
+                    <div class="mtb-app-dropdown" role="menu" aria-label="Chat options">
+                        <div class="mtb-menu-actions" aria-label="Chat actions">
+                            <button type="button" role="menuitem" on:click={openChatInfo} aria-label="Information" title="Information"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.75" stroke="currentColor" stroke-width="1.35"/><path d="M8 7.1v4M8 4.75v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+                            <button type="button" role="menuitem" on:click={enterMobileFullscreen} aria-label="Full Screen" title="Full Screen"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6.25 2.75-3.5 3.5m0 0V3.4m0 2.85H5.6m4.15 7 3.5-3.5m0 0v2.85m0-2.85H10.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                            <button type="button" role="menuitem" on:click={refreshMobileChat} disabled={chatRefreshing} aria-label="Refresh" title="Refresh"><svg class:refreshing={chatRefreshing} viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 5.5A5.5 5.5 0 1 0 13.2 10M13 2.7v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                            <button type="button" role="menuitem" on:click={closeActiveMobileTab} aria-label="Close" title="Close"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m5 5 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/></svg></button>
+                        </div>
+                        {#if chatFeatureAvailability.artifacts}
+                            <button type="button" role="menuitem" on:click={openArtifactLibrary}>
+                                <span class="mtb-menu-icon"><svg viewBox="0 0 16 16" fill="none" width="16" height="16" aria-hidden="true"><path d="M3 2.75h6.2l3.8 3.8v6.7H3z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M9.2 2.75v3.8H13M5.4 9.25h5.2m-5.2 2.25h3.4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                                <span><strong>Artifacts</strong><small>Browse generated files</small></span>
+                            </button>
+                        {/if}
+                        {#if chatFeatureAvailability.bags}
+                            <button type="button" role="menuitem" on:click={openBag}>
+                                <span class="mtb-menu-icon"><svg viewBox="0 0 16 16" fill="none" width="16" height="16" aria-hidden="true"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M5.25 5.5h5.5M5.25 8h5.5M5.25 10.5h3.4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></span>
+                                <span><strong>Bag</strong><small>View session plan</small></span>
+                            </button>
+                        {/if}
+                    </div>
+                {/if}
             </div>
+            <button class="mtb-btn" on:click={openRight} aria-label="Apps"><svg viewBox="0 0 20 20" fill="none" width="17" height="17"><rect x="2" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="7" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/></svg></button>
         {/if}
-
+    </div>
+    {#if mobileHeaderCollapsed}
+        <div class="mobile-fullscreen-center">
+            <button type="button" class="mobile-topbar-toggle" on:click={() => (mobileHeaderCollapsed = false)} aria-expanded="false" aria-label="Show header" title="Show header">
+                <svg viewBox="0 0 20 12" width="18" height="11" fill="none" aria-hidden="true"><path d="M3 3.5 10 9l7-5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+        </div>
+    {/if}
+    </div>
+{/if}
 
 <style>
     /* ── Top bar mobile ── */

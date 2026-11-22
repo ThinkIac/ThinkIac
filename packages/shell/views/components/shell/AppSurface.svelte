@@ -12,33 +12,33 @@
     export let finishAppLoad;
 </script>
 
-            {#each appTabs as tab (tab.id)}
-                <div class="iframe-panel" class:hidden={activeTab !== tab.id} class:with-refresh-rail={isMobile && activeTab === tab.id}>
-                    {#if appLoadingMap[tab.id]}
-                        <div class="app-loader">
-                            <SigmaLoader size={32} color="#fff" />
-                        </div>
-                    {/if}
-                    {#key appReloadKeys[tab.id] || 0}
-                        <iframe
-                            bind:this={iframeRefs[tab.id]}
-                            src={tab.url}
-                            title={tab.name}
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-                            allowfullscreen
-                            on:load={() => {
-                                try {
-                                    applyThemeToDocument(iframeRefs[tab.id]?.contentDocument);
-                                } catch {
-                                    // URLs externas podem ser cross-origin e não são tematizáveis.
-                                }
-                                finishAppLoad(tab.id);
-                            }}
-                            on:error={() => finishAppLoad(tab.id)}
-                        ></iframe>
-                    {/key}
-                </div>
-            {/each}
+{#each appTabs as tab (tab.id)}
+    <div class="iframe-panel" class:hidden={activeTab !== tab.id} class:with-refresh-rail={isMobile && activeTab === tab.id}>
+        {#if appLoadingMap[tab.id]}
+            <div class="app-loader">
+                <SigmaLoader size={32} color="#fff" />
+            </div>
+        {/if}
+        {#key appReloadKeys[tab.id] || 0}
+            <iframe
+                bind:this={iframeRefs[tab.id]}
+                src={tab.url}
+                title={tab.name}
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                allowfullscreen
+                on:load={() => {
+                    try {
+                        applyThemeToDocument(iframeRefs[tab.id]?.contentDocument);
+                    } catch {
+                        // URLs externas podem ser cross-origin e não são tematizáveis.
+                    }
+                    finishAppLoad(tab.id);
+                }}
+                on:error={() => finishAppLoad(tab.id)}
+            ></iframe>
+        {/key}
+    </div>
+{/each}
 
 <style>
     .iframe-panel {

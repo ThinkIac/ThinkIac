@@ -20,35 +20,35 @@
     export let message;
 </script>
 
-            <div class="chat-panel" class:hidden={activeIsApp} style={`--composer-reserve: ${composerDockHeight}px`}>
-                {#if isMobile && historyTruncated}
-                    <button
-                        class="mobile-history-expand"
-                        on:click={loadFullHistory}
-                        disabled={loadingFullHistory}
-                    >
-                        {loadingFullHistory ? "Loading full conversation…" : "Load full conversation history"}
-                    </button>
-                {/if}
-                <MessageList
-                    {history}
-                    {isMobile}
-                    agentName={activeAgent?.name ?? "Agent"}
-                    sessionId={activeTab}
-                    loading={loadingMap[activeTab] ?? false}
-                    bind:this={listRef}
-                    on:openCanvas={handleOpenCanvas}
-                    on:resolvePermission={handleResolvePermission}
-                    on:messageFeedback={handleMessageFeedback}
-                    on:retry={(e) => retryTimedOutTurn(e.detail.sessionId, e.detail.index)}
-                    on:useSuggestion={(e) => (message = e.detail)}
-                />
+<div class="chat-panel" class:hidden={activeIsApp} style={`--composer-reserve: ${composerDockHeight}px`}>
+    {#if isMobile && historyTruncated}
+        <button
+            class="mobile-history-expand"
+            on:click={loadFullHistory}
+            disabled={loadingFullHistory}
+        >
+            {loadingFullHistory ? "Loading full conversation…" : "Load full conversation history"}
+        </button>
+    {/if}
+    <MessageList
+        {history}
+        {isMobile}
+        agentName={activeAgent?.name ?? "Agent"}
+        sessionId={activeTab}
+        loading={loadingMap[activeTab] ?? false}
+        bind:this={listRef}
+        on:openCanvas={handleOpenCanvas}
+        on:resolvePermission={handleResolvePermission}
+        on:messageFeedback={handleMessageFeedback}
+        on:retry={(e) => retryTimedOutTurn(e.detail.sessionId, e.detail.index)}
+        on:useSuggestion={(e) => (message = e.detail)}
+    />
 
-                <ActivitySlot sessionId={activeTab} on:openSession={(e) => abrirChatPorDeepLink(e.detail)}>
-                </ActivitySlot>
+    <ActivitySlot sessionId={activeTab} on:openSession={(e) => abrirChatPorDeepLink(e.detail)}>
+    </ActivitySlot>
 
-                <slot />
-            </div>
+    <slot />
+</div>
 
 <style>
     .chat-panel {
