@@ -70,6 +70,22 @@ try{
       await page.click('.mtb-title');
       assert.equal(await page.$eval('.mobile-topbar', el=>el.inert), true);
       await page.waitForFunction(()=>document.querySelector('.mobile-topbar-dock').getBoundingClientRect().height < 1);
+      for (const [panel, side] of [['conversations', 'left'], ['applications', 'right']]) {
+        const drawer = `.main-area.push-${side}`;
+        const open = `button[aria-label="Open ${panel} panel"][aria-expanded="false"]`;
+        const close = `button[aria-label="Close ${panel} panel"][aria-expanded="true"]`;
+        await page.tap(open);
+        await page.waitForSelector(drawer);
+        // Let the moving toggle reach the edge of the open drawer.
+        await page.$eval(close, async el => {
+          await Promise.all(el.getAnimations().map(animation => animation.finished));
+        });
+        await page.tap(close);
+        await page.waitForSelector(drawer, {hidden: true});
+      }
+      await page.$eval('.main-area', async el => {
+        await Promise.all(el.getAnimations().map(animation => animation.finished));
+      });
       await page.click('button[aria-label="Show header"]');
       assert.equal(await page.$eval('.mobile-topbar', el=>el.inert), false);
       await page.waitForFunction(()=>document.querySelector('.mobile-topbar-dock').getBoundingClientRect().height >= 56);
