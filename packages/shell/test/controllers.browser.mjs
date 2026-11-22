@@ -1,6 +1,7 @@
 // Isolated browser integration: real Svelte UI and bus, simulated Agent transport.
 // Run: node packages/shell/test/controllers.browser.mjs
 import assert from 'node:assert/strict';
+import {readFileSync, writeFileSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
@@ -53,6 +54,25 @@ try{
     page.on('request',req=>req.url().startsWith('http://127.0.0.1:')?req.continue():req.abort());
     await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle0'});
     await page.waitForSelector('.shell.layout-ready');
+    // Characterize the real composed view before moving visual boundaries.
+    await page.waitForSelector('.composer-stage.initial textarea');
+    assert.equal(await page.$eval('.composer-title', el=>el.textContent), 'What will we build today?');
+    const initialLayout = await page.$eval('.composer-stage', el=>({position:getComputedStyle(el).position, top:getComputedStyle(el).top}));
+    assert.equal(initialLayout.position, 'absolute');
+    if(mobile){
+      await page.click('button[aria-label="Chat options"]');
+      await page.click('button[aria-label="Information"]');
+      await page.waitForSelector('[aria-label="Chat details"]');
+      assert.ok(await page.$('[aria-label="Chat details"] .chat-info-identifier'));
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(()=>!document.querySelector('[aria-label="Chat details"]'));
+      await page.click('.mtb-title');
+      assert.equal(await page.$eval('.mobile-topbar', el=>el.inert), true);
+      await page.waitForFunction(()=>document.querySelector('.mobile-topbar-dock').getBoundingClientRect().height < 1);
+      await page.click('button[aria-label="Show header"]');
+      assert.equal(await page.$eval('.mobile-topbar', el=>el.inert), false);
+      await page.waitForFunction(()=>document.querySelector('.mobile-topbar-dock').getBoundingClientRect().height >= 56);
+    }
     const first=await page.evaluate(()=>window.testRuntime.sessions()[0]); assert.ok(first);
     await page.evaluate(id=>{
       window.testRuntime.emit({type:'chat:event',session_id:id,event:'start',data:{},seq:1,epoch:'e'});
@@ -62,12 +82,32 @@ try{
     await page.evaluate(id=>window.testRuntime.emit({type:'chat:event',session_id:id,event:'done',data:{response:'Completed visible'},seq:3,epoch:'e'}),first);
     await page.waitForFunction(()=>document.body.innerText.includes('Completed visible'));
     await page.evaluate(()=>window.testBus('open:iframe',{url:'/preview',title:'Preview'}));
-    await page.waitForSelector('iframe[src="/preview"]');
+    await page.waitForSelector('iframe[title="Preview"]');
+    await page.waitForFunction(()=>!document.querySelector('.iframe-panel .app-loader'));
+    assert.equal(await page.$eval('.iframe-panel iframe', el=>el.getAttribute('sandbox')), 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals');
+    await page.evaluate(()=>{window.originalFrame=document.querySelector('.iframe-panel iframe');});
+    if(mobile){
+      await page.click('button[aria-label="App options"]');
+      await page.click('button[aria-label="Refresh"]');
+      await page.waitForFunction(()=>!document.querySelector('.iframe-panel .app-loader'));
+      assert.equal(await page.evaluate(()=>window.originalFrame===document.querySelector('.iframe-panel iframe')), true);
+    }
+    const styles=await page.evaluate(()=>Object.fromEntries(['.chat-panel','.composer-stage','.iframe-panel','.iframe-panel iframe'].map(selector=>{
+      const el=document.querySelector(selector), css=getComputedStyle(el);
+      return [selector,Object.fromEntries(['position','display','width','height','paddingBottom','backgroundColor','borderRadius','zIndex'].map(key=>[key,css[key]]))];
+    })));
+    const snapshotPath=process.env.SHELL_VISUAL_BASELINE;
+    if(snapshotPath){
+      const filename=snapshotPath+(mobile?'-mobile.json':'-desktop.json');
+      if(process.env.SHELL_RECORD_BASELINE) writeFileSync(filename,JSON.stringify(styles,null,2));
+      else assert.deepEqual(styles,JSON.parse(readFileSync(filename,'utf8')));
+    }
     if(mobile){
       await page.click('button[aria-label="Back"]');
       await page.waitForFunction(()=>document.querySelector('.chat-panel')?.getBoundingClientRect().width>0);
+      assert.equal(await page.evaluate(()=>window.originalFrame===document.querySelector('.iframe-panel iframe')), true);
       await page.click('button[aria-label="Forward"]');
-      await page.waitForFunction(()=>document.querySelector('iframe[src="/preview"]')?.getBoundingClientRect().width>0);
+      await page.waitForFunction(()=>document.querySelector('iframe[title="Preview"]')?.getBoundingClientRect().width>0);
     }
     await page.evaluate(()=>window.testShell.handleNewTab());
     await page.waitForFunction(id=>window.testRuntime.sessions().some(s=>s!==id),{},first);
