@@ -34,7 +34,12 @@ function createCredentialModule(options) {
 }
 
 const credentialModule = createCredentialModule();
-function createRuntimeModule(host) {
+function provideCredential(host) {
+  /**
+   * @register module credential
+   * @context capability
+   */
+
   return {
     name: 'credential', phase: 'boot',
     install() {
@@ -42,7 +47,7 @@ function createRuntimeModule(host) {
     },
   };
 }
-module.exports = { toEnvSegment, expectedCredential, buildCredentialGuard, createCredentialModule, credentialModule, createRuntimeModule };
+module.exports = { toEnvSegment, expectedCredential, buildCredentialGuard, createCredentialModule, credentialModule, provideCredential };
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -56,3 +61,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideCredential;

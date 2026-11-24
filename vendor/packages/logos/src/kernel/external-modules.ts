@@ -5,6 +5,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire, isBuiltin } from 'node:module';
+import { buildAboveDocMap, resolveDoc } from './jsdoc';
+import { parseDeclarations } from './declarations';
+import { collectStructuralDeclaration } from './declarative-catalog';
 import { Container, LogosModule } from './container';
 import { nativeModuleContext } from './module-context';
 import { modulePrimitives } from './module-primitives';
@@ -27,7 +30,7 @@ export function discoverExternalRuntimeModules(): string[] {
       const manifestPath = path.join(root, entry.name, 'package.json');
       if (!fs.existsSync(manifestPath)) continue;
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-      if (manifest.runtime?.role === 'module' && typeof manifest.runtime.entry === 'string') entries.set(entry.name, path.join(root, entry.name));
+      if (typeof manifest.runtime?.entry === 'string') entries.set(entry.name, path.join(root, entry.name));
     }
   }
   // Preserve the discovered package identity: a workspace dependency with the
@@ -61,7 +64,7 @@ export function installExternalModules(container: Container, names: readonly str
       const manifestPath = path.join(directory, 'package.json');
       if (fs.existsSync(manifestPath)) {
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-        if (manifest.runtime?.role === 'module' && typeof manifest.runtime.entry === 'string') {
+        if (typeof manifest.runtime?.entry === 'string') {
           const declared = path.resolve(directory, manifest.runtime.entry);
           const relative = path.relative(directory, declared);
           if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
@@ -82,6 +85,21 @@ export function installExternalModules(container: Container, names: readonly str
     const subscriptions = new Set<() => void>();
     const clean = () => { for (const off of subscriptions) off(); subscriptions.clear(); };
     cleanups.set(entry, clean);
+    const above = buildAboveDocMap(fs.readFileSync(entry, 'utf8'));
+    const declarations = [...new Set(Object.values(exported).filter((value): value is Function => typeof value === 'function'))]
+      .flatMap(handler => parseDeclarations(resolveDoc(handler, above) ?? '').filter(declaration => ['module', 'type'].includes(declaration.type))
+        .map(declaration => ({ declaration, handler, file: entry })));
+    if (declarations.length) {
+      const off = container.bus.on('logos:modules:register', async () => {
+        for (const declaration of declarations) {
+          // Explicit programmatic overrides retain their compatibility semantics.
+          if (declaration.declaration.type === 'module' && container.state('runtime:programmatic-modules').has(declaration.declaration.name!)) continue;
+          await collectStructuralDeclaration(container, declaration, `external:${directory}`, subscriptions);
+        }
+      });
+      subscriptions.add(off);
+      continue;
+    }
     if (typeof exported.register === 'function') {
       const native = nativeModuleContext(container, name, subscriptions);
       const off = container.bus.on('logos:modules:register', () => native.collect(exported.register));

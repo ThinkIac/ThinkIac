@@ -6,7 +6,16 @@ function createHost(container, kernel, subscriptions) {
   const { createRuntimeContext } = kernel.context;
   const { appendLog, getErrors } = kernel.debug;
   const { getIsolatedRunner } = kernel.isolation;
-  const scans = { ...createScanners(kernel.scan.registerGeneric), resolveAgentFolder: kernel.scan.resolveAgentFolder };
+  const path = require('node:path');
+  const scopedScan = async (folder, ...args) => {
+    const absolute = path.isAbsolute(folder) ? folder : path.join(container.workspace, folder);
+    if (path.resolve(absolute) === path.resolve(container.workspace)) {
+      const groups = await Promise.all(container.registry.discover().map(pkg => kernel.scan.registerGeneric(pkg.dir, ...args)));
+      return groups.flat();
+    }
+    return kernel.scan.registerGeneric(absolute, ...args);
+  };
+  const scans = { ...createScanners(scopedScan), resolveAgentFolder: kernel.scan.resolveAgentFolder };
   const { registerRoutes, registerHooks, registerTools, registerCommands } = scans;
   const { loadMiddlewareSnapshot, resolveMiddlewares, runMiddlewares } = requireCapabilityDependency("@thinkiac/module-annotations/middleware.cjs", "../annotations/middleware.cjs").create(scans);
   const { generateManifest } = requireCapabilityDependency("@thinkiac/module-annotations/manifest.cjs", "../annotations/manifest.cjs").create(scans);
@@ -105,6 +114,7 @@ function host(container, subscriptions) {
             createScope: (pkg, version) => container.createPackageScope(pkg, version),
             disposeScope: (pkg, reason) => container.disposePackageScope(pkg, reason),
             supervisor: () => container.state('supervisor').get('controller'),
+            recoverIsolatedPackage: folder => kernel.ports['stabilizer/isolation'].recoverIsolatedPackage(container, folder),
         }),
         // Repository transport is external. This compatibility handle is only
         // the capability port for the pre-event repository protocol.

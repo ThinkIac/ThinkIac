@@ -12,8 +12,8 @@ transactions and boot/shutdown coordination. It creates no Express server,
 worker pool, database key, file watcher or isolated package process.
 
 ThinkIac selects capabilities in its root `index.js` and depends on them in its
-own `package.json`. Compatibility discovery reads `runtime.role = "module"` and
-`runtime.entry` from manifests without executing unrelated libraries.
+own `package.json`. Compatibility discovery reads `runtime.entry` from manifests
+without executing unrelated libraries.
 Declared modules that fail to load produce explicit errors.
 
 ## Resource owners
@@ -28,6 +28,7 @@ Declared modules that fail to load produce explicit errors.
 | Storage and repositories | `storage`, `repo` |
 | Checkpoints, watching, health, reload and recovery | `stabilizer` |
 | CPU worker threads | `workers` |
+| Workspace supervision and process recovery policy | `supervisor` |
 | Permission-limited processes and mediated IPC | `isolated-runtime` |
 | Concrete annotation vocabulary and scan adapters | `annotations` |
 | Transitional factory host and import compatibility | `runtime-compat` |
@@ -38,10 +39,17 @@ validates its operations under the requesting package's authority.
 
 ## Native protocol and compatibility
 
-An entrypoint exports `register(context)`, called in the early registration
-window. It registers a `ModuleDeclaration` and receives the same scoped
-`ModuleContext` during installation. Context contains identity, version, workspace,
-own configuration/state, logging and events, without a raw container or registry.
+Ordinary package exports declare `@register module`, `@register type` and
+`@register <type>`. Workspace discovery walks manifests at any depth. Package
+names resolve dependencies; relative locators retain operational ownership.
+A package may provide and consume resources simultaneously. Nested manifests
+form independent scanner boundaries; symlink directories are not traversed.
+See [workspace.md](workspace.md) for complete examples.
+
+A module declaration returns a descriptor and receives scoped context with
+identity, version, workspace, own configuration/state, logging and events.
+It needs neither a Logos import nor `context.register`. Native entrypoints using
+`register(context)` remain compatible but are no longer the primary contract.
 The catalog is sealed before installation and resource delivery. Transactional
 resource consumers prepare, commit, roll back and dispose package snapshots.
 Shutdown attempts every disposer and removes entrypoint subscriptions.

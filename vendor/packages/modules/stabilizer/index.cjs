@@ -1,6 +1,11 @@
 'use strict';
 const { createLibrary } = require('./library.cjs');
-function createRuntimeModule(host) {
+function provideStabilizer(host) {
+  /**
+   * @register module stabilizer
+   * @context capability
+   */
+
     const library = createLibrary(host.kernelPrimitives());
     // Preparation runs before workspace module entrypoints are imported.
     const dependencies = new (library('dependencies').DependencyInstaller)({
@@ -94,7 +99,7 @@ function createRuntimeModule(host) {
         },
     };
 }
-module.exports = { createRuntimeModule, createLibrary };
+module.exports = { provideStabilizer, createLibrary };
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -108,3 +113,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideStabilizer;

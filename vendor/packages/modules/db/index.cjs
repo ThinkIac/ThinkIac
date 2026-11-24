@@ -22,7 +22,12 @@ function createDatabase(host) {
 }
 module.exports = { createDatabase };
 
-function createRuntimeModule(host) {
+function provideDb(host) {
+  /**
+   * @register module db
+   * @context capability
+   */
+
   const db = createDatabase({
     applicationRoot: host.applicationRoot, dataDir: host.dataDir, composeSchema: require('./schema-composer.cjs').composePackageSchema,
     appendLog: host.appendLog, currentAuthority: host.currentAuthority, createVault: options => new (require('./private-vault.cjs').PrivateVault)(options),
@@ -50,7 +55,7 @@ function createRuntimeModule(host) {
     },
   };
 }
-module.exports.createRuntimeModule = createRuntimeModule;
+module.exports.provideDb = provideDb;
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -64,3 +69,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideDb;

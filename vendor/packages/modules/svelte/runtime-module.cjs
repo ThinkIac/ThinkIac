@@ -16,7 +16,13 @@ function facade(host) {
   };
 }
 
-function createRuntimeModule(host) {
+function provideViews(host) {
+  /**
+   * @register module views
+   * @accepts view
+   * @context capability
+   */
+
   const legacy = createRuntime(createBridge(host));
   const container = facade(host);
   return {
@@ -39,4 +45,7 @@ function createRuntimeModule(host) {
   };
 }
 
-module.exports = { createRuntimeModule };
+module.exports = { provideViews };
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideViews;

@@ -161,7 +161,10 @@ class Stabilizer extends (require('./dependencies').DependencyInstaller) {
             ignoreInitial: true,
             awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
         });
-        watcher.on('all', (event, filePath) => this.onFileChanged(pkgFolder, filePath, event));
+        watcher.on('all', (event, filePath) => {
+            const nested = this.container.registry.discover().some(pkg => pkg.folder !== pkgFolder && pkg.dir.startsWith(packageDir + path_1.default.sep) && (filePath === pkg.dir || filePath.startsWith(pkg.dir + path_1.default.sep)));
+            if (!nested) this.onFileChanged(pkgFolder, filePath, event);
+        });
         this.watchers.set(pkgFolder, watcher);
         // Prime dependency fingerprint so the first package.json change is detected.
         this.depsFingerprint.set(pkgFolder, this.readDepsFingerprint(pkgFolder));
@@ -202,26 +205,15 @@ class Stabilizer extends (require('./dependencies').DependencyInstaller) {
             seen.add(folder);
             onNewPackage(folder);
         };
-        /**
-         * Resolve somente as três raízes de pacote suportadas pelo registry.
-         * Nunca retorna um filho arbitrário de um app.
-         */
-        const packageFolder = (targetPath) => {
+        // A manifest defines ownership at any depth; grouping directories do not.
+        const packageFolder = targetPath => {
             const rel = path_1.default.relative(this.container.workspace, targetPath);
-            if (!rel || rel.startsWith('..') || path_1.default.isAbsolute(rel))
-                return null;
-            const parts = rel.split(path_1.default.sep).filter(Boolean);
-            if (!parts.length)
-                return null;
-            if (parts[0] === 'modules')
-                return parts[1] ? path_1.default.join('modules', parts[1]) : null;
-            if (parts[1] === 'mcp')
-                return path_1.default.join(parts[0], 'mcp');
-            return parts[0];
+            if (!rel || rel.split(path_1.default.sep).some(part => part === '..' || part.startsWith('.') || utils_1.IGNORE_DIRS.has(part)) || path_1.default.isAbsolute(rel)) return null;
+            return rel.endsWith(path_1.default.sep + 'package.json') ? path_1.default.dirname(rel) : rel;
         };
         this.workspaceWatcher = chokidar.watch(this.container.workspace, {
-            depth: 2,
-            ignored: [/(^|[\/\\])\../, /node_modules/],
+            followSymlinks: false,
+            ignored: target => path_1.default.relative(this.container.workspace, target).split(path_1.default.sep).some(part => part.startsWith('.') || utils_1.IGNORE_DIRS.has(part)),
             ignoreInitial: true,
         });
         this.workspaceWatcher.on('addDir', (dirPath) => consider(packageFolder(dirPath)));

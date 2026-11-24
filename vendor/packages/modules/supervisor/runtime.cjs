@@ -113,4 +113,16 @@ function notifyReady() {
   const timer = setInterval(() => send('logos:heartbeat'), 1000); timer.unref();
   return () => clearInterval(timer);
 }
-module.exports = { createRuntimeModule, notifyReady };
+/** Supervisor registration is ordinary package data; recovery is a host port. */
+function provideSupervisor(host) {
+  /**
+   * @register module supervisor
+   * @context capability
+   */
+  return createRuntimeModule({
+    root: host.applicationRoot(),
+    recoverIsolatedPackage: (_container, folder) => host.process.recoverIsolatedPackage(folder),
+  });
+}
+module.exports = { provideSupervisor, createRuntimeModule, notifyReady };
+module.exports.createHost = (...args) => require('@thinkiac/module-runtime-compat').createHost(...args);

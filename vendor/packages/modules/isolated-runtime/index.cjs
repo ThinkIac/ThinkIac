@@ -1,6 +1,11 @@
 'use strict';
 const { createBridge } = require('./bridge.cjs');
-function createRuntimeModule(host) {
+function provideIsolation(host) {
+  /**
+   * @register module isolation
+   * @context capability
+   */
+
   const bridge = createBridge(host.authority.runAsPackage);
   let container;
   return {
@@ -15,7 +20,7 @@ function createRuntimeModule(host) {
     },
   };
 }
-module.exports = { createRuntimeModule, ...require('./runner.cjs') };
+module.exports = { provideIsolation, ...require('./runner.cjs') };
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -29,3 +34,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideIsolation;

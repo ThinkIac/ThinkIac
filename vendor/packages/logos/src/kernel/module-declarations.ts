@@ -8,7 +8,7 @@ export function parseModule(fn: Function, doc: string | null) {
   if (!declaration) return null;
   if (!declaration.name) throw new Error('Module declaration requires a name');
   return {
-    name: declaration.name,
+    name: declaration.name, legacy: declaration.legacy,
     phase: doc.match(/@phase\s+(boot|wire)/)?.[1] ?? 'wire',
     after: tagValues(doc, 'after'), requires: tagValues(doc, 'requires'),
     swappable: !/@swappable\s+false/.test(doc),

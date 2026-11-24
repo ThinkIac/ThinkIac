@@ -9,7 +9,7 @@ module.exports = {
   ...require('./lib/file-digests.cjs'),
   ...require('./lib/tailwind-styles.cjs'),
   ...require('./runtime/offline.cjs'),
-  createRuntimeModule: require('./runtime-module.cjs').createRuntimeModule,
+  provideViews: require('./runtime-module.cjs').provideViews,
 };
 
 // Compatibility factories resolve their SDK from their own dependency graph.

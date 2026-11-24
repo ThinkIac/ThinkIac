@@ -79,10 +79,10 @@ Isso não constitui isolamento de segurança para JavaScript confiável no proce
    padrão e `process.env.PACKAGES_PATH` para compatibilidade.
 2. Carrega entrypoints externos e declarações programáticas; emite
    `logos:starting` e `logos:modules:register`.
-3. Resolve dependências dos pacotes e coleta module-packages do workspace.
+3. Resolve dependências dos pacotes e coleta módulos e tipos de todos os pacotes do workspace.
 4. Valida as duas fases, conflitos de recursos e provedores; sela o catálogo.
 5. Instala `boot` e depois `wire`, respeitando `requires` e `after`.
-6. Aplica a política do Supervisor, se presente, e conecta pacotes comuns:
+6. Aplica a política do Supervisor, se presente, e conecta todos os pacotes:
    valida contratos, configura serviços e schemas, emite `package:wiring` e
    entrega recursos genéricos.
 7. Expõe a operação de ativação, executa todos os `prepare`, depois todos os
@@ -95,8 +95,8 @@ Prontidão do runtime não prova que todos os pacotes ficaram ativos.
 
 ## Ativação, recarga e encerramento
 
-A ativação de pacotes comuns é serializada por pasta. O locator aceita pacotes
-diretos, `modules/<nome>` e `<dono>/mcp`. Adicionar um module-package que precise
+A ativação é serializada por pasta. O locator aceita qualquer profundidade
+com segmentos válidos, sem caminhos absolutos ou travessia. Adicionar um provedor que precise
 alterar o catálogo selado falha; reinicie com a composição desejada.
 Descoberta periódica e observação de arquivos pertencem ao `stabilizer`, quando
 selecionado. O kernel oferece coordenação e entrega de recursos, não um watcher.
@@ -140,9 +140,12 @@ artefato local; publicação e aceite do Runtime exigem validação própria.
 
 ## Catálogo de pacotes externos
 
-Lista do diretório `vendor/packages/modules`. Papel declarado é o campo
-`runtime.role`; bibliotecas e ferramentas sem esse campo não são descobertas
-automaticamente como módulos. O host também pode compor módulos programáticos.
+Lista da distribuição `vendor/packages/modules`. Os provedores usam declarações
+`@register module`. A descoberta externa de compatibilidade lê `runtime.entry`;
+no workspace todos os manifests são descobertos recursivamente, sem distinção
+de papel. Veja [workspace.md](workspace.md). O host ainda pode compor módulos
+programáticos. A tabela descreve o conteúdo dos pacotes, não uma classificação
+obrigatória do workspace.
 
 | Diretório | Nome no manifest | Papel declarado |
 | --- | --- | --- |
@@ -164,7 +167,7 @@ automaticamente como módulos. O host também pode compor módulos programático
 | `scriba-rooms` | `@thinkiac/module-scriba-rooms` | `biblioteca/ferramenta` |
 | `stabilizer` | `@thinkiac/module-stabilizer` | `module` |
 | `storage` | `@thinkiac/module-storage` | `module` |
-| `supervisor` | `@logos/supervisor` | `biblioteca/ferramenta` |
+| `supervisor` | `@logos/supervisor` | `module` |
 | `svelte` | `@thinkiac/module-svelte` | `module` |
 | `task-runner` | `@thinkiac/module-task-runner` | `biblioteca/ferramenta` |
 | `tools` | `@thinkiac/module-tools` | `module` |

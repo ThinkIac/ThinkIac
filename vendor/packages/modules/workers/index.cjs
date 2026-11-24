@@ -1,6 +1,11 @@
 'use strict';
 const { CpuWorkerPool } = require('./pool.cjs');
-function createRuntimeModule(host) {
+function provideWorkers(host) {
+  /**
+   * @register module workers
+   * @context capability
+   */
+
   let pool = null;
   return {
     name: 'workers', phase: 'boot', swappable: false,
@@ -12,7 +17,7 @@ function createRuntimeModule(host) {
     close: () => pool?.close(),
   };
 }
-module.exports = { createRuntimeModule, ...require('./pool.cjs') };
+module.exports = { provideWorkers, ...require('./pool.cjs') };
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -26,3 +31,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideWorkers;

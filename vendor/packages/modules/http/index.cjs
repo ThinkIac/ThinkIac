@@ -104,7 +104,13 @@ function missingViewPage(target) {
 </html>`;
 }
 
-function createRuntimeModule(host) {
+function provideHttp(host) {
+  /**
+   * @register module http
+   * @accepts route middleware predicate
+   * @context capability
+   */
+
   const { app, scanRoutes, isolatedRunner, createContext, loadMiddlewareSnapshot, resolveMiddlewares, runMiddlewares, routeMountPath, recordOfflineRoutes, runAsPackage } = host.http;
   const { HttpPerformance, measurePhase, recordPhase, setPerformanceRoute } = require('./performance.cjs');
   const routers = host.state('routers');
@@ -283,7 +289,7 @@ function createRuntimeModule(host) {
     close,
     install() { require('./staging.cjs').installStaging(host, api); createApplication(); mount(); createServer(); const publicDir = host.config()?.http?.public; if (publicDir) app().use(require('express').static(path.isAbsolute(publicDir) ? publicDir : path.resolve(path.dirname(process.cwd()), publicDir))); host.on('package:wiring', ({ pkg }) => mountPackage(pkg), { priority: 50 }); } };
 }
-module.exports = { createRuntimeModule };
+module.exports = { provideHttp };
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -297,3 +303,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideHttp;

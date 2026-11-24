@@ -44,7 +44,12 @@ async function createMcpHttpServer(options = {}) {
 }
 module.exports = { createMcpServer, createMcpHttpServer };
 
-function createRuntimeModule(host) {
+function provideMcp(host) {
+  /**
+   * @register module mcp
+   * @context capability
+   */
+
   let cache = null;
   const transports = new Set();
   const invalidating = ['reload:swapped', 'package:rolled_back', 'package:added', 'package:removed'];
@@ -81,7 +86,7 @@ function createRuntimeModule(host) {
     install() { for (const event of invalidating) host.on(event, () => { cache = null; }, { priority: 10 }); },
   };
 }
-module.exports.createRuntimeModule = createRuntimeModule;
+module.exports.provideMcp = provideMcp;
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -95,3 +100,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideMcp;

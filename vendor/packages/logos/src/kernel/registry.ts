@@ -53,41 +53,31 @@ export class PackageRegistry {
     return { ...manifest, folder: folderName, path: dir, dir };
   }
 
-  /**
-   * Lists packages from the two stable workspace roots:
-   *
-   * - `<workspace>/<package>` for applications and legacy packages;
-   * - `<workspace>/modules/<module>` for passive runtime modules;
-   * - `<workspace>/<owner>/mcp` for an MCP module colocated with its owner.
-   *
-   * We deliberately do not perform an unrestricted recursive scan. An
-   * application may contain nested package.json files for a web client, a
-   * fixture or a vendored tool; treating those as Lógos packages makes the
-   * runtime topology depend on implementation details of an application.
+  /** Discover manifests at any depth. Paths locate packages; manifest names identify them.
+   * Symlinks are not followed, so aliases and cycles cannot duplicate a package.
    */
   discover(): PackageInfo[] {
     if (!fs.existsSync(this.workspace)) return [];
-    const direct = fs.readdirSync(this.workspace, { withFileTypes: true })
-      .filter(e => e.isDirectory() && !e.name.startsWith('.') && !IGNORE_DIRS.has(e.name) && e.name !== 'modules')
-      .map(e => this.getPackage(e.name));
-    const modulesRoot = path.join(this.workspace, 'modules');
-    const modules = fs.existsSync(modulesRoot)
-      ? fs.readdirSync(modulesRoot, { withFileTypes: true })
-        .filter(e => e.isDirectory() && !e.name.startsWith('.') && !IGNORE_DIRS.has(e.name))
-        .map(e => this.getPackage(path.join('modules', e.name)))
-      : [];
-    // MCP may be colocated with a package (for example `agent/mcp`) while
-    // still being a runtime module.  This is intentionally an exact,
-    // one-level convention, not a recursive package.json scan: applications
-    // commonly contain nested clients, fixtures and vendored projects.
-    const colocatedMcp = fs.readdirSync(this.workspace, { withFileTypes: true })
-      .filter(e => e.isDirectory() && !e.name.startsWith('.') && !IGNORE_DIRS.has(e.name) && e.name !== 'modules')
-      .map(e => path.join(e.name, 'mcp'))
-      .filter(folder => fs.existsSync(path.join(this.workspace, folder))
-        && fs.statSync(path.join(this.workspace, folder)).isDirectory()
-        && fs.existsSync(path.join(this.workspace, folder, 'package.json')))
-      .map(folder => this.getPackage(folder));
-    return [...direct, ...modules, ...colocatedMcp];
+    const packages: PackageInfo[] = [];
+    const names = new Map<string, string>();
+    const visit = (directory: string) => {
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        if (!entry.isDirectory() || entry.name.startsWith('.') || IGNORE_DIRS.has(entry.name)) continue;
+        const dir = path.join(directory, entry.name);
+        if (fs.existsSync(path.join(dir, 'package.json'))) {
+          const pkg = this.getPackage(path.relative(this.workspace, dir));
+          if (pkg.name) {
+            const previous = names.get(pkg.name);
+            if (previous) throw new Error(`[logos] duplicate package name "${pkg.name}": ${previous} and ${pkg.folder}`);
+            names.set(pkg.name, pkg.folder);
+          }
+          packages.push(pkg);
+        }
+        visit(dir);
+      }
+    };
+    visit(this.workspace);
+    return packages;
   }
 
   /** Packages whose manifest declares `"runtime": { "role": "module" }`. */

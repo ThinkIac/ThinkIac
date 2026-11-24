@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { Container } from './container';
 import { registerDeclarations } from './scan';
 import { getIsolatedRunner } from '../core/isolated/bridge';
@@ -12,8 +13,16 @@ export async function collectPackageDeclarations(container: Container, pkg: any)
   }
   const entries = runner?.surfaces
     ? runner.surfaces.declarations.map(entry => ({ ...entry, handler: (...args: any[]) => runner.invoke(entry.id, args) }))
-    : await registerDeclarations(pkg.folder);
-  return entries.filter(entry => entry.declaration.type !== 'module').map(entry => ({
+    : await registerDeclarations((pkg.dir ?? (path.isAbsolute(pkg.folder) ? pkg.folder : container.registry.getPackage(pkg.folder).dir)));
+  for (const entry of entries) {
+    const type = entry.declaration.type;
+    if (entry.declaration.legacy || ['module', 'type'].includes(type)) continue;
+    const available = [...container.modules.values()].some(mod => !!mod.resources?.[type])
+      || container.state('runtime:accepted-types').has(type)
+      || container.bus.listeners(`register:${type}`).length > 0;
+    if (!available) throw new Error(`[logos] missing resource type "${type}" for package "${pkg.folder}" (${entry.file})`);
+  }
+  return entries.filter(entry => !['module', 'type'].includes(entry.declaration.type)).map(entry => ({
     declaration: entry.declaration, file: entry.file, package: pkg.folder,
     handler: (...args: any[]) => runAsPackage(container.authority, pkg.folder, () => entry.handler(...args)),
   }));

@@ -59,6 +59,23 @@ try {
       await runtime.close(); assert.equal(state.get('closed'), true);
       assert.equal(runtime.bus.listeners('logos:modules:register').length, 0);
       console.log('PASS: packed Logos, zero dependencies, empty boot, native module, generic resource, shutdown');
+      const declaredWorkspace = path.resolve('declarations');
+      const provider = path.join(declaredWorkspace, 'deep', 'abc', 'provider');
+      const consumer = path.join(declaredWorkspace, 'deep', 'consumer');
+      fs.mkdirSync(provider, { recursive: true }); fs.mkdirSync(consumer, { recursive: true });
+      fs.writeFileSync(path.join(provider, 'package.json'), JSON.stringify({ name: '@example/arithmetic' }));
+      fs.writeFileSync(path.join(consumer, 'package.json'), JSON.stringify({ name: 'consumer' }));
+      fs.writeFileSync(path.join(provider, 'index.cjs'),
+        'exports.lifecycle = function lifecycle(context) { /** @register module arithmetic */ return { close() { context.state.set("closed", true); } }; };' +
+        'exports.accept = function accept(resource, context) { /** @register type arithmetic */ context.state.set(resource.declaration.name, resource.handler); };');
+      fs.writeFileSync(path.join(consumer, 'index.cjs'),
+        'exports.double = function double(value) { /** @register arithmetic double */ return value * 2; };');
+      const declarative = await bootstrap({ workspace: declaredWorkspace, externalModules: [] });
+      const declaredState = declarative.container.state('entrypoint:workspace:deep/abc/provider');
+      assert.equal(await declaredState.get('double')(21), 42);
+      assert.equal(declarative.container.registry.getState('deep/abc/provider').state, 'active');
+      await declarative.close(); assert.equal(declaredState.get('closed'), true);
+      console.log('PASS: packed declarative module/type, nested scoped package, no registration API or factory');
     })().catch(error => { console.error(error); process.exitCode = 1; });
   `;
   fs.writeFileSync(path.join(project, 'smoke.cjs'), source);

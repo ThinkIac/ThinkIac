@@ -28,7 +28,7 @@ e fachadas para implementações externas. Sua presença não instala outra cóp
 
 1. Declare no projeto as dependências dos módulos e suas bibliotecas.
 2. Passe uma lista explícita em `externalModules`. Use `[]` para nenhuma
-   capacidade externa, sem esquecer os module-packages do workspace.
+   capacidade externa, sem esquecer os provedores declarados no workspace.
 3. Preserve as configurações de capacidades exigidas pela sua aplicação.
    Configuração sozinha não seleciona módulo.
 4. Confira `requires` e fases antes do boot. O catálogo inteiro é validado e
@@ -42,10 +42,10 @@ compatibilidade quando a lista não é informada.
 
 ## Migrar um módulo
 
-Prefira `register(context)` e `ModuleDeclaration` para novos módulos. A identidade
-usada em `externalModules` também é a chave de `moduleConfig`; não é
-necessariamente o `name` registrado. O contexto nativo não oferece container,
-registry nem portas de HTTP ou banco.
+Prefira funções comuns com `@register module` e `@register type`, sem API de
+registro importada do Lógos. Um mesmo pacote pode fornecer e consumir recursos,
+em qualquer profundidade do workspace. `runtime.role` não é necessário. Veja
+[workspace.md](docs/workspace.md) para contratos e exemplos executáveis.
 
 Declare `requires` para dependências obrigatórias e `after` para ordenação
 opcional. Registre tudo na janela inicial: adicionar ou substituir módulos após

@@ -27,7 +27,7 @@ export const scanCache = new ScanCache();
 
 // Test fixtures can contain registration markers but must never execute at boot.
 const TEST_DIRS = new Set(['test', 'tests', '__tests__']);
-const TEST_FILE = /\.(?:test|spec)\.js$/;
+const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/;
 
 export function getJsFilesRecursively(dir: string): string[] {
   const results: string[] = [];
@@ -35,8 +35,10 @@ export function getJsFilesRecursively(dir: string): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (IGNORE_DIRS.has(entry.name) || TEST_DIRS.has(entry.name) || entry.name.startsWith('.')) continue;
+      // A nested manifest starts a separate package, scanned under its own owner.
+      if (fs.existsSync(path.join(dir, entry.name, 'package.json'))) continue;
       results.push(...getJsFilesRecursively(path.join(dir, entry.name)));
-    } else if (entry.isFile() && entry.name.endsWith('.js') && !TEST_FILE.test(entry.name)) {
+    } else if (entry.isFile() && /\.[cm]?js$/.test(entry.name) && !TEST_FILE.test(entry.name)) {
       results.push(path.join(dir, entry.name));
     }
   }
@@ -172,6 +174,7 @@ export async function registerGeneric(
     let source: string;
     try { source = fs.readFileSync(filePath, 'utf-8'); } catch { continue; }
     if (!/@register(?:_|\s)/.test(source)) continue;
+    if (parserName === 'structural-declarations' && !/@register(?:\s+(?:module|type)\b|_module\b)/.test(source)) continue;
 
     let mod: any;
       // Um pacote ESM pode conter um subdiretório CommonJS com runtime legado.
@@ -180,12 +183,13 @@ export async function registerGeneric(
       try { mod = await loadModule(filePath, isEsmFolder(path.dirname(filePath))); }
     catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
+      if (parserName === 'declarations' || parserName === 'structural-declarations') throw new Error(`[logos] failed loading structural declarations ${filePath}: ${reason}`, { cause: error });
       console.warn(`[scan:${parserName}] Failed to load ${filePath}: ${reason}`);
       continue;
     }
 
     const aboveMap = buildAboveDocMap(source);
-    for (const fn of extractExportedFunctions(mod)) {
+    for (const fn of new Set(extractExportedFunctions(mod))) {
       const doc = resolveDoc(fn, aboveMap);
       const meta = parser(fn, doc);
       if (!meta) continue;
@@ -211,12 +215,12 @@ export function registerMiddlewares(folder: string): Promise<any[]> { return leg
 export function registerModules(folder: string) { return registerGeneric(folder, parseModule, 'modules'); }
 
 /** Discover generic declarations without assigning their semantics to the kernel. */
-export async function registerDeclarations(agentFolder: string) {
+export async function registerDeclarations(agentFolder: string, structuralOnly = false) {
   const groups = await registerGeneric(agentFolder, (fn, doc) => {
     if (!doc) return null;
-    const declarations = parseDeclarations(doc);
+    const declarations = parseDeclarations(doc).filter(entry => !structuralOnly || ['module', 'type'].includes(entry.type));
     return declarations.length ? { declarations, handler: fn } : null;
-  }, 'declarations');
+  }, structuralOnly ? 'structural-declarations' : 'declarations');
   return groups.flatMap(group => group.declarations.map((declaration: any) => ({
     declaration, handler: group.handler, file: group._file,
   })));

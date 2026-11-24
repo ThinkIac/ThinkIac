@@ -30,37 +30,50 @@ main().catch(error => { console.error(error); process.exitCode = 1; });
 ```
 
 `externalModules: []` desativa a descoberta de capacidades adjacentes. O workspace
-continua sendo descoberto, inclusive seus module-packages. Para um boot realmente
+continua sendo descoberto, inclusive seus módulos e tipos. Para um boot realmente
 vazio, use um workspace vazio. Omitir `externalModules` mantém a descoberta legada.
 Configurar `http`, `views` ou `workers` não instala seus provedores.
 
-## Compor um host
+## Pacotes, módulos e tipos
 
-O host instala as dependências de cada capacidade e seleciona caminhos relativos
-ao workspace (`./arithmetic`), caminhos absolutos ou nomes npm em
-`externalModules`. O ponto de entrada nativo exporta `register(context)`:
+Qualquer pacote do workspace pode fornecer e consumir recursos. A descoberta
+percorre subpastas, inclusive `packages/abc/b/pacoteReal/package.json` e filhos
+de outros pacotes. A pasta `modules` não tem significado especial.
 
 ```js
-// arithmetic/index.cjs
-exports.register = context => context.register({
-  name: 'arithmetic', version: '1.0.0', phase: 'wire',
-  resources: {
-    arithmetic: resource => context.state.set(resource.declaration.name, resource.handler),
-  },
-  install(ctx) { ctx.log('instalado'); },
-  close() { context.state.clear(); },
-});
+// index.cjs de um pacote com package.json
+exports.lifecycle = function lifecycle(context) {
+  /** @register module arithmetic */
+  return { install() { context.log('pronto'); } };
+};
+
+exports.accept = function accept(resource, context) {
+  /**
+   * @register type arithmetic
+   * @requires arithmetic
+   */
+  context.state.set(resource.declaration.name, resource.handler);
+};
+
+exports.double = function double(value) {
+  /** @register arithmetic double */
+  return value * 2;
+};
 ```
 
-O módulo define a semântica de `@register arithmetic double`; Lógos transporta
-metadados e um handler mediado. Esse consumidor simples não oferece rollback
-automático dos seus efeitos. Para recarga segura, use o consumidor transacional.
-Fábricas `createRuntimeModule(host)` continuam funcionando pelo adaptador externo.
+Não há import de API do Lógos nem export especial de registro. Um consumidor
+pode ficar em outro pacote, em qualquer profundidade. Nomes de manifest
+repetidos falham; arquivos de um pacote filho não são registrados pelo pai.
+
+O [guia de workspace](docs/workspace.md) documenta contexto, tipos transacionais,
+exemplos completos, migração e limites de recarga. Aliases antigos permanecem
+para consumidores existentes; os entrypoints da distribuição usam declarações.
 
 ## Referências
 
 | Documento | Conteúdo |
 | --- | --- |
+| [Workspace unificado](docs/workspace.md) | Pacotes aninhados, módulos e tipos declarativos |
 | [Arquitetura](docs/architecture.md) | Fronteiras, responsáveis e limites de independência |
 | [Estrutura e operação](docs/structure.md) | Diretórios, configuração, boot, erros e distribuição |
 | [Protocolo de módulos](docs/modules.md) | Registro, fases, eventos e transações |

@@ -5,7 +5,12 @@
 // live sockets.
 const { WsHub } = requireCapabilityDependency("@thinkiac/module-websocket", "../websocket");
 
-function createRuntimeModule(host) {
+function provideWs(host) {
+  /**
+   * @register module ws
+   * @context capability
+   */
+
   function hub() {
     const state = host.state('ws'); let value = state.get('hub');
     if (!value) { value = new WsHub(); state.set('hub', value); }
@@ -42,7 +47,7 @@ function createRuntimeModule(host) {
     },
   };
 }
-module.exports = { createRuntimeModule };
+module.exports = { provideWs };
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -56,3 +61,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideWs;

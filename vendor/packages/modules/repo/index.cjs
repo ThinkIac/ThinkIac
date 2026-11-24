@@ -2,7 +2,12 @@
 
 // Repository hosting is installed as a normal capability. Its SSH, deploy,
 // branch and proxy transports live in this package.
-function createRuntimeModule(host) {
+function provideRepo(host) {
+  /**
+   * @register module repo
+   * @context capability
+   */
+
   let state = null;
   return {
     name: 'repo', phase: 'wire', after: ['http', 'tools'],
@@ -18,7 +23,7 @@ function createRuntimeModule(host) {
     },
   };
 }
-module.exports = { createRuntimeModule };
+module.exports = { provideRepo };
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -32,3 +37,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideRepo;

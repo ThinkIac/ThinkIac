@@ -4,15 +4,22 @@ Lifecycle envelopes use `RUNTIME_PROTOCOL_VERSION = 1`. The factory host ports
 remain a transitional compatibility API; a versioned envelope does not imply
 that every existing capability has migrated to generic resource consumers.
 
+## Declarative registration
+
+The primary API is `@register module`, `@register type` and `@register <type>`
+on ordinary exported functions, with no Logos registration API import. The
+[workspace guide](workspace.md) defines these contracts. The native entrypoint
+and factory sections below document preserved compatibility APIs.
+
 ## Discovery
 
 The host selects workspace-relative paths, absolute paths or installed packages
 using `externalModules`. `[]` selects no capabilities. Compatibility discovery reads
-`runtime.role = "module"` and `runtime.entry` from adjacent manifests without probing
+`runtime.entry` from adjacent manifests without probing
 libraries by executing them. Entrypoints must stay inside their package; declared
 modules that fail to load fail boot explicitly.
 
-## Native entrypoints
+## Compatibility native entrypoints
 
 ```js
 exports.register = context => context.register({
@@ -39,7 +46,7 @@ Providers retain the requester's package authority and own validation. Inside an
 isolated process, `require('logos').requestCapability(request)` invokes this port.
 The database provider restricts its legacy facade to the requesting tenant.
 
-## Factory
+## Compatibility factory
 
 ```js
 function createRuntimeModule(host) {
@@ -72,22 +79,11 @@ in lifecycle ordering.
 compatibility. `requires` declares modules that must exist and install first;
 a missing module fails the phase before any of its pending modules install.
 
-Workspace module-package functions can also declare dependencies in their
-JSDoc. Both registration spellings remain supported:
-
-```js
-/**
- * @register module cache
- * @phase wire
- * @requires storage
- * @after metrics
- */
-function install(container) { /* ... */ }
-```
-
-`@register_module cache` is the legacy alias. Repeat `@requires` or `@after`
-for multiple names. This compatibility path still receives the container and is
-not the versioned event-based module protocol described by the migration plan.
+All workspace packages can declare modules and types using the generic grammar.
+See [workspace.md](workspace.md) for the primary declaration contract, nested
+packages, transactional type providers and complete examples. `@register module`
+functions return descriptors; `@register type` functions consume declarations.
+The underscore alias `@register_module` retains its old installer signature.
 
 ## Host boundary
 

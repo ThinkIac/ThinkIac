@@ -53,7 +53,8 @@ function lazyExport(module: string, name: string): any {
 }
 
 
-import { registerModules } from './kernel/scan';
+import { registerDeclarations } from './kernel/scan';
+import { collectStructuralDeclaration } from './kernel/declarative-catalog';
 import type { BootstrapConfig, LogosInstance } from './types';
 
 type PackageActivation = (folder: string, source?: string) => Promise<any>;
@@ -86,7 +87,7 @@ function warnDeprecated(config: BootstrapConfig): void {
 }
 
 /**
- * Registra um module-package (runtime.role = "module") no container. Não
+ * Coleta módulos e tipos de qualquer pacote do workspace. Não
  * instala: installPhase() executa as fases após selar o catálogo. Alterar o
  * catálogo após o boot exige nova composição.
  */
@@ -96,15 +97,16 @@ async function registerModulePackage(container: Container, pkg: any): Promise<bo
     return true;
   }
   try {
-    const mods = await registerModules(pkg.folder);
-    for (const meta of mods) {
-      container.use({
-        name: meta.name,
-        phase: meta.phase,
-        after: meta.after,
-        requires: meta.requires,
-        swappable: meta.swappable,
-        install: (c: Container) => meta.install(c),
+    const entries = await registerDeclarations(pkg.dir, true);
+    for (const entry of entries.filter(e => ['module', 'type'].includes(e.declaration.type) && !e.declaration.legacy)) {
+      await collectStructuralDeclaration(container, entry, `workspace:${pkg.folder}`);
+    }
+    // Underscore declarations retain their original installer contract.
+    for (const entry of entries.filter(entry => entry.declaration.type === 'module' && entry.declaration.legacy)) {
+      const tags = entry.declaration.tags;
+      container.use({ name: entry.declaration.name!, phase: (tags.phase?.[0] ?? 'wire') as 'boot' | 'wire',
+        after: tags.after?.flatMap(value => value.split(/\s+/)), requires: tags.requires?.flatMap(value => value.split(/\s+/)),
+        swappable: tags.swappable?.[0] !== 'false', install: (c: Container) => entry.handler(c),
       }, `workspace:${pkg.folder}`);
     }
     return true;
@@ -143,7 +145,10 @@ export async function bootstrap(config: BootstrapConfig = {}): Promise<LogosInst
 
     // Collect host-selected capabilities; no built-in capability list.
     installExternalModules(container, config.externalModules ?? discoverExternalRuntimeModules());
-    for (const mod of config.modules ?? []) container.use(mod, 'workspace');
+    for (const mod of config.modules ?? []) {
+      container.use(mod, 'workspace');
+      container.state('runtime:programmatic-modules').set(mod.name, true);
+    }
     await runtimeEvent(container, 'logos:starting', 'discover');
     await runtimeEvent(container, 'logos:modules:register', 'register', {
       register: (mod: any) => container.use(mod, 'event'),
@@ -173,12 +178,10 @@ export async function bootstrap(config: BootstrapConfig = {}): Promise<LogosInst
       container.registry.setState(pkg.folder, reason === 'stopped' ? 'stopped' : 'blocked', reason);
       return false;
     };
+    // Every package can provide and consume declarations, regardless of its location.
     const modulePackages = allPackages.filter(p => container.registry.isModulePackage(p));
-    let normalPackages = allPackages.filter(p => !container.registry.isModulePackage(p));
-
-    // Workspace module-packages: node ones override collected names; non-node
-    // ones (python/deno/…) start as process bridges and register on the bus.
-    for (const pkg of modulePackages) await registerModulePackage(container, pkg);
+    let normalPackages = allPackages;
+    for (const pkg of allPackages) await registerModulePackage(container, pkg);
 
     const catalog = container.sealModules();
     await runtimeEvent(container, 'logos:modules:sealed', 'seal', {
@@ -230,12 +233,9 @@ export async function bootstrap(config: BootstrapConfig = {}): Promise<LogosInst
     // Activation is serialized per package; the module catalog stays sealed.
     const activating = new Map<string, Promise<any>>();
     activatePackage = async (folder: string, source = 'manual'): Promise<any> => {
-      // Package locators mirror the registry's intentionally small discovery
-      // topology: direct packages, `modules/<name>`, and `<owner>/mcp`.
-      // Accepting arbitrary nested paths here would bypass that topology during
-      // a hot-add and turn application internals into runtime packages.
-      const segment = '[a-zA-Z0-9][a-zA-Z0-9._-]*';
-      const locator = new RegExp(`^(?:${segment}|modules/${segment}|${segment}/mcp)$`);
+      // Accept arbitrary depth while rejecting traversal and absolute paths.
+      const segment = '[a-zA-Z0-9@][a-zA-Z0-9@._-]*';
+      const locator = new RegExp(`^${segment}(?:/${segment})*$`);
       if (!locator.test(folder)) {
         return { ok: false, pkg: folder, error: 'Invalid package folder name.' };
       }
@@ -262,7 +262,8 @@ export async function bootstrap(config: BootstrapConfig = {}): Promise<LogosInst
             requires: wiring.contract.contract.requires.services,
           });
           container.eventContracts.replaceOwner(folder, wiring.contract.contract.provides.eventSchemas);
-          if (container.registry.isModulePackage(pkg)) {
+          const structural = (await registerDeclarations(pkg.dir, true)).filter(entry => ['module', 'type'].includes(entry.declaration.type));
+          if (structural.length) {
             await registerModulePackage(container, pkg);
             await container.installPhase('boot');
             await container.installPhase('wire');

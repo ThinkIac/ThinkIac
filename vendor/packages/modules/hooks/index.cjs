@@ -2,7 +2,13 @@
 
 // Event-hook capability.  Ownership is retained by the kernel's bus and
 // EffectScope, while this package owns the decorator interpretation.
-function createRuntimeModule(host) {
+function provideHooks(host) {
+  /**
+   * @register module hooks
+   * @accepts hook
+   * @context capability
+   */
+
   async function wire(pkg) {
     const previous = host.scopes.get(pkg.folder);
     if (previous) await host.scopes.dispose(pkg.folder, 'hooks_rewired'); else host.scopes.removeOwner(pkg.folder);
@@ -32,7 +38,7 @@ function createRuntimeModule(host) {
     host.on('logos:package:swapping', ({ pkg }) => wire(pkg));
   } };
 }
-module.exports = { createRuntimeModule };
+module.exports = { provideHooks };
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -46,3 +52,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideHooks;

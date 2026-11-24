@@ -51,6 +51,7 @@ describe('stabilizer authority diff', () => {
         expanded: ['permissions.tools.invoke:target.new'],
       });
       installExternalModules(container, ['http', 'hooks']);
+      await container.bus.emitStrict('logos:modules:register', {});
       await container.installPhase('wire');
       const accepted = await stagePackage(container, 'pilot');
       expect(accepted.ok, accepted.error).toBe(true);

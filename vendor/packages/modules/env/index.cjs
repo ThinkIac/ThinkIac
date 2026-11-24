@@ -69,7 +69,12 @@ function createEnvModule(options) {
 }
 
 const envModule = createEnvModule();
-function createRuntimeModule(host) {
+function provideEnv(host) {
+  /**
+   * @register module env
+   * @context capability
+   */
+
   return {
     name: 'env', phase: 'boot',
     install() {
@@ -78,7 +83,7 @@ function createRuntimeModule(host) {
     },
   };
 }
-module.exports = { toEnvSegment, parseEnvFile, loadPackageEnv, createEnvModule, envModule, createRuntimeModule };
+module.exports = { toEnvSegment, parseEnvFile, loadPackageEnv, createEnvModule, envModule, provideEnv };
 
 // Compatibility factories resolve their SDK from their own dependency graph.
 module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
@@ -92,3 +97,6 @@ function requireCapabilityDependency(name, local) {
   }
   return require(entry);
 }
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideEnv;

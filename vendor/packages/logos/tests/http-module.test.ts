@@ -12,6 +12,7 @@ afterEach(async () => { for (const close of cleanup.splice(0)) await close(); })
 async function fixture(config: any = {}) {
   const container = new Container({ workspace: '/tmp/logos-http-module', port: 0, host: '127.0.0.1', http: { performance: false }, ...config });
   installExternalModules(container, config.externalModules ?? ['http']);
+  await container.bus.emitStrict('logos:modules:register', {});
   const api = externalApi<any>(container, 'http');
   const app = api.createApplication();
   container.app = app;
