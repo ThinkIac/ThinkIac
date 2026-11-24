@@ -1,0 +1,11 @@
+{
+  "name": "@thinkiac/module-annotations",
+  "version": "0.1.0",
+  "description": "Compatibility adapters for concrete resource annotations",
+  "main": "index.cjs",
+  "files": [
+    "*.cjs",
+    "README.md"
+  ],
+  "license": "MIT"
+}

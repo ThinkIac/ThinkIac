@@ -45,6 +45,21 @@ function createRuntimeModule(host) {
     host.state('proc').set(pkg.folder, bridge); return bridge;
   };
   const stop = async folder => { const bridge = host.state('proc').get(folder); if (bridge) { bridge.stop(); host.state('proc').delete(folder); } await host.process.disposeScope(folder, 'process_module_stopped'); };
-  return { name: 'proc', phase: 'wire', api: { start, stop }, install() {} };
+  return { name: 'proc', phase: 'wire', api: { start, stop },
+    async close() { for (const folder of [...host.state('proc').keys()]) await stop(folder); },
+    install() { host.on('package:module', ({ pkg }) => start(pkg)); } };
 }
 module.exports = { createRuntimeModule };
+
+// Compatibility factories resolve their SDK from their own dependency graph.
+module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
+
+function requireCapabilityDependency(name, local) {
+  let entry;
+  try { entry = require.resolve(name); }
+  catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    entry = require.resolve(local);
+  }
+  return require(entry);
+}

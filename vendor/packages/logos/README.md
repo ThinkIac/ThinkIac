@@ -1,104 +1,84 @@
 # Lógos
 
-Lógos is the launcher and compatibility kernel used by ThinkIac. Its direction
-is deliberately narrow: resolve a workspace, load external runtime modules,
-coordinate their lifecycle and carry capability-neutral declarations. HTTP,
-tools, hooks, commands, views, data and product policy belong to modules and to
-the host assembled on top of Lógos.
+Lógos é o launcher e o protocolo de composição do ThinkIac. O kernel coordena
+catálogo, dependências, declarações, autoridade e ciclo de vida. Recursos concretos
+são fornecidos pelos módulos selecionados pelo host.
 
-```text
-Lógos launcher / protocol
-        |
-        +-- @thinkiac/module-http
-        +-- @thinkiac/module-tools
-        +-- @thinkiac/module-hooks
-        +-- @thinkiac/module-svelte
-        +-- other host-selected modules
-        |
-        `-- ThinkIac applications
-```
+O pacote não declara dependências de execução obrigatórias nem opcionais.
+A distribuição empacotada pode iniciar sem HTTP, banco, Svelte, workers,
+estabilizador ou diretório de módulos adjacente. Há fachadas de compatibilidade;
+isso não significa que todos os consumidores já usem snapshots transacionais.
 
-## Current status
-
-The extraction is in progress. The active implementation already:
-
-- discovers external packages whose public entry exports
-  `createRuntimeModule(host)`;
-- installs those modules through lifecycle phases instead of a built-in module
-  list;
-- exposes narrow host ports instead of passing Lógos internals to capability
-  modules;
-- emits generic `@register <type> <name>` declarations as
-  `register:<type>` events.
-
-Compatibility code still remains in `src/`: bootstrap orchestration, the event
-kernel, package discovery, declaration scanning, stabilization and legacy
-facades. Some external modules still receive compatibility scanner ports for
-`@register_router`, `@register_tool` and related tags. A bare `logos` package is
-therefore not yet the final capability-free launcher.
-
-The boundary and remaining work are documented in
-[docs/architecture.md](docs/architecture.md). The module protocol is in
-[docs/modules.md](docs/modules.md).
-
-## Runtime modules
-
-A runtime capability is an ordinary package with this public shape:
+## Começar sem capacidades
 
 ```js
-export function createRuntimeModule(host) {
-  return {
-    name: 'example',
-    phase: 'wire',
-    after: [],
-    install() {
-      host.on('package:wiring', ({ pkg }) => {
-        host.log(`[example] wiring ${pkg.folder}`);
-      });
-    },
-  };
+const { bootstrap } = require('logos');
+
+async function main() {
+  const runtime = await bootstrap({
+    workspace: '/caminho/absoluto/packages',
+    externalModules: [],
+    modules: [],
+  });
+  try {
+    console.log(runtime.workspace); // app/server/stabilizer/mcp/workers são null
+  } finally {
+    await runtime.close();
+  }
 }
+main().catch(error => { console.error(error); process.exitCode = 1; });
 ```
 
-The real packages currently live next to Lógos under `packages/modules/` and
-own capabilities such as HTTP, hooks, tools and Svelte. Libraries that do not
-export `createRuntimeModule` are not installed as runtime capabilities.
+`externalModules: []` desativa a descoberta de capacidades adjacentes. O workspace
+continua sendo descoberto, inclusive seus module-packages. Para um boot realmente
+vazio, use um workspace vazio. Omitir `externalModules` mantém a descoberta legada.
+Configurar `http`, `views` ou `workers` não instala seus provedores.
 
-## Generic declarations
+## Compor um host
 
-Lógos can transport arbitrary registration metadata without knowing its
-meaning:
+O host instala as dependências de cada capacidade e seleciona caminhos relativos
+ao workspace (`./arithmetic`), caminhos absolutos ou nomes npm em
+`externalModules`. O ponto de entrada nativo exporta `register(context)`:
 
 ```js
-/**
- * @register example action
- * @option first
- */
-export function action(input) {
-  return input;
-}
+// arithmetic/index.cjs
+exports.register = context => context.register({
+  name: 'arithmetic', version: '1.0.0', phase: 'wire',
+  resources: {
+    arithmetic: resource => context.state.set(resource.declaration.name, resource.handler),
+  },
+  install(ctx) { ctx.log('instalado'); },
+  close() { context.state.clear(); },
+});
 ```
 
-During package wiring the launcher emits `register:example` with a
-JSON-compatible declaration and the callable separately. A module may subscribe
-to that type and define its semantics. The legacy, capability-specific
-decorators remain available only as a compatibility surface while their
-modules migrate to this protocol.
+O módulo define a semântica de `@register arithmetic double`; Lógos transporta
+metadados e um handler mediado. Esse consumidor simples não oferece rollback
+automático dos seus efeitos. Para recarga segura, use o consumidor transacional.
+Fábricas `createRuntimeModule(host)` continuam funcionando pelo adaptador externo.
 
-Application authors should use the host documentation, not this repository, for
-route, tool, hook or view syntax. For ThinkIac, see
-[ThinkIac decorators](../../../docs/decorators.md).
+## Referências
 
-## Development
+| Documento | Conteúdo |
+| --- | --- |
+| [Arquitetura](docs/architecture.md) | Fronteiras, responsáveis e limites de independência |
+| [Estrutura e operação](docs/structure.md) | Diretórios, configuração, boot, erros e distribuição |
+| [Protocolo de módulos](docs/modules.md) | Registro, fases, eventos e transações |
+| [Migração](MIGRATION.md) | Composição explícita e compatibilidade existente |
+| [Integração de pacotes](docs/package-integrations.md) | Banco, isolamento e recarga no host ThinkIac |
+| [Validação](docs/testing.md) | Build, testes focados e distribuição isolada |
+| [Contribuição](CONTRIBUTING.md) | Regras para manter a fronteira do launcher |
+
+Aplicações ThinkIac devem consultar a [referência de decoradores](../../../docs/decorators.md)
+para a sintaxe das capacidades da distribuição ativa. Verificação local não
+representa publicação nem aceite de uma versão pelo Runtime.
+
+## Desenvolvimento
 
 ```bash
 npm run build
 npm test
+npm run test:independent
 ```
 
-See [docs/testing.md](docs/testing.md) for the focused launcher checks and
-[CONTRIBUTING.md](CONTRIBUTING.md) for the boundary contributors must preserve.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+Node mínimo declarado: 18. Licença MIT, veja [LICENSE](LICENSE).

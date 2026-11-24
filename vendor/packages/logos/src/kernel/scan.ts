@@ -18,10 +18,8 @@ import { ScanCache } from './cache';
 import { IGNORE_DIRS, resolveWorkspace } from './utils';
 import { buildAboveDocMap, resolveDoc } from './jsdoc';
 import { parseDeclarations } from './declarations';
-import {
-  parseTool, parseHook, parseRoute, parseCommand,
-  parsePredicate, parseMiddleware, parseModule,
-} from './parsers';
+import { parseModule } from './module-declarations';
+import { externalModulePath } from './module-resolution';
 
 export const scanCache = new ScanCache();
 
@@ -202,61 +200,15 @@ export async function registerGeneric(
 
 // ── Public register* API (v1-compatible signatures) ─────────────────────────
 
-const JSON_SCHEMA_TYPES = new Set(['string', 'number', 'integer', 'boolean', 'object', 'array', 'null']);
-
-// @param {string[]} / {object[]} etc. chegam do parser com o "type" literal
-// (ex.: "string[]") — não é um tipo de JSON Schema válido, e a Anthropic API
-// rejeita a tool inteira (400 "JSON schema is invalid") quando algum
-// inputSchema traz isso. Convertido pra {type:'array', items:{type:...}}.
-//
-// @enum vira `enum` no próprio schema (JSON Schema padrão — o LLM e a UI já
-// entendem). @enumSource não tem equivalente padrão: o schema é estático e a
-// fonte é viva, então viaja como metadado `x-enumSource` e quem resolve é o
-// consumidor (o Lógos declara, o app resolve).
-function toJsonSchemaProperty(param: { type: string; description: string | null; enum?: string[]; enumSource?: string }) {
-  const { type: rawType, description } = param;
-  const extra: any = {};
-  if (param.enum && param.enum.length) extra.enum = param.enum;
-  if (param.enumSource) extra['x-enumSource'] = param.enumSource;
-
-  if (typeof rawType === 'string' && rawType.endsWith('[]')) {
-    const itemType = rawType.slice(0, -2);
-    return {
-      type: 'array',
-      items: { type: JSON_SCHEMA_TYPES.has(itemType) ? itemType : 'string', ...extra },
-      description,
-    };
-  }
-  return { type: JSON_SCHEMA_TYPES.has(rawType) ? rawType : 'string', description, ...extra };
-}
-
-export function registerTools(agentFolder: string) {
-  return registerGeneric(agentFolder, parseTool, 'tools', meta => ({
-    name: meta.name,
-    description: meta.description,
-    parameters: {
-      type: 'object',
-      properties: (meta.parameters || []).reduce((acc: any, p: any) => {
-        acc[p.name] = toJsonSchemaProperty(p);
-        return acc;
-      }, {}),
-      required: (meta.parameters || []).filter((p: any) => p.required).map((p: any) => p.name),
-    },
-    call: meta.call,
-    condition: meta.condition,
-    _file: meta._file,
-  }));
-}
-
-export function registerCommands(agentFolder: string) {
-  return registerGeneric(agentFolder, parseCommand, 'commands');
-}
-
-export function registerHooks(agentFolder: string)       { return registerGeneric(agentFolder, parseHook, 'hooks'); }
-export function registerRoutes(agentFolder: string)      { return registerGeneric(agentFolder, parseRoute, 'routes'); }
-export function registerPredicates(agentFolder: string)  { return registerGeneric(agentFolder, parsePredicate, 'predicates'); }
-export function registerMiddlewares(agentFolder: string) { return registerGeneric(agentFolder, parseMiddleware, 'middlewares'); }
-export function registerModules(agentFolder: string)     { return registerGeneric(agentFolder, parseModule, 'modules'); }
+// Concrete aliases delegate to the optional annotations compatibility package.
+function legacyScanners(): any { return require(externalModulePath('annotations')).createScanners(registerGeneric); }
+export function registerTools(folder: string): Promise<any[]> { return legacyScanners().registerTools(folder); }
+export function registerCommands(folder: string): Promise<any[]> { return legacyScanners().registerCommands(folder); }
+export function registerHooks(folder: string): Promise<any[]> { return legacyScanners().registerHooks(folder); }
+export function registerRoutes(folder: string): Promise<any[]> { return legacyScanners().registerRoutes(folder); }
+export function registerPredicates(folder: string): Promise<any[]> { return legacyScanners().registerPredicates(folder); }
+export function registerMiddlewares(folder: string): Promise<any[]> { return legacyScanners().registerMiddlewares(folder); }
+export function registerModules(folder: string) { return registerGeneric(folder, parseModule, 'modules'); }
 
 /** Discover generic declarations without assigning their semantics to the kernel. */
 export async function registerDeclarations(agentFolder: string) {

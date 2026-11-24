@@ -82,6 +82,7 @@ export class EventBus {
   }
 
   private principalFor(owner?: string): AuthorityPrincipal {
+    if (owner?.startsWith('module:')) return SYSTEM_PRINCIPAL;
     if (owner && owner !== 'kernel' && owner !== 'system') return { kind: 'package', id: owner };
     if (owner === 'kernel' || owner === 'system') return SYSTEM_PRINCIPAL;
     return currentAuthority().principal;
@@ -180,6 +181,16 @@ export class EventBus {
       } catch (err: any) {
         this.log(`[bus] handler for '${event}' (owner: ${sub.owner ?? 'kernel'}) failed: ${err?.message ?? err}`);
       }
+    }
+  }
+
+  /** Await listeners and propagate failures for transactional lifecycle work. */
+  async emitStrict(event: string, payload?: any, ctx?: any): Promise<void> {
+    this.enforce('publish', event);
+    this.eventContracts?.validate(event, payload);
+    for (const sub of this.listeners(event)) {
+      if (!await this.permits(sub, event, payload, ctx, 'emit')) continue;
+      await this.invoke(sub, payload, { ...(ctx ?? {}), event });
     }
   }
 

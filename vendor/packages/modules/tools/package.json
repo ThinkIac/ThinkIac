@@ -4,5 +4,14 @@
   "description": "External tools capability for the Logos event kernel",
   "main": "index.cjs",
   "license": "MIT",
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  },
+  "runtime": {
+    "role": "module",
+    "entry": "index.cjs"
+  },
+  "dependencies": {
+    "@thinkiac/module-runtime-compat": "file:../runtime-compat"
+  }
 }

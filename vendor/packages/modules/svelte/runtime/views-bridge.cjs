@@ -1,16 +1,21 @@
 'use strict';
+function createBridge(host) {
+  const timing = requireCapabilityDependency("@thinkiac/module-http/performance.cjs", "../../http/performance.cjs");
+  return {
+    measurePhase: timing.measurePhase, setPerformanceRoute: timing.setPerformanceRoute,
+    getHub: () => host.ws.getHub(),
+    getPackageMount: () => host.http.getPackageMount(),
+    routeMountPath: (pkg, route) => route.startsWith('/') ? route : `/${pkg}/${route}`,
+  };
+}
+module.exports = { createBridge };
 
-// This bridge is deliberately configured by the capability factory.  The
-// copied view runtime never imports the Logos source tree.
-let host;
-function configure(value) { host = value; }
-function requireHost() { if (!host) throw new Error('Svelte capability was used before configuration'); return host; }
-
-module.exports = {
-  configure,
-  measurePhase: (...args) => requireHost().http.measurePhase(...args),
-  setPerformanceRoute: (...args) => requireHost().http.setPerformanceRoute(...args),
-  getHub: () => requireHost().ws.getHub(),
-  getPackageMount: () => requireHost().http.getPackageMount(),
-  routeMountPath: (...args) => requireHost().http.routeMountPath(...args),
-};
+function requireCapabilityDependency(name, local) {
+  let entry;
+  try { entry = require.resolve(name); }
+  catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    entry = require.resolve(local);
+  }
+  return require(entry);
+}

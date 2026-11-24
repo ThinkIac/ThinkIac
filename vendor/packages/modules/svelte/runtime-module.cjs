@@ -1,14 +1,14 @@
 'use strict';
 
-const bridge = require('./runtime/views-bridge.cjs');
-const legacy = require('./runtime/views-runtime.cjs');
+const { createBridge } = require('./runtime/views-bridge.cjs');
+const { createRuntime } = require('./runtime/views-runtime.cjs');
 const offline = require('./runtime/offline.cjs');
 
 function facade(host) {
   return {
     workspace: host.workspace(),
     config: host.config(),
-    app: host.http.app(),
+    get app() { return host.http.app(); },
     state: host.state,
     registry: host.registry,
     log: host.log,
@@ -17,10 +17,11 @@ function facade(host) {
 }
 
 function createRuntimeModule(host) {
-  bridge.configure(host);
+  const legacy = createRuntime(createBridge(host));
   const container = facade(host);
   return {
-    name: 'views', phase: 'wire', after: ['http', 'ws'],
+    name: 'views', phase: 'wire', requires: ['http'], after: ['ws'],
+    async prepare() { host.state('views').set('readiness', await legacy.prewarmViews(container)); },
     api: {
       isRegisteredPublicView: path => legacy.isRegisteredPublicView(container, path),
       prewarm: () => legacy.prewarmViews(container),

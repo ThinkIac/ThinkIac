@@ -50,6 +50,10 @@ function validateValue(value: any, schema: any, path = '$'): string | null {
 export class EventContractRegistry {
   private contracts = new Map<string, RegisteredEventContract>();
 
+  forOwner(owner: string): Record<string, EventContractDefinition> {
+    return Object.fromEntries([...this.contracts].filter(([, contract]) => contract.owner === owner));
+  }
+
   replaceOwner(owner: string, definitions: Record<string, EventContractDefinition>): void {
     const next = new Map(this.contracts);
     for (const [event, contract] of next) if (contract.owner === owner) next.delete(event);

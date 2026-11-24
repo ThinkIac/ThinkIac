@@ -1,3 +1,6 @@
+'use strict';
+function createRuntime(bridge) {
+const exports = {};
 // modules/tools.ts — tool execution with conditions, lifecycle events and
 // package middleware (wire phase). Also home of the kernel tools that let an
 // agent operate the runtime itself (runtime_commit, runtime_status).
@@ -11,15 +14,15 @@ exports.toolToMcp = toolToMcp;
 exports.kernelTools = kernelTools;
 exports.loadMcpTools = loadMcpTools;
 const node_path_1 = __importDefault(require("node:path"));
-const scan_1 = require("./tools-bridge.cjs");
-const conditions_1 = require("./tools-bridge.cjs");
-const context_1 = require("./tools-bridge.cjs");
-const middleware_1 = require("./tools-bridge.cjs");
-const manifest_1 = require("./tools-bridge.cjs");
-const debug_log_1 = require("./tools-bridge.cjs");
-const isolation_1 = require("./tools-bridge.cjs");
-const authority_context_1 = require("./tools-bridge.cjs");
-const bridge_1 = require("./tools-bridge.cjs");
+const scan_1 = bridge;
+const conditions_1 = bridge;
+const context_1 = bridge;
+const middleware_1 = bridge;
+const manifest_1 = bridge;
+const debug_log_1 = bridge;
+const isolation_1 = bridge;
+const authority_context_1 = bridge;
+const bridge_1 = bridge;
 function qualifiedTool(pkgFolder, toolName) {
     if (!pkgFolder)
         return `system.${toolName}`;
@@ -227,3 +230,6 @@ exports.toolsModule = {
     },
 };
 //# sourceMappingURL=tools.js.map
+return exports;
+}
+module.exports = { createRuntime };

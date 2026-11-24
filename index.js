@@ -28,6 +28,10 @@ const main = async () => {
       environment: process.env,
       config: {
         workspace: './packages',
+        // The host selects capabilities; Logos owns no product module list.
+        externalModules: ['commands', 'credentials', 'db', 'env', 'hooks', 'http',
+          'isolated-runtime', 'legacy-entry', 'mcp', 'proc', 'repo', 'stabilizer', 'storage', 'svelte',
+          'tools', 'websocket-runtime', 'workers'],
         modules: [createRuntimeModule({ recoverIsolatedPackage })],
         port: Number(process.env.PORT) || 5040,
         host: process.env.HOST || '127.0.0.1',

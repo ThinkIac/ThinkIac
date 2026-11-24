@@ -20,6 +20,29 @@ function createRuntimeModule(host) {
     }, { owner: pkg.folder, priority: hook.priority ?? 100, operation: 'transform', scope });
     return hooks.length;
   }
-  return { name: 'hooks', phase: 'wire', api: { wirePackageHooks: wire }, install() { host.on('package:wiring', ({ pkg }) => wire(pkg), { priority: 40 }); } };
+  return { name: 'hooks', phase: 'wire', api: { wirePackageHooks: wire }, install() {
+    host.on('logos:package:validating', async ({ pkg, result }) => {
+      const runner = host.http.isolatedRunner(pkg.folder);
+      const hooks = runner?.surfaces?.hooks || await host.scanHooks(pkg.folder);
+      for (const hook of hooks) host.tools.authority().enforce({ principal: { kind: 'package', id: pkg.folder },
+        surface: 'events', operation: 'transform', resource: hook.event });
+      result.hooks = hooks.length;
+    });
+    host.on('package:wiring', ({ pkg }) => wire(pkg), { priority: 40 });
+    host.on('logos:package:swapping', ({ pkg }) => wire(pkg));
+  } };
 }
 module.exports = { createRuntimeModule };
+
+// Compatibility factories resolve their SDK from their own dependency graph.
+module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
+
+function requireCapabilityDependency(name, local) {
+  let entry;
+  try { entry = require.resolve(name); }
+  catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    entry = require.resolve(local);
+  }
+  return require(entry);
+}
