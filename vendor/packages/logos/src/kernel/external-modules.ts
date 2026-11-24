@@ -19,18 +19,20 @@ export interface ExternalRuntimeModule extends LogosModule { api?: Record<string
  * A broken declared capability fails during loading instead of disappearing.
  */
 export function discoverExternalRuntimeModules(): string[] {
-  const names = new Set<string>();
+  const entries = new Map<string, string>();
   for (const root of externalModuleRoots()) {
     if (!fs.existsSync(root)) continue;
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-      if (!entry.isDirectory() || names.has(entry.name)) continue;
+      if (!entry.isDirectory() || entries.has(entry.name)) continue;
       const manifestPath = path.join(root, entry.name, 'package.json');
       if (!fs.existsSync(manifestPath)) continue;
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-      if (manifest.runtime?.role === 'module' && typeof manifest.runtime.entry === 'string') names.add(entry.name);
+      if (manifest.runtime?.role === 'module' && typeof manifest.runtime.entry === 'string') entries.set(entry.name, path.join(root, entry.name));
     }
   }
-  return [...names].sort();
+  // Preserve the discovered package identity: a workspace dependency with the
+  // same short name (for example mcp) must not replace its capability module.
+  return [...entries].sort(([a], [b]) => a.localeCompare(b)).map(([, entry]) => entry);
 }
 
 /** The protocol deliberately exposes ports, not Logos implementation objects. */

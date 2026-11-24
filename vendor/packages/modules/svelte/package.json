@@ -1,7 +1,7 @@
 {
   "name": "@thinkiac/module-svelte",
   "version": "0.1.0",
-  "description": "Reusable Svelte 4 SSR, hydration, cache, widget and HMR engine for Logos runtimes",
+  "description": "Reusable Svelte 5 SSR, hydration, cache, widget and HMR engine for Logos runtimes",
   "main": "index.cjs",
   "types": "index.d.ts",
   "files": [
@@ -27,7 +27,7 @@
   "dependencies": {
     "esbuild": "^0.28.0",
     "esbuild-svelte": "^0.9.0",
-    "svelte": "^4.0.0",
+    "svelte": "5.57.3",
     "express": "^4.19.2",
     "mdsvex": "^0.12.0",
     "@tailwindcss/postcss": "^4.3.3",

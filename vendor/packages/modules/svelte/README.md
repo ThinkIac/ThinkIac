@@ -1,6 +1,6 @@
 # @thinkiac/module-svelte
 
-Motor Svelte 4 reutilizável para Runtime/Lógos: SSR, hidratação, cache de
+Motor Svelte 5 reutilizável para Runtime/Lógos: SSR, hidratação, cache de
 bundles, páginas `.svx`, widgets, Tailwind opcional e HMR com validação antes
 da publicação.
 
@@ -16,9 +16,10 @@ const html = await engine.render(
 );
 ```
 
-`svelte`, `esbuild` e `esbuild-svelte` são peers opcionais: o módulo pode ser
-instalado em runtimes sem views, mas a primeira compilação informa claramente
-as dependências ausentes.
+`svelte`, `esbuild` e `esbuild-svelte` são dependências do módulo. O compilador
+e o runtime de SSR/hidratação usam Svelte 5, com a API de componentes legada
+habilitada para preservar os consumidores existentes. O launcher Lógos pode
+ser instalado sem este módulo em hosts que não oferecem views.
 
 O módulo também exporta `mountPackageViews(container, pkg, adapters)`, que
 registra as rotas de páginas e o cache no mount HTTP fornecido pelo host. Os
