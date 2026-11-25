@@ -64,6 +64,9 @@
     "svelte": "^5.58.0",
     "@tailwindcss/postcss": "^4.3.3"
   },
+  "dependencies": {
+    "coffeescript": "github:ThinkIac/LogosType#main"
+  },
   "engines": {
     "node": ">=18.0.0"
   }

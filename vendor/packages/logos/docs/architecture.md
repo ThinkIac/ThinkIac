@@ -1,7 +1,8 @@
 # Launcher architecture
 
-`bootstrap()` is the single runtime entrypoint. The production manifest has no
-required or optional runtime dependencies. A packed installation boots without
+`bootstrap()` is the single runtime entrypoint. The production manifest includes the
+LógosType CoffeeScript compiler as a language dependency; it has no capability
+dependencies. See [logos-type.md](logos-type.md). A packed installation boots without
 HTTP, Svelte, database, workers, stabilization, or adjacent module directories.
 
 ## Kernel boundary
@@ -64,8 +65,8 @@ adapter remain compatibility work, not a second bootstrap.
 
 ## Verification boundary
 
-`npm run test:independent` packs Logos into a temporary project with no production
-dependencies or sibling modules, rejects capability imports, and verifies empty
+`npm run test:independent` packs Logos into a temporary project with its language compiler
+and no sibling modules, rejects capability imports, and verifies empty
 boot, a native module, an arbitrary resource type and shutdown. Module independence
 tests also check simultaneous runtimes and generic isolated capability requests.
 Arbitrary JavaScript promises still require cooperative cancellation.

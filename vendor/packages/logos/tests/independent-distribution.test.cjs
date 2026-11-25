@@ -15,7 +15,9 @@ try {
   fs.mkdirSync(installed, { recursive: true });
   execFileSync('tar', ['-xzf', path.join(temporary, packed[0].filename), '--strip-components=1', '-C', installed]);
   const metadata = JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8'));
-  assert.deepEqual(metadata.dependencies || {}, {});
+  assert.deepEqual(metadata.dependencies, { coffeescript: 'github:ThinkIac/LogosType#main' });
+  // Copy the already installed compiler; the packed smoke test remains offline.
+  fs.cpSync(path.dirname(require.resolve('coffeescript/package.json')), path.join(project, 'node_modules', 'coffeescript'), { recursive: true });
   assert.deepEqual(metadata.optionalDependencies || {}, {});
   const source = `
     const assert = require('node:assert/strict');
@@ -58,7 +60,7 @@ try {
       assert.equal(runtime.stabilizer, null); assert.equal(runtime.workers, null);
       await runtime.close(); assert.equal(state.get('closed'), true);
       assert.equal(runtime.bus.listeners('logos:modules:register').length, 0);
-      console.log('PASS: packed Logos, zero dependencies, empty boot, native module, generic resource, shutdown');
+      console.log('PASS: packed Logos, no capability dependencies, empty boot, native module, generic resource, shutdown');
       const declaredWorkspace = path.resolve('declarations');
       const provider = path.join(declaredWorkspace, 'deep', 'abc', 'provider');
       const consumer = path.join(declaredWorkspace, 'deep', 'consumer');
@@ -76,10 +78,23 @@ try {
       assert.equal(declarative.container.registry.getState('deep/abc/provider').state, 'active');
       await declarative.close(); assert.equal(declaredState.get('closed'), true);
       console.log('PASS: packed declarative module/type, nested scoped package, no registration API or factory');
+      Module._load = original;
+      fs.unlinkSync(path.join(consumer, 'index.cjs'));
+      fs.writeFileSync(path.join(consumer, 'index.type'),
+        '###\\n# @register arithmetic double\\n#\\n###\\nexports.double = (value) -> value * 2\\n\\n###\\n# @register arithmetic crash\\n###\\nexports.crash = ->\\n  throw new Error \"typed failure\"\\n');
+      const typed = await bootstrap({ workspace: declaredWorkspace, externalModules: [] });
+      assert.equal(await typed.container.state('entrypoint:workspace:deep/abc/provider').get('double')(21), 42);
+      assert.throws(() => typed.container.state('entrypoint:workspace:deep/abc/provider').get('crash')(), error => {
+        assert.match(error.stack, /index\\.type:11:/);
+        return true;
+      });
+      await typed.close();
+      console.log('PASS: packed LogosType compiler, .type resource, original filename, no adjacent capability modules');
+
     })().catch(error => { console.error(error); process.exitCode = 1; });
   `;
   fs.writeFileSync(path.join(project, 'smoke.cjs'), source);
-  process.stdout.write(execFileSync(process.execPath, ['smoke.cjs'], {
+  process.stdout.write(execFileSync(process.execPath, ['--enable-source-maps', 'smoke.cjs'], {
     cwd: project, encoding: 'utf8', timeout: 15000, env: { ...process.env, NODE_PATH: '' },
   }));
   fs.writeFileSync(path.join(project, 'check-types.ts'), `

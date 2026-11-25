@@ -4,10 +4,16 @@ Lógos é o launcher e o protocolo de composição do ThinkIac. O kernel coorden
 catálogo, dependências, declarações, autoridade e ciclo de vida. Recursos concretos
 são fornecidos pelos módulos selecionados pelo host.
 
-O pacote não declara dependências de execução obrigatórias nem opcionais.
+O pacote inclui o compilador de [LógosType](docs/logos-type.md) para arquivos
+`.type` com CoffeeScript 2. Capacidades concretas não são dependências do launcher.
 A distribuição empacotada pode iniciar sem HTTP, banco, Svelte, workers,
 estabilizador ou diretório de módulos adjacente. Há fachadas de compatibilidade;
 isso não significa que todos os consumidores já usem snapshots transacionais.
+
+## LógosType nativo
+
+Arquivos `.type` usam CoffeeScript convencional e comentários `###` com linhas
+`# @register ...`. Veja [instalação, fluxo e exemplos](docs/logos-type.md).
 
 ## Começar sem capacidades
 

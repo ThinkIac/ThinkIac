@@ -15,7 +15,8 @@ histórica não indica propriedade da implementação.
 
 | Teste | Evidência |
 | --- | --- |
-| `independent-distribution.test.cjs` | Artefato sem dependências de produção, boot vazio, módulo nativo, recurso arbitrário, tipos públicos e workers empacotados separadamente |
+| `independent-distribution.test.cjs` | Artefato com compilador de linguagem e sem capacidades adjacentes, boot vazio, módulo nativo, recurso arbitrário, tipos públicos e workers empacotados separadamente |
+| `type-source.test.ts` | CoffeeScript `.type`, comentários, router, provedores, coexistência JS, recarga, source maps e isolamento |
 | `module-independence.test.ts` | Contexto restrito, instâncias e capacidades mediadas |
 | `runtime-protocol.test.ts` | Catálogo selado, ciclo versionado e recursos genéricos |
 | `resource-transactions.test.ts` | Preparação, commit, compensação, concorrência e descarte |

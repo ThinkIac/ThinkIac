@@ -32,12 +32,14 @@ class IsolatedRunner {
         }
         this.stopping = false;
         const childPath = node_path_1.default.join(__dirname, 'child.js');
-        const env = { ...this.options.env, LOGOS_ISOLATED_PACKAGE: this.options.dir, LOGOS_ISOLATED_FOLDER: this.options.folder };
+        const env = { ...this.options.env, LOGOS_TYPE_LOADER: node_path_1.default.join(node_path_1.default.dirname(require.resolve('logos')), 'kernel/type-source.js'), LOGOS_ISOLATED_PACKAGE: this.options.dir, LOGOS_ISOLATED_FOLDER: this.options.folder };
+        const compilerDir = node_path_1.default.dirname(require.resolve('coffeescript/package.json', { paths: [node_path_1.default.dirname(env.LOGOS_TYPE_LOADER)] }));
         // Permission mode denies filesystem writes, child processes and workers by
-        // default. Read access is restricted to the package and this tiny bootstrap.
+        // default. Reads cover the package, bootstrap and language implementation;
+        // Module._load still denies package imports outside its own root.
         this.child = (0, node_child_process_1.fork)(childPath, [], {
             cwd: this.options.dir, env, stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
-            execArgv: ['--experimental-permission', `--allow-fs-read=${this.options.dir}`, `--allow-fs-read=${node_path_1.default.dirname(childPath)}`],
+            execArgv: ['--experimental-permission', `--allow-fs-read=${this.options.dir}`, `--allow-fs-read=${node_path_1.default.dirname(childPath)}`, `--allow-fs-read=${env.LOGOS_TYPE_LOADER}`, `--allow-fs-read=${compilerDir}`],
         });
         const child = this.child;
         child.on('message', message => { if (this.child === child)

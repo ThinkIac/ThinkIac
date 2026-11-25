@@ -1,13 +1,21 @@
 'use strict';
 
-// Deliberately dependency-free: it runs from both src in tests and dist in a
-// published runtime. The only ambient Lógos API exposed to package code is the
-// mediated event facade below.
+// Runs from both src in tests and dist in a published runtime.
+// LógosType uses the language loader supplied by the parent before lockdown.
+// The ambient Lógos API exposed to package code is the mediated facade below.
 const fs = require('node:fs');
 const path = require('node:path');
 const Module = require('node:module');
 const pkgDir = path.resolve(process.env.LOGOS_ISOLATED_PACKAGE);
 const hostProcess = process;
+// Keep compiler authority inside bootstrap; package code cannot import it.
+const typeLoader = files(pkgDir).some(file => file.endsWith('.type'))
+  ? require(process.env.LOGOS_TYPE_LOADER) : null;
+if (typeLoader) typeLoader.compileType('', path.join(pkgDir, 'bootstrap.type'));
+function validateTypePath(real) {
+  if (!real.startsWith(`${pkgDir}${path.sep}`)) throw new Error('Module escapes isolated package root: ' + real);
+}
+
 const functions = new Map();
 const pending = new Map();
 let sequence = 0;
@@ -66,10 +74,10 @@ Object.defineProperty(globalThis, 'fetch', { value: undefined, configurable: fal
 
 function files(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    if (['node_modules', 'test', 'tests', '__tests__'].includes(entry.name) || entry.name.startsWith('.')) continue;
     const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) files(file, out);
-    else if (entry.isFile() && entry.name.endsWith('.js')) out.push(file);
+    if (entry.isDirectory() && !fs.existsSync(path.join(file, 'package.json'))) files(file, out);
+    else if (entry.isFile() && /\.(?:[cm]?js|type)$/.test(entry.name) && !/\.(?:test|spec)\.(?:[cm]?js|type)$/.test(entry.name)) out.push(file);
   }
   return out;
 }
@@ -122,10 +130,12 @@ async function discover() {
   const result = { tools: [], routes: [], hooks: [], declarations: [] }; let id = 0;
   for (const file of files(pkgDir)) {
     delete require.cache[require.resolve(file)];
-    const source = fs.readFileSync(file, 'utf8'); const exports = require(file);
-    for (const fn of Object.values(exports)) {
+    const source = fs.readFileSync(file, 'utf8');
+    const compiled = file.endsWith('.type') ? typeLoader.compileType(source, file) : null;
+    const exports = compiled ? typeLoader.loadType(file, compiled.js, validateTypePath) : require(file);
+    for (const [exportName, fn] of Object.entries(exports)) {
       if (typeof fn !== 'function') continue;
-      const doc = docOf(fn, source);
+      const doc = compiled ? (compiled.docs[fn.name] ?? compiled.docs[exportName] ?? '') : docOf(fn, source);
       const tags = {};
       const registrations = [];
       for (const line of doc.split('\n').map(line => line.trim().replace(/^\/\*\*?\s*/, '').replace(/^\*\s?/, '').replace(/\s*\*\/$/, ''))) {

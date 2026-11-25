@@ -182,3 +182,10 @@ O Supervisor entra como módulo programático. Extensões de bootstrap podem
 ajustar a configuração do host. Essa composição pertence ao ThinkIac, não
 ao pacote Lógos. Consulte cada manifest para dependências e versão de Node;
 o mínimo do launcher não garante o mínimo de todos os módulos.
+
+## Fontes LógosType
+
+`src/kernel/type-source.ts` compila CoffeeScript 2 em memória e carrega `.type`
+como CommonJS. `scan.ts` associa comentários às funções exportadas e usa o
+catálogo existente. O compilador vem de `ThinkIac/LogosType#main`; as capacidades
+continuam externas. Veja [LógosType](logos-type.md) para fluxo e exemplos.

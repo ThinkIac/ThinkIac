@@ -224,7 +224,7 @@ Compatibility boundaries remain: optional adjacent-directory discovery, the
 external factory adapter, legacy annotation aliases and one-shot consumers.
 Stabilization, concrete scanner semantics, private database operations, worker
 threads and isolated processes are external module implementations. The launcher
-has no runtime dependency list. Migrating every legacy consumer to native
+depends on the LógosType language compiler but no capability packages. Migrating every legacy consumer to native
 snapshot registration and retiring compatibility exports are separate work.
 Local verification does not certify a published Runtime release.
 
@@ -328,3 +328,9 @@ workspace package entrypoint is imported, including module-packages. Its version
 payload contains `pkg` and `package` (the folder). The external stabilizer owns npm
 dependency preparation. A failure blocks that package and its required consumers,
 while optional consumers may continue. No installer runs when that module is absent.
+
+## LógosType declarations
+
+The same module/type/resource contract works in `.type` files using CoffeeScript 2
+and `###` blocks with `# @register ...` lines. See [the language guide](logos-type.md)
+for installation, flow, examples, reload and CommonJS boundaries.
