@@ -78,3 +78,21 @@ Execute build, testes de protocolo/independência/transações, distribuição i
 e testes das capacidades selecionadas. Valide também a composição ThinkIac no
 ambiente de destino. Um teste local aprovado não é recibo de aceite do Runtime.
 Veja [testing.md](docs/testing.md) para comandos e limites.
+
+## Fontes `.type`
+
+O suporte nativo a [LógosType](docs/logos-type.md) acrescenta uma dependência de
+linguagem, `logostype` de `ThinkIac/LogosType`, com revisão fixada no manifest. O lockfile npm da raiz
+fixa o commit. Fontes JavaScript e seus registros existentes continuam aceitos.
+Para adotar `.type`, use CommonJS e blocos `###` com linhas `# @register ...`;
+HTTP, views e outras capacidades continuam dependendo dos módulos selecionados.
+
+## Schemas and declaration contracts
+
+`.schema` and `.scriba` are equivalent; `.prisma` stays supported. The parser shared
+with Scriba now ships inside Logos without a database dependency. A provider can
+use `@tag {Type} name` to describe resource metadata, while handlers use JSDoc
+`@param` and `@returns {Cliente[]}`. Existing JSON input/output contracts remain
+supported. Model names in `.type` resolve locally to the package's database when
+used; select `db` to enable persistence. See the [complete guide](docs/logos-type.md#contratos-jsdoc-de-metadados-e-modelos-scriba)
+for authority, isolated Promise behavior, DTO returns, reload and compatibility limits.

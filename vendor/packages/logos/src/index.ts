@@ -21,7 +21,7 @@ import { getErrors, clearErrors } from './kernel/debug-log';
 import { readConfig, saveConfig } from './kernel/config';
 import { scanCache } from './kernel/scan';
 import { validatePackageContract } from './kernel/package-wiring';
-import { emitPackageDeclarations } from './kernel/declaration-events';
+import { collectPackageDeclarations, emitPackageDeclarations } from './kernel/declaration-events';
 import { callPackageEvent } from './kernel/package-event-calls';
 export { EventGovernance } from './kernel/event-governance';
 export type { EventApprovalChoice, EventApprovalReceipt, EventApprovalScope, EventDeliveryRequest, EventGovernanceOptions } from './kernel/event-governance';
@@ -213,6 +213,7 @@ export async function bootstrap(config: BootstrapConfig = {}): Promise<LogosInst
           requires: wiring.contract.contract.requires.services,
         });
         container.eventContracts.replaceOwner(pkg.folder, wiring.contract.contract.provides.eventSchemas);
+        await collectPackageDeclarations(container, pkg);
         await container.bus.emit('package:wiring', { pkg });
         await emitPackageDeclarations(container, pkg);
         container.registry.setActiveContract(pkg.folder, wiring.contract);
@@ -269,6 +270,7 @@ export async function bootstrap(config: BootstrapConfig = {}): Promise<LogosInst
             await container.installPhase('wire');
             await container.bus.emitStrict('package:module', { pkg });
           }
+          await collectPackageDeclarations(container, pkg);
           await container.bus.emit('package:wiring', { pkg });
           await emitPackageDeclarations(container, pkg);
           container.registry.setActiveContract(folder, wiring.contract);

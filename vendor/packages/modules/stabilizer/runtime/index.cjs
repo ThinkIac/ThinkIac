@@ -69,7 +69,7 @@ function classify(filePath) {
         return 'commit';
     if (base === '.env')
         return 'env';
-    if (ext === '.prisma' || ext === '.scriba')
+    if (ext === '.prisma' || ext === '.scriba' || ext === '.schema')
         return 'schema';
     if (ext === '.svelte' || ext === '.svx')
         return 'views';

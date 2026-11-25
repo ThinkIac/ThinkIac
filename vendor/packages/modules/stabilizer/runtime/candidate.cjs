@@ -15,7 +15,7 @@ const crypto_1 = require("crypto");
 // Source coverage only: mutable data, secrets, dependencies and generated output
 // are deliberately excluded. Removing a covered file changes the manifest hash.
 const EXCLUDED = new Set(['node_modules', '.git', '.logos', 'data', 'uploads', 'secrets', 'dist', 'generated', 'backups', 'snapshots', 'sessions']);
-const SOURCE = /\.(?:[cm]?[jt]s|json|svelte|svx|prisma|inflect|md|css|html)$/i;
+const SOURCE = /\.(?:[cm]?[jt]s|type|json|svelte|svx|prisma|scriba|schema|inflect|md|css|html)$/i;
 function candidateManifest(root) {
     const entries = [];
     function visit(dir) {

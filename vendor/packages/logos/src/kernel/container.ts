@@ -1,3 +1,4 @@
+import { registerModelRuntime } from './model-bindings';
 // kernel/container.ts — the Lógos container.
 //
 // One container = one runtime. All state that was module-level in v1
@@ -31,6 +32,8 @@ export interface LogosModule {
   version?: string;
   api?: Record<string, any>;
   resources?: Record<string, ResourceConsumer>;
+  /** Serializable argument tuples and result types for generic resource handlers. */
+  contracts?: Record<string, import('./resource-types').ResourceContract>;
   /** Mediated requests from isolated packages, interpreted by their provider. */
   capabilities?: Record<string, (request: any, context: Readonly<{ package: string }>) => any>;
   prepare?(): void | Promise<void>;
@@ -149,6 +152,7 @@ export class Container {
       10_000,
       packageName => this.config?.authority?.grants?.[packageName] ?? null,
     );
+    registerModelRuntime(this);
     this.bus = new EventBus(msg => this.log(msg), this.authority, this.eventContracts, this.eventGovernance);
   }
 

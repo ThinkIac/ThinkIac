@@ -1,3 +1,5 @@
+import { resolvedParameterDocs, jsdocHandler } from './metadata-contracts';
+import { schemaFiles } from './model-catalog';
 // kernel/scan.ts — file discovery + decorator registration.
 //
 // This is the v2 successor of register/decorators.js. Differences:
@@ -14,6 +16,7 @@
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
+import { compileType, loadType } from './type-source';
 import { ScanCache } from './cache';
 import { IGNORE_DIRS, resolveWorkspace } from './utils';
 import { buildAboveDocMap, resolveDoc } from './jsdoc';
@@ -27,7 +30,7 @@ export const scanCache = new ScanCache();
 
 // Test fixtures can contain registration markers but must never execute at boot.
 const TEST_DIRS = new Set(['test', 'tests', '__tests__']);
-const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/;
+const TEST_FILE = /\.(?:test|spec)\.(?:[cm]?js|type)$/;
 
 export function getJsFilesRecursively(dir: string): string[] {
   const results: string[] = [];
@@ -38,7 +41,7 @@ export function getJsFilesRecursively(dir: string): string[] {
       // A nested manifest starts a separate package, scanned under its own owner.
       if (fs.existsSync(path.join(dir, entry.name, 'package.json'))) continue;
       results.push(...getJsFilesRecursively(path.join(dir, entry.name)));
-    } else if (entry.isFile() && /\.[cm]?js$/.test(entry.name) && !TEST_FILE.test(entry.name)) {
+    } else if (entry.isFile() && /\.(?:[cm]?js|type)$/.test(entry.name) && !TEST_FILE.test(entry.name)) {
       results.push(path.join(dir, entry.name));
     }
   }
@@ -89,7 +92,7 @@ const importNative = new Function('url', 'return import(url)') as (url: string) 
 let moduleRevision = 0;
 const moduleLoadLocks = new Map<string, Promise<void>>();
 
-async function loadModule(filePath: string, isEsm: boolean): Promise<any> {
+async function loadModule(filePath: string, isEsm: boolean, compiledType?: string): Promise<any> {
   const previous = moduleLoadLocks.get(filePath) ?? Promise.resolve();
   let release!: () => void;
   const current = new Promise<void>((resolve) => { release = resolve; });
@@ -97,6 +100,7 @@ async function loadModule(filePath: string, isEsm: boolean): Promise<any> {
   moduleLoadLocks.set(filePath, queued);
   await previous;
   try {
+    if (filePath.endsWith('.type')) return loadType(filePath, compiledType);
     if (isEsm) {
       // Do not retry declared ESM with require(): it is invalid and replaces
       // the actionable import failure with ERR_REQUIRE_ESM, leaving routes
@@ -162,7 +166,7 @@ export async function registerGeneric(
 
   const files = getJsFilesRecursively(folderPath);
   const cacheKey = `${folderPath}::${parserName}`;
-  const fp = fingerprint(files);
+  const fp = fingerprint([...files, ...schemaFiles(folderPath)]);
 
   const cached = scanCache.get(cacheKey, fp);
   if (cached !== undefined) return cached;
@@ -173,14 +177,21 @@ export async function registerGeneric(
   for (const filePath of files) {
     let source: string;
     try { source = fs.readFileSync(filePath, 'utf-8'); } catch { continue; }
-    if (!/@register(?:_|\s)/.test(source)) continue;
-    if (parserName === 'structural-declarations' && !/@register(?:\s+(?:module|type)\b|_module\b)/.test(source)) continue;
+    if (!filePath.endsWith('.type') && !/@register(?:_|\s)/.test(source)) continue;
+    if (!filePath.endsWith('.type') && parserName === 'structural-declarations' && !/@register(?:\s+(?:module|type)\b|_module\b)/.test(source)) continue;
 
     let mod: any;
+    let typeDocs: Record<string, string> | undefined;
       // Um pacote ESM pode conter um subdiretório CommonJS com runtime legado.
       // Resolva o modo pelo arquivo, não pela raiz do pacote, para não
       // importar CJS como namespace ESM e registrar cada handler duas vezes.
-      try { mod = await loadModule(filePath, isEsmFolder(path.dirname(filePath))); }
+      try {
+        const compiled = filePath.endsWith('.type') ? compileType(source, filePath) : undefined;
+        typeDocs = compiled?.docs;
+        if (compiled && !Object.values(compiled.docs).some(doc => parseDeclarations(doc).some(entry =>
+          parserName !== 'structural-declarations' || ['module', 'type'].includes(entry.type)))) continue;
+        mod = await loadModule(filePath, isEsmFolder(path.dirname(filePath)), compiled?.js);
+      }
     catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       if (parserName === 'declarations' || parserName === 'structural-declarations') throw new Error(`[logos] failed loading structural declarations ${filePath}: ${reason}`, { cause: error });
@@ -190,10 +201,20 @@ export async function registerGeneric(
 
     const aboveMap = buildAboveDocMap(source);
     for (const fn of new Set(extractExportedFunctions(mod))) {
-      const doc = resolveDoc(fn, aboveMap);
-      const meta = parser(fn, doc);
+      // CoffeeScript exports can be anonymous: use the exported binding as well
+      // as fn.name. Keep the existing JavaScript association unchanged.
+      const exportName = typeDocs && Object.keys(mod).find(key => mod[key] === fn && typeDocs![key]);
+      const doc = typeDocs ? (typeDocs[fn.name] ?? (exportName ? typeDocs[exportName] : null)) : resolveDoc(fn, aboveMap);
+      const tags = doc ? parseDeclarations(doc)[0]?.tags : undefined;
+      const checked = filePath.endsWith('.type') && tags && !['declarations', 'structural-declarations'].includes(parserName)
+        ? jsdocHandler(fn, tags, filePath, `${filePath}:${exportName || fn.name}`) : fn;
+      if (checked !== fn) Object.defineProperty(checked, 'name', { value: fn.name });
+      const parserDoc = filePath.endsWith('.type') && !['declarations', 'structural-declarations'].includes(parserName) && tags?.params && doc
+        ? resolvedParameterDocs(doc, filePath) : doc;
+      const meta = parser(checked, parserDoc);
       if (!meta) continue;
       meta._file = filePath;
+      meta._exportName = exportName;
       results.push(mapFn(meta));
     }
   }
@@ -222,6 +243,6 @@ export async function registerDeclarations(agentFolder: string, structuralOnly =
     return declarations.length ? { declarations, handler: fn } : null;
   }, structuralOnly ? 'structural-declarations' : 'declarations');
   return groups.flatMap(group => group.declarations.map((declaration: any) => ({
-    declaration, handler: group.handler, file: group._file,
+    declaration: group._file.endsWith('.type') && !declaration.name ? { ...declaration, name: group._exportName || group.handler.name } : declaration, handler: group.handler, file: group._file,
   })));
 }

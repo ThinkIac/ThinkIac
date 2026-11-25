@@ -1,7 +1,8 @@
 # Launcher architecture
 
-`bootstrap()` is the single runtime entrypoint. The production manifest has no
-required or optional runtime dependencies. A packed installation boots without
+`bootstrap()` is the single runtime entrypoint. The production manifest includes the
+LógosType CoffeeScript compiler as a language dependency; it has no capability
+dependencies. See [logos-type.md](logos-type.md). A packed installation boots without
 HTTP, Svelte, database, workers, stabilization, or adjacent module directories.
 
 ## Kernel boundary
@@ -64,8 +65,8 @@ adapter remain compatibility work, not a second bootstrap.
 
 ## Verification boundary
 
-`npm run test:independent` packs Logos into a temporary project with no production
-dependencies or sibling modules, rejects capability imports, and verifies empty
+`npm run test:independent` packs Logos into a temporary project with its language compiler
+and no sibling modules, rejects capability imports, and verifies empty
 boot, a native module, an arbitrary resource type and shutdown. Module independence
 tests also check simultaneous runtimes and generic isolated capability requests.
 Arbitrary JavaScript promises still require cooperative cancellation.
@@ -78,3 +79,12 @@ for complete environment acceptance.
 
 [Structure and operation](structure.md) maps directories, configuration, boot,
 package failures and global state. [Migration](../MIGRATION.md) covers compatibility.
+
+## Shared schema language
+
+The dependency-free Scriba parser is language infrastructure in `src/schema`.
+Scriba imports this parser from Logos; Logos never imports the database runtime.
+Package-local model catalogs support JSDoc metadata contracts and handler signatures.
+Ambient model identifiers resolve persistence only at an authorized operation, via
+an installed `db` provider. Isolated index reads use the same mediated capability.
+See [LógosType schemas and contracts](logos-type.md#contratos-jsdoc-de-metadados-e-modelos-scriba).

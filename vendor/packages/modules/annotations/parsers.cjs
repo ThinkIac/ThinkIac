@@ -27,7 +27,7 @@ exports.parseModule = parseModule;
 const jsdoc_1 = require("./jsdoc.cjs");
 // O tipo aceita a forma simples ({string}, {string[]}, {number?}) e a união de
 // literais ({('draft'|'published')?}) — açúcar para declarar um enum no próprio tipo.
-const PARAM_RE = /@param {([^}]+)} (\S+) - (.+)/;
+const PARAM_RE = /@params? {([^}]+)} (\S+)(?: - (.*))?$/;
 // União de literais entre parênteses: ('a'|'b') ou ("a"|"b").
 const UNION_RE = /^\((.+)\)$/;
 // Tags inline na mesma linha do @param (a descrição termina onde elas começam).
@@ -52,7 +52,7 @@ function parseParams(lines) {
         const match = line.match(PARAM_RE);
         if (!match)
             continue;
-        let [, type, name, description] = match;
+        let [, type, name, description = ''] = match;
         const required = !type.endsWith('?');
         if (!required)
             type = type.slice(0, -1);
@@ -201,10 +201,11 @@ function parseTool(fn, doc) {
         return null;
     const lines = (0, jsdoc_1.docLines)(doc);
     const registerLine = lines.find(l => l.startsWith('@register_tool'));
-    if (!registerLine)
+    const modern = !registerLine ? registration(doc, 'tool') : null;
+    if (!registerLine && !modern)
         return null;
-    const registerMatch = registerLine.match(/@register_tool\s*(\S+)?/);
-    const name = (registerMatch && registerMatch[1]) || fn.name || 'anonymousTool';
+    const registerMatch = registerLine?.match(/@register_tool\s*(\S+)?/);
+    const name = modern?.value || (registerMatch && registerMatch[1]) || fn.name || 'anonymousTool';
     const recoveryRaw = ((0, jsdoc_1.tagValues)(doc, 'recovery')[0] || '').toLowerCase();
     const recoveryPolicy = ['none', 'read-only', 'idempotent', 'reconcile'].includes(recoveryRaw)
         ? recoveryRaw

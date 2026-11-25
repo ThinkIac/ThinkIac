@@ -15,7 +15,8 @@ histórica não indica propriedade da implementação.
 
 | Teste | Evidência |
 | --- | --- |
-| `independent-distribution.test.cjs` | Artefato sem dependências de produção, boot vazio, módulo nativo, recurso arbitrário, tipos públicos e workers empacotados separadamente |
+| `independent-distribution.test.cjs` | Artefato com compilador de linguagem e sem capacidades adjacentes, boot vazio, módulo nativo, recurso arbitrário, tipos públicos e workers empacotados separadamente |
+| `type-source.test.ts` | CoffeeScript `.type`, comentários, router, provedores, coexistência JS, recarga, source maps e isolamento |
 | `module-independence.test.ts` | Contexto restrito, instâncias e capacidades mediadas |
 | `runtime-protocol.test.ts` | Catálogo selado, ciclo versionado e recursos genéricos |
 | `resource-transactions.test.ts` | Preparação, commit, compensação, concorrência e descarte |
@@ -38,3 +39,19 @@ Registre comando e falha observada antes de atribuí-la à mudança em avaliaç�
 Build aprovado não comprova comportamento; testes focados não comprovam toda a
 composição. Distribuição isolada comprova o artefato local testado, sem publicar
 uma versão nem fornecer aceite pelo Runtime em execução.
+
+Schema/metadata coverage: `npx vitest run tests/model-catalog.test.ts` exercises the
+shared parser, aliases, package boundaries, metadata requirements, model arrays,
+unknown types, local shadowing, missing persistence, captured-reference authority,
+isolated index requests and primary keys against SQLite. It also boots the actual
+external Scriba database provider. The packed distribution test validates named
+model returns with no adjacent modules and checks the missing-provider diagnostic.
+
+
+### Linguagem declarativa
+
+`tests/declarative-language.test.ts` cobre aliases, herança de descrições,
+validação de campo, schemas sem persistência, rollback, encerramento, metadados
+obrigatórios, conflitos entre arquivos, RPC isolado e o scanner de ferramentas.
+O compilador tem testes próprios em `ThinkIac/LogosType` (`npm run test:logostype`).
+A dependência do Lógos aponta para uma revisão imutável do compilador.

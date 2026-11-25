@@ -39,6 +39,15 @@ function provideDb(host) {
     capabilities: {
       database(request, context) {
         if (request.tenant !== context.package) throw new Error('An isolated package can only access its own database');
+        if (request.operation === 'index') {
+          if (typeof request.entity !== 'string' || typeof request.key !== 'string') throw new Error('Invalid database index request');
+          const table = db.getProxy(context.package)[request.entity];
+          const record = table[request.key];
+          // Only records, never table internals/methods, cross the isolated boundary.
+          if (record === undefined) return undefined;
+          if (!record || typeof record.toJSON !== 'function') throw new Error('Database index did not resolve a record');
+          return Object.fromEntries(table._fields.map(field => [field.name, record[field.name]]));
+        }
         if (typeof request.entity !== 'string' || typeof request.method !== 'string' || !Array.isArray(request.args)) throw new Error('Invalid database capability request');
         const method = db.getProxy(context.package)?.[request.entity]?.[request.method];
         if (typeof method !== 'function') throw new Error(`Unknown database operation: ${request.entity}.${request.method}`);

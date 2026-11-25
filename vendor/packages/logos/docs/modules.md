@@ -82,7 +82,7 @@ a missing module fails the phase before any of its pending modules install.
 All workspace packages can declare modules and types using the generic grammar.
 See [workspace.md](workspace.md) for the primary declaration contract, nested
 packages, transactional type providers and complete examples. `@register module`
-functions return descriptors; `@register type` functions consume declarations.
+functions return descriptors; legacy JavaScript `@register type` functions consume declarations. In `.type`, both registrations return the same provider descriptor (see the LógosType section below).
 The underscore alias `@register_module` retains its old installer signature.
 
 ## Host boundary
@@ -224,7 +224,7 @@ Compatibility boundaries remain: optional adjacent-directory discovery, the
 external factory adapter, legacy annotation aliases and one-shot consumers.
 Stabilization, concrete scanner semantics, private database operations, worker
 threads and isolated processes are external module implementations. The launcher
-has no runtime dependency list. Migrating every legacy consumer to native
+depends on the LógosType language compiler but no capability packages. Migrating every legacy consumer to native
 snapshot registration and retiring compatibility exports are separate work.
 Local verification does not certify a published Runtime release.
 
@@ -328,3 +328,46 @@ workspace package entrypoint is imported, including module-packages. Its version
 payload contains `pkg` and `package` (the folder). The external stabilizer owns npm
 dependency preparation. A failure blocks that package and its required consumers,
 while optional consumers may continue. No installer runs when that module is absent.
+
+## LógosType declarations
+
+The same module/type/resource contract works in `.type` files using CoffeeScript 2
+and `###` blocks with `# @register ...` lines. See [the language guide](logos-type.md)
+for installation, flow, examples, reload and CommonJS boundaries.
+
+## LógosType: aliases e contratos de recursos
+
+Em arquivos `.type`, `module` e `type` registram o mesmo descritor de provedor.
+Cada entrada em `resources` exige `contracts[tipo] = { input: [...], output: ... }`.
+Recursos consumidores declaram `@returns` em JSON e recebem validação de argumentos
+e resultados, incluindo Promises e chamadas isoladas. `@register` gera export
+automático; o `#` nos blocos `###` é opcional. Veja os exemplos e a fronteira de
+compatibilidade com JavaScript em [logos-type.md](logos-type.md).
+
+
+## Provedores por sintaxe LógosType
+
+`module nome = (resource) ->` e `type nome = (resource) ->` são equivalentes.
+Cada provedor declara suas propriedades com diretivas `@tag` no início do corpo.
+O compilador marca esse contrato como `provider resource`; o adaptador do Lógos
+transforma os participantes individuais em gerações do protocolo transacional.
+
+Cada participante oferece `prepare`, `commit`, `rollback` e `dispose`.
+Todos os prepares terminam antes do commit. Falhas revertem os participantes
+preparados em ordem inversa, incluindo aquele cujo prepare falhou. Remoção e
+encerramento descartam os participantes publicados. Um factory que falha antes
+de retornar seu participante deve limpar as próprias aquisições.
+
+O recurso recebe `declaration`, `handler` mediado, `metadata`, `params` e `returns`.
+Parâmetros referenciando `User.ID` herdam o tipo e a descrição do campo no schema
+do consumidor; `@param nome - descrição` prevalece localmente. Assinaturas e
+retornos são validados no mesmo caminho de execução usado pelo JSDoc.
+
+A forma anterior, em que o handler recebe contexto e retorna descritor com
+`resources`, permanece disponível pelos blocos `###`. As duas formas disputam
+a mesma identidade de provedor. Alterar um provedor exige novo boot.
+
+Veja [guia e exemplos completos](logos-type.md). A linguagem não conhece uma
+lista fixa de recursos: `router`, `tool`, `task` ou qualquer outro prefixo dependem
+de seus provedores. O adaptador HTTP existente ainda recebe req/res; ele não
+converte automaticamente parâmetros posicionais de assinatura em parâmetros HTTP.
