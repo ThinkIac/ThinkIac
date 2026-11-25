@@ -1,0 +1,15 @@
+{
+  "name": "@thinkiac/module-runtime-compat",
+  "version": "0.1.0",
+  "description": "Temporary adapter for legacy capability factories",
+  "main": "index.cjs",
+  "files": [
+    "*.cjs",
+    "legacy-modules.json",
+    "README.md"
+  ],
+  "dependencies": {
+    "@thinkiac/module-annotations": "file:../annotations"
+  },
+  "license": "MIT"
+}

@@ -123,6 +123,12 @@ export interface RepoConfig {
 }
 
 export interface BootstrapConfig {
+  /** Explicit capability selection. An empty array disables adjacent-module discovery. */
+  externalModules?: readonly string[];
+  /** Modules collected before the catalog is sealed. */
+  modules?: import('./kernel/container').LogosModule[];
+  /** Configuration visible to each native module entrypoint, keyed by its selection identity. */
+  moduleConfig?: Record<string, Record<string, any>>;
   /** Workspace path. Defaults to PACKAGES_PATH or <cwd>/packages. */
   workspace?: string;
   /** HTTP port. Default 5040. `false` disables the HTTP server (CLI mode). */

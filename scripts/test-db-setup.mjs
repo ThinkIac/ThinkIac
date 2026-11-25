@@ -6,4 +6,5 @@ const logosRequire = createRequire(require.resolve('logos/package.json'));
 const { installExternalModules } = logosRequire('./dist/src/kernel/external-modules.js');
 const container = getDefaultContainer();
 installExternalModules(container, ['db']);
+await container.bus.emitStrict('logos:modules:register', {});
 await container.installPhase('boot');

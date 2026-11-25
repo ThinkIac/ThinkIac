@@ -2,5 +2,13 @@
   "name": "@thinkiac/module-websocket-runtime",
   "version": "0.1.0",
   "main": "index.cjs",
-  "license": "MIT"
+  "license": "MIT",
+  "runtime": {
+    "role": "module",
+    "entry": "index.cjs"
+  },
+  "dependencies": {
+    "@thinkiac/module-websocket": "file:../websocket",
+    "@thinkiac/module-runtime-compat": "file:../runtime-compat"
+  }
 }

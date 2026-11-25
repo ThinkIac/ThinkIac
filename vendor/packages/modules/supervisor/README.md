@@ -59,10 +59,12 @@ consumidores já ativos. Parar um provedor exige parar seus consumidores antes.
 
 ## Lógos, Isolated e Gerenciador de Tarefas
 
-O bootstrap aceita módulos explicitamente compostos em `modules`. Use
-`createRuntimeModule({ recoverIsolatedPackage })` de `runtime.cjs`, passando a
-função pública exportada pelo Lógos. Essa composição é confiável, equivalente
-aos módulos internos; não é um caminho de instalação de código não confiável.
+O Supervisor declara `@register module supervisor` em `runtime.cjs`. Pode ficar
+em qualquer profundidade do workspace ou ser selecionado em `externalModules`
+como os demais provedores. A recuperação é fornecida por uma porta do host;
+não exige importar uma função de registro ou recuperação do Lógos.
+`createRuntimeModule({ recoverIsolatedPackage })` permanece como export de
+biblioteca para composições existentes. O host ThinkIac usa a declaração.
 
 O adaptador observa saídas Isolated e recupera pelo staging normal, preservando
 permissões, rotas, tools e hooks. Operações de recuperação/start/stop compartilham

@@ -1,9 +1,14 @@
 # Integração de pacotes
 
 Esta referência resume os contratos do Lógos usados pelo
-[mapa central de integrações](../../../../README.md#contratos-de-pacotes-e-interface). Lógos
-descobre o `package.json`, carrega o pacote e provisiona seus recursos; campos
+[mapa central de integrações](../../../../README.md#contratos-de-pacotes-e-interface). O kernel Lógos
+descobre o `package.json` e coordena o carregamento; os módulos selecionados
+provisionam os recursos; campos
 de interface como menu, widget e abas são interpretados pelos hosts de UI.
+
+Os contratos abaixo descrevem a composição ThinkIac. Banco/schema/vault exigem
+`db`; processos isolados exigem `isolated-runtime`; recarga exige `stabilizer`.
+Uma instalação vazia não oferece essas capacidades. Veja [estrutura](structure.md).
 
 ## Banco e isolamento
 

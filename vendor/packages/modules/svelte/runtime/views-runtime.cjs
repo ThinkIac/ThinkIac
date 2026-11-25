@@ -1,3 +1,6 @@
+'use strict';
+function createRuntime(bridge) {
+const exports = {};
 // modules/views/index.ts — the views module (wire phase).
 //
 // Registers /view/<pkg>/<page> for every package with a views/ dir, serves the
@@ -25,11 +28,11 @@ exports.rebuildWidgetRegistry = rebuildWidgetRegistry;
 exports.getWidgetComponentPath = getWidgetComponentPath;
 exports.prewarmViews = prewarmViews;
 const fs_1 = __importDefault(require("fs"));
-const http_performance_1 = require("./views-bridge.cjs");
+const http_performance_1 = bridge;
 const path_1 = __importDefault(require("path"));
 const express_1 = __importDefault(require("express"));
-const ws_1 = require("./views-bridge.cjs");
-const http_1 = require("./views-bridge.cjs");
+const ws_1 = bridge;
+const http_1 = bridge;
 const offline_1 = require("./offline.cjs");
 const DEFAULT_HOT_RELOAD_MODE = 'auto';
 // The engine belongs to the reusable Svelte module. Keep both paths because
@@ -349,3 +352,7 @@ async function prewarmViews(container) {
     return { ready: failed.length === 0, failed };
 }
 //# sourceMappingURL=index.js.map
+
+return exports;
+}
+module.exports = { createRuntime };

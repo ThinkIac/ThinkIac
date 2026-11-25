@@ -1,6 +1,6 @@
 # Contributing to Lógos
 
-Lógos is being reduced to a launcher and capability-neutral protocol. Before a
+Lógos is a launcher and capability-neutral protocol with compatibility seams. Before a
 change, decide whether it belongs to the launcher or to an external module.
 
 ## Boundary
@@ -19,11 +19,10 @@ External modules must use the public host ports described in
 
 ## Compatibility code
 
-The current tree still contains substantial runtime behavior. Treat it as
-migration debt with active consumers, not as the desired architecture and not
-as disposable code. Extract one capability at a time, keep a single active
-owner and remove its internal implementation only after module-level tests
-prove parity.
+The tree retains typed facades, contracts and compatibility tests. Concrete
+implementations belong to external modules and their compat/ directories. Keep
+one active owner. Do not restore internal fallbacks or remove facades while
+consumers depend on them. Native migration requires parity validation.
 
 Decorator vocabularies belong to the host. The scanner may transport generic
 `@register` metadata, but Lógos must not define new HTTP-, tool- or view-specific

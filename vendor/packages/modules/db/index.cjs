@@ -22,15 +22,29 @@ function createDatabase(host) {
 }
 module.exports = { createDatabase };
 
-function createRuntimeModule(host) {
+function provideDb(host) {
+  /**
+   * @register module db
+   * @context capability
+   */
+
   const db = createDatabase({
-    applicationRoot: host.applicationRoot, dataDir: host.dataDir, composeSchema: host.composeSchema,
-    appendLog: host.appendLog, currentAuthority: host.currentAuthority, createVault: host.createVault,
-    openPrivateDatabase: host.openPrivateDatabase, log: host.log,
+    applicationRoot: host.applicationRoot, dataDir: host.dataDir, composeSchema: require('./schema-composer.cjs').composePackageSchema,
+    appendLog: host.appendLog, currentAuthority: host.currentAuthority, createVault: options => new (require('./private-vault.cjs').PrivateVault)(options),
+    openPrivateDatabase: require('./private-vault.cjs').openSqlCipherDatabase, log: host.log,
   });
   return {
     name: 'db', phase: 'boot', swappable: false,
     api: db,
+    capabilities: {
+      database(request, context) {
+        if (request.tenant !== context.package) throw new Error('An isolated package can only access its own database');
+        if (typeof request.entity !== 'string' || typeof request.method !== 'string' || !Array.isArray(request.args)) throw new Error('Invalid database capability request');
+        const method = db.getProxy(context.package)?.[request.entity]?.[request.method];
+        if (typeof method !== 'function') throw new Error(`Unknown database operation: ${request.entity}.${request.method}`);
+        return method(...request.args);
+      },
+    },
     install() {
       // Adapt the protocol ports to the small container shape consumed by the
       // reusable database implementation. No Logos code is imported here.
@@ -41,4 +55,20 @@ function createRuntimeModule(host) {
     },
   };
 }
-module.exports.createRuntimeModule = createRuntimeModule;
+module.exports.provideDb = provideDb;
+
+// Compatibility factories resolve their SDK from their own dependency graph.
+module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
+
+function requireCapabilityDependency(name, local) {
+  let entry;
+  try { entry = require.resolve(name); }
+  catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    entry = require.resolve(local);
+  }
+  return require(entry);
+}
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideDb;

@@ -1,3 +1,6 @@
+'use strict';
+function createRuntime(bridge) {
+const exports = {};
 // modules/tools.ts — tool execution with conditions, lifecycle events and
 // package middleware (wire phase). Also home of the kernel tools that let an
 // agent operate the runtime itself (runtime_commit, runtime_status).
@@ -11,15 +14,15 @@ exports.toolToMcp = toolToMcp;
 exports.kernelTools = kernelTools;
 exports.loadMcpTools = loadMcpTools;
 const node_path_1 = __importDefault(require("node:path"));
-const scan_1 = require("./tools-bridge.cjs");
-const conditions_1 = require("./tools-bridge.cjs");
-const context_1 = require("./tools-bridge.cjs");
-const middleware_1 = require("./tools-bridge.cjs");
-const manifest_1 = require("./tools-bridge.cjs");
-const debug_log_1 = require("./tools-bridge.cjs");
-const isolation_1 = require("./tools-bridge.cjs");
-const authority_context_1 = require("./tools-bridge.cjs");
-const bridge_1 = require("./tools-bridge.cjs");
+const scan_1 = bridge;
+const conditions_1 = bridge;
+const context_1 = bridge;
+const middleware_1 = bridge;
+const manifest_1 = bridge;
+const debug_log_1 = bridge;
+const isolation_1 = bridge;
+const authority_context_1 = bridge;
+const bridge_1 = bridge;
 function qualifiedTool(pkgFolder, toolName) {
     if (!pkgFolder)
         return `system.${toolName}`;
@@ -30,8 +33,8 @@ function toolOwner(container, tool, agentFolder) {
     const relative = node_path_1.default.relative(container.workspace, source);
     if (!relative || relative.startsWith('..') || node_path_1.default.isAbsolute(relative))
         return null;
-    const owner = relative.split(node_path_1.default.sep)[0];
-    return owner && owner !== '.' ? owner : null;
+    const owner = container.registry.discover().filter(pkg => source === pkg.dir || source.startsWith(pkg.dir + node_path_1.default.sep)).sort((a, b) => b.dir.length - a.dir.length)[0];
+    return owner?.folder ?? null;
 }
 function toolToMcp(container, tool, pkgFolder) {
     const provider = pkgFolder ? { kind: 'package', id: pkgFolder } : authority_context_1.SYSTEM_PRINCIPAL;
@@ -176,7 +179,7 @@ function kernelTools(container) {
     ];
 }
 async function loadMcpTools(container, agentFolder) {
-    const isolated = (0, bridge_1.getIsolatedRunner)(container, node_path_1.default.basename(agentFolder));
+    const isolated = (0, bridge_1.getIsolatedRunner)(container, node_path_1.default.isAbsolute(agentFolder) ? node_path_1.default.relative(container.workspace, agentFolder) : agentFolder);
     const tools = isolated?.surfaces?.tools.map(tool => ({ ...tool, _file: agentFolder, call: (args, context) => isolated.invoke(tool.id, [args], context) })) ?? await (0, scan_1.registerTools)(agentFolder);
     return tools.map((tool) => {
         const owner = toolOwner(container, tool, agentFolder);
@@ -227,3 +230,6 @@ exports.toolsModule = {
     },
 };
 //# sourceMappingURL=tools.js.map
+return exports;
+}
+module.exports = { createRuntime };

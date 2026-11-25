@@ -2,5 +2,15 @@
   "name": "@thinkiac/module-repo",
   "version": "0.1.0",
   "main": "index.cjs",
-  "license": "MIT"
+  "license": "MIT",
+  "runtime": {
+    "role": "module",
+    "entry": "index.cjs"
+  },
+  "optionalDependencies": {
+    "ssh2": "^1.17.0"
+  },
+  "dependencies": {
+    "@thinkiac/module-runtime-compat": "file:../runtime-compat"
+  }
 }

@@ -8,6 +8,8 @@
 'use strict';
 
 import { EventBus } from './bus';
+import { ResourceTransactions, ResourceConsumer } from './resource-transactions';
+import { runtimeEvent } from './runtime-protocol';
 import { PackageRegistry } from './registry';
 import { resolveWorkspace } from './utils';
 import { AccessController } from './access-controller';
@@ -26,15 +28,26 @@ import { EventGovernance } from './event-governance';
 
 export interface LogosModule {
   name: string;
-  /** boot = before packages exist (env, db). wire = wiring-time (http, ws…). */
+  version?: string;
+  api?: Record<string, any>;
+  resources?: Record<string, ResourceConsumer>;
+  /** Mediated requests from isolated packages, interpreted by their provider. */
+  capabilities?: Record<string, (request: any, context: Readonly<{ package: string }>) => any>;
+  prepare?(): void | Promise<void>;
+  start?(): void | Promise<void>;
+  close?(): void | Promise<void>;
+  /** Both phases precede package wiring; boot installs before wire. */
   phase: 'boot' | 'wire';
   after?: string[];
+  /** Required modules, which must be present and installed first. */
+  requires?: string[];
   /** false = replacing this module only takes effect on next boot. */
   swappable?: boolean;
   install(container: Container): void | Promise<void>;
 }
 
 export class Container {
+  readonly resourceTransactions = new ResourceTransactions(this);
   bus: EventBus;
   registry: PackageRegistry;
   authority: AccessController;
@@ -43,18 +56,73 @@ export class Container {
   services: ServiceGraph;
   lifecycle: ReactiveLifecycle;
   config: Record<string, any>;
-  modules = new Map<string, LogosModule>();
-  /**
-   * Names of modules that have already run install(). This must survive
-   * across installPhase() calls — bootstrap() calls installPhase('boot')
-   * and installPhase('wire') separately (and 'boot' can run twice, for
-   * workspace overrides discovered after package scanning). A module in
-   * the 'wire' phase can legitimately depend (@after) on a module that was
-   * installed during the earlier 'boot' phase; if this set were rebuilt on
-   * every call, that already-installed dependency would look unsatisfied
-   * and installPhase would report a false "dependency cycle".
+  private moduleCatalog = new Map<string, LogosModule>();
+  get modules(): ReadonlyMap<string, LogosModule> { return new Map(this.moduleCatalog); }
+  /** Installed names persist across phase calls so wire can depend on boot.
+   * The complete catalog is collected and sealed before installation.
    */
   private installedModules = new Set<string>();
+  private installationOrder: LogosModule[] = [];
+  private sealed = false;
+  private closing: Promise<void> | null = null;
+  get modulesSealed(): boolean { return this.sealed; }
+
+  /** Validate the complete graph before acquiring resources. */
+  sealModules(): ReadonlyArray<Readonly<LogosModule>> {
+    if (!this.sealed) {
+      this.planPhase('boot', new Set());
+      this.planPhase('wire', new Set([...this.moduleCatalog.values()].filter(m => m.phase === 'boot').map(m => m.name)));
+      const types = new Map<string, string>();
+      const capabilities = new Map<string, string>();
+      for (const mod of this.moduleCatalog.values()) {
+        for (const name of Object.keys(mod.capabilities || {})) {
+          if (capabilities.has(name)) throw new Error(`[logos] capability "${name}" claimed by both "${capabilities.get(name)}" and "${mod.name}"`);
+          capabilities.set(name, mod.name);
+        }
+        for (const type of Object.keys(mod.resources || {})) {
+          if (types.has(type)) throw new Error(`[logos] resource type "${type}" claimed by both "${types.get(type)}" and "${mod.name}"`);
+          types.set(type, mod.name);
+        }
+      }
+      for (const [name, mod] of this.moduleCatalog) this.moduleCatalog.set(name, Object.freeze({
+        ...mod, after: Object.freeze([...(mod.after || [])]) as any,
+        requires: Object.freeze([...(mod.requires || [])]) as any,
+        resources: Object.freeze(Object.fromEntries(Object.entries(mod.resources || {}).map(([type, consumer]) => [
+          type, typeof consumer === 'function' ? consumer : Object.freeze({ prepare: consumer.prepare.bind(consumer) }),
+        ]))),
+        capabilities: Object.freeze({ ...mod.capabilities }),
+      }));
+      this.sealed = true;
+    }
+    return Object.freeze([...this.moduleCatalog.values()]);
+  }
+
+  async prepareModules(): Promise<void> {
+    for (const mod of this.installationOrder) await mod.prepare?.();
+  }
+
+  async startModules(): Promise<void> {
+    for (const mod of this.installationOrder) await mod.start?.();
+  }
+
+  /** Reverse acquisition order and attempt every disposer, including partial installs. */
+  closeModules(): Promise<void> {
+    if (this.closing) return this.closing;
+    this.closing = (async () => {
+      const errors: unknown[] = [];
+      try { await this.resourceTransactions.close(); } catch (error) { errors.push(error); }
+      for (const mod of [...this.installationOrder].reverse()) {
+        try { await mod.close?.(); } catch (error) { errors.push(error); }
+        this.bus.removeOwner(`module:${mod.name}`);
+        this.state('external-api').delete(mod.name);
+        for (const name of Object.keys(mod.capabilities || {})) this.state('runtime:capabilities').delete(name);
+        this.installedModules.delete(mod.name);
+      }
+      this.installationOrder = [];
+      if (errors.length) throw new AggregateError(errors, 'Module shutdown failed');
+    })();
+    return this.closing;
+  }
   /** Namespaced state buckets — modules keep their state here, not in globals. */
   private buckets = new Map<string, Map<string, any>>();
   private effects = new EffectScopeRegistry();
@@ -142,7 +210,27 @@ export class Container {
 
   /** Registers a module. A later registration with the same name overrides. */
   use(mod: LogosModule, source = 'builtin'): void {
-    const existing = this.modules.get(mod.name);
+    if (this.sealed) throw new Error(`[logos] module catalog is sealed; cannot register "${mod.name}" until next boot`);
+    if (!mod || typeof mod.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(mod.name) ||
+        !['boot', 'wire'].includes(mod.phase) || typeof mod.install !== 'function') {
+      throw new TypeError('[logos] module requires a valid name, boot/wire phase and install function');
+    }
+    for (const field of ['after', 'requires'] as const) {
+      if (mod[field] !== undefined && (!Array.isArray(mod[field]) || mod[field].some(name => typeof name !== 'string'))) {
+        throw new TypeError(`[logos] module "${mod.name}" ${field} must be an array of module names`);
+      }
+    }
+    for (const [type, consumer] of Object.entries(mod.resources || {})) {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(type) || (typeof consumer !== 'function' && typeof consumer?.prepare !== 'function')) {
+        throw new TypeError(`[logos] module "${mod.name}" has an invalid resource consumer "${type}"`);
+      }
+    }
+    for (const [name, provider] of Object.entries(mod.capabilities || {})) {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(name) || typeof provider !== 'function') {
+        throw new TypeError(`[logos] module "${mod.name}" has invalid capability "${name}"`);
+      }
+    }
+    const existing = this.moduleCatalog.get(mod.name);
     if (existing) {
       this.log(`[logos] module "${mod.name}" overridden by ${source}`);
       // The previous implementation was installed under this name; the
@@ -151,27 +239,63 @@ export class Container {
       // docs/modules.md, even though the built-in already installed once).
       this.installedModules.delete(mod.name);
     }
-    this.modules.set(mod.name, mod);
+    this.moduleCatalog.set(mod.name, mod);
+    if (mod.api) this.state('external-api').set(mod.name, Object.freeze({ ...mod.api }));
+    else if (existing) this.state('external-api').delete(mod.name);
   }
 
   /** Installs registered modules of a phase, ordered by @after dependencies. */
-  async installPhase(phase: 'boot' | 'wire'): Promise<void> {
-    const mods = [...this.modules.values()].filter(m => m.phase === phase);
-    let remaining = mods.filter(m => !this.installedModules.has(m.name));
-    let guard = mods.length + 1;
-
-    while (remaining.length && guard-- > 0) {
+  private planPhase(phase: 'boot' | 'wire', installed = this.installedModules): LogosModule[] {
+    const mods = [...this.moduleCatalog.values()].filter(m => m.phase === phase);
+    let remaining = mods.filter(m => !installed.has(m.name));
+    for (const mod of remaining) {
+      for (const dep of mod.requires || []) {
+        if (!this.moduleCatalog.has(dep)) throw new Error(`[logos] module "${mod.name}" requires missing module "${dep}"`);
+      }
+      for (const dep of [...(mod.requires || []), ...(mod.after || [])]) {
+        const dependency = this.moduleCatalog.get(dep);
+        if (dependency && dependency.phase !== phase && !installed.has(dep)) {
+          throw new Error(`[logos] module "${mod.name}" depends on uninstalled module "${dep}" in phase "${dependency.phase}"`);
+        }
+      }
+    }
+    // Plan the entire phase before invoking installers. Otherwise an unrelated
+    // module can acquire resources before a later cycle is discovered.
+    const planned = new Set(installed);
+    const ordered: LogosModule[] = [];
+    while (remaining.length) {
       const ready = remaining.filter(m =>
-        (m.after || []).every(dep => this.installedModules.has(dep) || !this.modules.has(dep)));
+        (m.after || []).every(dep => planned.has(dep) || !this.moduleCatalog.has(dep)) &&
+        (m.requires || []).every(dep => planned.has(dep)));
       if (!ready.length) {
         throw new Error(`[logos] module dependency cycle among: ${remaining.map(m => m.name).join(', ')}`);
       }
       for (const mod of ready) {
-        await mod.install(this);
-        this.installedModules.add(mod.name);
-        await this.bus.emit('runtime:module_installed', { name: mod.name, phase });
+        planned.add(mod.name);
+        ordered.push(mod);
       }
-      remaining = remaining.filter(m => !this.installedModules.has(m.name));
+      remaining = remaining.filter(m => !planned.has(m.name));
+    }
+    return ordered;
+  }
+
+  async installPhase(phase: 'boot' | 'wire'): Promise<void> {
+    for (const mod of this.planPhase(phase)) {
+      this.installationOrder.push(mod);
+      try {
+        await runtimeEvent(this, 'logos:module:installing', phase, { module: mod.name, moduleVersion: mod.version || '0.0.0' });
+        await mod.install(this);
+        for (const [name, provider] of Object.entries(mod.capabilities || {})) this.state('runtime:capabilities').set(name, provider);
+        for (const [type, handler] of Object.entries(mod.resources || {})) {
+          if (typeof handler === 'function') this.bus.on(`register:${type}`, handler, { owner: `module:${mod.name}` });
+        }
+        this.installedModules.add(mod.name);
+        await runtimeEvent(this, 'logos:module:installed', phase, { module: mod.name, moduleVersion: mod.version || '0.0.0' });
+        await this.bus.emit('runtime:module_installed', { name: mod.name, phase });
+      } catch (error) {
+        await runtimeEvent(this, 'logos:module:failed', phase, { module: mod.name, error }, false);
+        throw error;
+      }
     }
   }
 }

@@ -58,6 +58,10 @@ interface ProviderEntry extends ServiceProviderDeclaration {
 
 const IDENTITY = /^[a-z0-9][a-z0-9._-]*$/;
 
+function assertOwner(value: string, label: string): void {
+  if (typeof value !== 'string' || !/^@?[a-zA-Z0-9][a-zA-Z0-9._-]*(?:\/@?[a-zA-Z0-9][a-zA-Z0-9._-]*)*$/.test(value)) throw new TypeError(`${label} must be a valid package locator`);
+}
+
 function assertIdentity(value: string, label: string): void {
   if (typeof value !== 'string' || !IDENTITY.test(value)) throw new TypeError(`${label} must be a qualified lowercase identifier`);
 }
@@ -150,7 +154,7 @@ export class ServiceCycleError extends Error {
 function normalizeRequirement(consumer: string, service: string, input: ServiceRequirementInput): ServiceRequirementDeclaration {
   const source = typeof input === 'string' ? { range: input } : input;
   if (!source || typeof source.range !== 'string' || !source.range.trim()) throw new TypeError(`Service requirement ${consumer}:${service} needs a version range`);
-  if (source.provider !== undefined) assertIdentity(source.provider, 'Service provider selection');
+  if (source.provider !== undefined) assertOwner(source.provider, 'Service provider selection');
   return { consumer, service, range: source.range.trim(), optional: source.optional === true, ...(source.provider ? { provider: source.provider } : {}) };
 }
 
@@ -164,7 +168,7 @@ export class ServiceGraph {
   }
 
   configureOwner(owner: string, configuration: ServiceOwnerConfiguration = {}): void {
-    assertIdentity(owner, 'Service owner');
+    assertOwner(owner, 'Service owner');
     const nextProviders: ProviderEntry[] = [];
     const nextRequirements: ServiceRequirementDeclaration[] = [];
     for (const [service, version] of Object.entries(configuration.provides ?? {})) {
@@ -217,7 +221,7 @@ export class ServiceGraph {
     assertIdentity(service, 'Service name');
     if (owner === null) this.selections.delete(service);
     else {
-      assertIdentity(owner, 'Service provider selection');
+      assertOwner(owner, 'Service provider selection');
       this.selections.set(service, owner);
     }
   }

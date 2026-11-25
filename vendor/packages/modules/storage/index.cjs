@@ -49,7 +49,12 @@ class StorageMesh {
   async ensure(file) { const resolved = path.resolve(file); const record = this.state.records[resolved]; if (!record) throw new Error(`storage record not found: ${file}`); if (record.local && fs.existsSync(resolved)) return { ...record }; if (!this.provider) throw new StorageUnavailableError('storage provider is not configured', this.retryAfterMs); record.state = 'restoring'; this.persist(); try { const content = await this.provider.get({ key: record.key }); if (crypto.createHash('sha256').update(content).digest('hex') !== record.sha256) throw new Error('remote digest mismatch'); fs.mkdirSync(path.dirname(resolved), { recursive: true }); const temp = `${resolved}.restoring-${process.pid}`; fs.writeFileSync(temp, content); fs.renameSync(temp, resolved); record.local = true; record.state = 'hot'; delete record.lastError; record.updatedAt = new Date().toISOString(); this.persist(); await this.emit('storage:file-ready', { path: resolved, provider: this.provider.name }); return { ...record }; } catch (error) { record.state = 'degraded'; record.lastError = error.message || 'rehydration failed'; this.persist(); await this.emit('storage:rehydration-pending', { path: resolved, provider: this.provider.name, retryAfterMs: this.retryAfterMs }); throw new StorageUnavailableError(`storage rehydration pending: ${record.lastError}`, this.retryAfterMs); } }
 }
 
-function createRuntimeModule(host) {
+function provideStorage(host) {
+  /**
+   * @register module storage
+   * @context capability
+   */
+
   let mesh;
   return { name: 'storage', phase: 'boot', after: ['env'], api: { getStorage: () => mesh, StorageMesh, StorageUnavailableError }, install() {
     const config = host.storage.config(); const root = config.root || host.dataDir() || host.workspace();
@@ -62,4 +67,20 @@ function createRuntimeModule(host) {
     host.on('storage:configure-provider', async payload => { if (!payload || !payload.provider || typeof payload.provider.put !== 'function' || typeof payload.provider.get !== 'function') throw new Error('invalid storage provider'); mesh.setProvider(payload.provider); return { ...payload, configured: true, provider: payload.provider.name }; });
   } };
 }
-module.exports = { createRuntimeModule, StorageMesh, StorageUnavailableError };
+module.exports = { provideStorage, StorageMesh, StorageUnavailableError };
+
+// Compatibility factories resolve their SDK from their own dependency graph.
+module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
+
+function requireCapabilityDependency(name, local) {
+  let entry;
+  try { entry = require.resolve(name); }
+  catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    entry = require.resolve(local);
+  }
+  return require(entry);
+}
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideStorage;

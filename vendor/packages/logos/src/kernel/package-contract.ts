@@ -77,6 +77,7 @@ export interface AuthorityDiff {
 }
 
 const NAME = /^[a-z0-9][a-z0-9._-]*$/;
+const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 const EVENT = /^[a-z0-9][a-z0-9._-]*:[a-z0-9][a-z0-9._*-]*$/;
 const LOCAL_EVENT_CALL = /^[a-z0-9][a-z0-9._-]*:[a-z0-9][a-z0-9._:-]*$/;
 const QUALIFIED_EVENT_CALL = /^[a-z0-9][a-z0-9._-]*::[a-z0-9][a-z0-9._-]*:[a-z0-9][a-z0-9._:-]*$/;
@@ -217,7 +218,7 @@ function deepFreeze<T>(value: T): T {
 export function validatePackageContract(packageJson: unknown): ContractValidation {
   const errors: string[] = [];
   if (!isRecord(packageJson)) return { ok: false, errors: ['package.json must be an object'] };
-  if (typeof packageJson.name !== 'string' || !NAME.test(packageJson.name)) errors.push('package name must be a qualified lowercase identifier');
+  if (typeof packageJson.name !== 'string' || !PACKAGE_NAME.test(packageJson.name)) errors.push('package name must be a qualified lowercase identifier');
   if (packageJson.$ !== undefined) {
     if (packageJson.$ !== '*' && (!Array.isArray(packageJson.$) || packageJson.$.some(item => typeof item !== 'string' || !item.trim()))) {
       errors.push('$ must be "*" or an array of non-empty event names');

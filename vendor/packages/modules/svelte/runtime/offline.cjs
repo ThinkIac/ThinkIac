@@ -30,7 +30,7 @@ exports.offlineClientScript = offlineClientScript;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const crypto_1 = __importDefault(require("crypto"));
-const utils_1 = require("./views-bridge.cjs");
+const utils_1 = { routeMountPath: (pkg, route) => route.startsWith('/') ? route : `/${pkg}/${route}` };
 exports.OFFLINE_MODES = ['off', 'shell'];
 exports.DEFAULT_OFFLINE_POLICY = {
     mode: 'off',

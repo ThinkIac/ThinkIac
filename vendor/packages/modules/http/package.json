@@ -2,5 +2,15 @@
   "name": "@thinkiac/module-http",
   "version": "0.1.0",
   "main": "index.cjs",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "@thinkiac/module-runtime-compat": "file:../runtime-compat"
+  },
+  "runtime": {
+    "role": "module",
+    "entry": "index.cjs"
+  }
 }

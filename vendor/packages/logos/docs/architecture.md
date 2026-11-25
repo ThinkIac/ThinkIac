@@ -1,81 +1,80 @@
 # Launcher architecture
 
-## Intended boundary
+`bootstrap()` is the single runtime entrypoint. The production manifest has no
+required or optional runtime dependencies. A packed installation boots without
+HTTP, Svelte, database, workers, stabilization, or adjacent module directories.
 
-The final `logos` distribution is a small, capability-free launcher. It should
-resolve an explicitly selected host, create a minimal launch context, invoke
-the host and propagate its result. It must not decide that a runtime includes
-HTTP, tools, views, a database, an MCP server or any other product capability.
+## Kernel boundary
 
-The host is an ordinary external package. ThinkIac can assemble one host; a
-different product can assemble another without forking the launcher.
+The kernel owns events, generic declaration scanning, the module catalog,
+dependency ordering, contracts, authority, service/effect scopes, resource
+transactions and boot/shutdown coordination. It creates no Express server,
+worker pool, database key, file watcher or isolated package process.
 
-```text
-logos
-  `-- host
-       +-- lifecycle and event modules
-       +-- discovery and contract modules
-       +-- HTTP / tools / views / data modules
-       `-- application packages
-```
+ThinkIac selects capabilities in its root `index.js` and depends on them in its
+own `package.json`. Compatibility discovery reads `runtime.entry` from manifests
+without executing unrelated libraries.
+Declared modules that fail to load produce explicit errors.
 
-## What is true today
+## Resource owners
 
-The active implementation is halfway through that extraction:
-
-1. `builtinModules()` is empty.
-2. `discoverExternalRuntimeModules()` scans the adjacent modules directory.
-3. Only packages exporting `createRuntimeModule(host)` become runtime modules.
-4. `installExternalModules()` registers them in the lifecycle container.
-5. Capability modules receive a frozen set of host ports and may return a
-   frozen public `api` stored by module name.
-6. Generic declarations are emitted as `register:<type>` events.
-
-HTTP, hooks, tools, commands, storage, repository support, views and related
-capabilities are already external packages. Transport-only libraries such as a
-WebSocket library or process bridge are not installed unless they deliberately
-export the runtime-module factory.
-
-## What remains transitional
-
-Lógos still contains bootstrap, Express server creation, the event bus,
-container, registry, authority, package scanner, stabilizer, isolated runner,
-database compatibility and legacy public facades. This is observable in
-`src/index.ts`, `src/kernel/`, `src/stabilizer/`, `src/core/` and `src/database/`.
-
-The host port also still exposes capability-specific adapters such as
-`scanRoutes`, `scanHooks` and the tools scanner. This lets the extracted modules
-preserve current ThinkIac behavior, but it means decorator interpretation is
-not fully external yet.
-
-The docs must describe this as a migration, not erase the remaining coupling or
-present the target as shipped.
-
-## Extraction invariant
-
-Each next step must preserve one active owner for a capability:
-
-- define a versioned port or declaration contract;
-- move implementation and tests to an external package;
-- make the host select that package explicitly;
-- remove the corresponding implementation import and fallback from Lógos;
-- prove a fixture fails clearly without the module and works with it.
-
-Do not run an internal and external copy concurrently. Do not add a new
-capability to Lógos as a temporary convenience. Compatibility adapters may
-remain only while an existing consumer still needs them and must be identified
-as such.
-
-## Destination of responsibilities
-
-| Responsibility | Destination |
+| Resource | External module directory |
 | --- | --- |
-| launch arguments and host resolution | launcher protocol |
-| lifecycle, events, discovery, contracts, authority | external foundation modules |
-| HTTP, WebSocket, tools, commands, hooks, views | external capability modules |
-| database, storage, vault, process and repository support | external capability modules |
-| staging, checkpoints and supervision | external operational modules |
-| decorator vocabulary and application guides | host documentation, such as ThinkIac |
+| HTTP, route staging and request performance | `http` |
+| WebSocket | `websocket`, `websocket-runtime` |
+| Tools, hooks, commands, environment | `tools`, `hooks`, `commands`, `env` |
+| Credentials, MCP, views | `credentials`, `mcp`, `svelte` |
+| Database, schemas and private vault | `db` |
+| Storage and repositories | `storage`, `repo` |
+| Checkpoints, watching, health, reload and recovery | `stabilizer` |
+| CPU worker threads | `workers` |
+| Workspace supervision and process recovery policy | `supervisor` |
+| Permission-limited processes and mediated IPC | `isolated-runtime` |
+| Concrete annotation vocabulary and scan adapters | `annotations` |
+| Transitional factory host and import compatibility | `runtime-compat` |
 
-The final launcher should be auditable without understanding any capability it
-can launch.
+Isolated requests go to module-declared providers. There is no database switch
+in the kernel. Provider conflicts fail before installation; each provider
+validates its operations under the requesting package's authority.
+
+## Native protocol and compatibility
+
+Ordinary package exports declare `@register module`, `@register type` and
+`@register <type>`. Workspace discovery walks manifests at any depth. Package
+names resolve dependencies; relative locators retain operational ownership.
+A package may provide and consume resources simultaneously. Nested manifests
+form independent scanner boundaries; symlink directories are not traversed.
+See [workspace.md](workspace.md) for complete examples.
+
+A module declaration returns a descriptor and receives scoped context with
+identity, version, workspace, own configuration/state, logging and events.
+It needs neither a Logos import nor `context.register`. Native entrypoints using
+`register(context)` remain compatible but are no longer the primary contract.
+The catalog is sealed before installation and resource delivery. Transactional
+resource consumers prepare, commit, roll back and dispose package snapshots.
+Shutdown attempts every disposer and removes entrypoint subscriptions.
+
+Existing factories use the external `runtime-compat` adapter. Old internal imports
+are typed facades over implementations in each owning module's `compat/` directory;
+they do not install a second internal implementation. An experimental standalone
+browser client remains as a compatibility artifact outside the boot graph.
+Some existing capabilities still consume lifecycle events and legacy annotations.
+Migrating every consumer to native snapshots and retiring the broad factory
+adapter remain compatibility work, not a second bootstrap.
+
+## Verification boundary
+
+`npm run test:independent` packs Logos into a temporary project with no production
+dependencies or sibling modules, rejects capability imports, and verifies empty
+boot, a native module, an arbitrary resource type and shutdown. Module independence
+tests also check simultaneous runtimes and generic isolated capability requests.
+Arbitrary JavaScript promises still require cooperative cancellation.
+
+Local verification neither publishes a version nor certifies acceptance by the
+running Runtime. Android fixtures and optional test dependencies must be available
+for complete environment acceptance.
+
+## Navigation
+
+[Structure and operation](structure.md) maps directories, configuration, boot,
+package failures and global state. [Migration](../MIGRATION.md) covers compatibility.

@@ -5,7 +5,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-function createRuntimeModule(host) {
+function provideLegacyEntry(host) {
+  /**
+   * @register module legacy-entry
+   * @context capability
+   */
+
   function wire(pkg) {
     if (!pkg || !pkg.entry) return;
     const entry = path.join(pkg.dir, pkg.entry);
@@ -31,4 +36,20 @@ function createRuntimeModule(host) {
   };
 }
 
-module.exports = { createRuntimeModule };
+module.exports = { provideLegacyEntry };
+
+// Compatibility factories resolve their SDK from their own dependency graph.
+module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
+
+function requireCapabilityDependency(name, local) {
+  let entry;
+  try { entry = require.resolve(name); }
+  catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    entry = require.resolve(local);
+  }
+  return require(entry);
+}
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideLegacyEntry;

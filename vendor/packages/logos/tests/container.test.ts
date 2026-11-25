@@ -57,12 +57,54 @@ describe('Container.installPhase ordering', () => {
     await expect(c.installPhase('wire')).rejects.toThrow(/dependency cycle/);
   });
 
+  it('detects an unschedulable graph before installing independent modules', async () => {
+    const c = new Container({ workspace: '/x' });
+    const order: string[] = [];
+    c.use(mod('independent', 'wire', [], () => order.push('independent')));
+    c.use(mod('a', 'wire', ['b'], () => order.push('a')));
+    c.use(mod('b', 'wire', ['a'], () => order.push('b')));
+    await expect(c.installPhase('wire')).rejects.toThrow(/dependency cycle/);
+    expect(order).toEqual([]);
+  });
+
+  it('reports a dependency in an uninstalled phase before running installers', async () => {
+    const c = new Container({ workspace: '/x' });
+    let installed = false;
+    c.use(mod('independent', 'boot', [], () => { installed = true; }));
+    c.use({ ...mod('consumer', 'boot', [], () => {}), requires: ['provider'] });
+    c.use(mod('provider', 'wire', [], () => {}));
+    await expect(c.installPhase('boot')).rejects.toThrow(/consumer.*uninstalled module.*provider.*wire/);
+    expect(installed).toBe(false);
+  });
+
   it('ignores @after references to unknown modules', async () => {
     const c = new Container({ workspace: '/x' });
     let ran = false;
     c.use(mod('solo', 'wire', ['ghost'], () => { ran = true; }));
     await c.installPhase('wire');
     expect(ran).toBe(true);
+  });
+
+  it('validates required modules before installing the phase', async () => {
+    const c = new Container({ workspace: '/x' });
+    const order: string[] = [];
+    c.use(mod('first', 'wire', [], () => order.push('first')));
+    c.use({ ...mod('consumer', 'wire', [], () => order.push('consumer')), requires: ['missing'] });
+    await expect(c.installPhase('wire')).rejects.toThrow(/consumer.*requires missing module.*missing/);
+    expect(order).toEqual([]);
+  });
+
+  it('orders required modules and detects required dependency cycles', async () => {
+    const c = new Container({ workspace: '/x' });
+    const order: string[] = [];
+    c.use({ ...mod('consumer', 'wire', [], () => order.push('consumer')), requires: ['provider'] });
+    c.use(mod('provider', 'wire', [], () => order.push('provider')));
+    await c.installPhase('wire');
+    expect(order).toEqual(['provider', 'consumer']);
+    const cyclic = new Container({ workspace: '/x' });
+    cyclic.use({ ...mod('a', 'wire', [], () => {}), requires: ['b'] });
+    cyclic.use({ ...mod('b', 'wire', [], () => {}), requires: ['a'] });
+    await expect(cyclic.installPhase('wire')).rejects.toThrow(/dependency cycle/);
   });
 
   it('does not install the same module twice across phase calls', async () => {

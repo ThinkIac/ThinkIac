@@ -1,0 +1,90 @@
+{
+  "modules/commands": [
+    "commands",
+    "commands.cjs"
+  ],
+  "modules/hooks": [
+    "hooks",
+    "hooks.cjs"
+  ],
+  "modules/http": [
+    "http",
+    "http.cjs"
+  ],
+  "modules/legacy-entry": [
+    "legacy-entry",
+    "legacy-entry.cjs"
+  ],
+  "modules/proc": [
+    "proc",
+    "proc.cjs"
+  ],
+  "modules/repo/branches": [
+    "repo",
+    "repo__branches.cjs"
+  ],
+  "modules/repo/delegation": [
+    "repo",
+    "repo__delegation.cjs"
+  ],
+  "modules/repo/deploy": [
+    "repo",
+    "repo__deploy.cjs"
+  ],
+  "modules/repo/git": [
+    "repo",
+    "repo__git.cjs"
+  ],
+  "modules/repo/index": [
+    "repo",
+    "repo__index.cjs"
+  ],
+  "modules/repo/keys": [
+    "repo",
+    "repo__keys.cjs"
+  ],
+  "modules/repo/paths": [
+    "repo",
+    "repo__paths.cjs"
+  ],
+  "modules/repo/proxy": [
+    "repo",
+    "repo__proxy.cjs"
+  ],
+  "modules/repo/ssh": [
+    "repo",
+    "repo__ssh.cjs"
+  ],
+  "modules/scriba-rooms": [
+    "scriba-rooms",
+    "scriba-rooms.cjs"
+  ],
+  "modules/storage-s3": [
+    "storage",
+    "storage-s3.cjs"
+  ],
+  "modules/storage": [
+    "storage",
+    "storage.cjs"
+  ],
+  "modules/tools": [
+    "tools",
+    "tools.cjs"
+  ],
+  "modules/views/index": [
+    "svelte",
+    "views__index.cjs"
+  ],
+  "modules/views/offline": [
+    "svelte",
+    "views__offline.cjs"
+  ],
+  "modules/views/shared-state": [
+    "svelte",
+    "views__shared-state.cjs"
+  ],
+  "modules/ws": [
+    "websocket-runtime",
+    "ws.cjs"
+  ]
+}

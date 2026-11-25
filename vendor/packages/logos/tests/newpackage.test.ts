@@ -59,6 +59,17 @@ async function boot(options: any = {}) {
 }
 
 describe('pacote criado com o runtime de pé', () => {
+  it('ativa um pacote criado em profundidade arbitrária sem reiniciar', async () => {
+    const { instance, base } = await boot();
+    ws.pkg('abc/b/pacoteReal', { 'package.json': '{"name":"pacote-real"}', 'routes.js': routeSource('nested') });
+    const result = await until(async () => {
+      const response = await fetch(`${base}/abc/b/pacoteReal/ping`);
+      return response.ok ? response.json() : null;
+    });
+    expect(result).toEqual({ pong: 'nested' });
+    expect(instance.container.registry.getState('abc/b/pacoteReal')?.state).toBe('active');
+  }, 12000);
+
   it('mostra uma tela recuperável para uma view de pacote ainda não descoberto', async () => {
     const { base } = await boot({ views: { enabled: true } });
 

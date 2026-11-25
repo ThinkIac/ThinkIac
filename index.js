@@ -1,5 +1,5 @@
-import { createRuntimeModule, notifyReady } from '@logos/supervisor/runtime.cjs';
-import { bootstrap, dispatchEvent as $, recoverIsolatedPackage } from 'logos';
+import { notifyReady } from '@logos/supervisor/runtime.cjs';
+import { bootstrap, dispatchEvent as $ } from 'logos';
 import { existsSync } from 'fs';
 import { installGracefulShutdown } from './lib/runtime-lifecycle.js';
 import { applyRuntimeBootstrapExtensions } from './lib/runtime-bootstrap-extensions.js';
@@ -28,7 +28,10 @@ const main = async () => {
       environment: process.env,
       config: {
         workspace: './packages',
-        modules: [createRuntimeModule({ recoverIsolatedPackage })],
+        // The host selects capabilities; Logos owns no product module list.
+        externalModules: ['commands', 'credentials', 'db', 'env', 'hooks', 'http',
+          'isolated-runtime', 'legacy-entry', 'mcp', 'proc', 'repo', 'stabilizer', 'storage', 'svelte',
+          'tools', 'websocket-runtime', 'workers', 'supervisor'],
         port: Number(process.env.PORT) || 5040,
         host: process.env.HOST || '127.0.0.1',
         http: { public: 'public' },              // static files next to packages/

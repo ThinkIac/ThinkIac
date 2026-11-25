@@ -44,22 +44,62 @@ async function createMcpHttpServer(options = {}) {
 }
 module.exports = { createMcpServer, createMcpHttpServer };
 
-function createRuntimeModule(host) {
+function provideMcp(host) {
+  /**
+   * @register module mcp
+   * @context capability
+   */
+
   let cache = null;
+  const transports = new Set();
   const invalidating = ['reload:swapped', 'package:rolled_back', 'package:added', 'package:removed'];
   const bootstrap = async workspace => {
     const resolveTools = async () => cache || (cache = [...await host.loadTools(workspace), ...(host.state('tools').get('kernel') || [])]);
     await resolveTools();
     return createMcpServer(resolveTools, host.createContext, host.resolveConditions);
   };
+  const openTransport = async (options = {}) => {
+    const transport = await createMcpHttpServer({ ...options,
+      bootstrap: () => bootstrap(options.workspace || host.workspace()),
+      createContext: host.createContext, resolveConditions: host.resolveConditions, log: host.log });
+    transports.add(transport);
+    transport.server.once('close', () => transports.delete(transport));
+    return transport;
+  };
   return {
-    name: 'mcp', phase: 'wire', after: ['tools'],
+    name: 'mcp', phase: 'wire', requires: ['tools'],
+    async start() {
+      host.state('runtime').set('mcp', await bootstrap(host.workspace()));
+      if (host.config().mcp?.http) {
+        await openTransport(host.config().mcp);
+      }
+    },
+    async close() {
+      for (const transport of transports) await new Promise(resolve => transport.server.close(() => resolve()));
+      transports.clear(); cache = null;
+    },
     api: {
       createMcpServer: (source) => createMcpServer(source, host.createContext, host.resolveConditions),
       bootstrapMcp: bootstrap,
-      createMcpHttpServer: async (options = {}) => createMcpHttpServer({ ...options, bootstrap: () => bootstrap(options.workspace || process.env.PACKAGES_PATH), createContext: host.createContext, resolveConditions: host.resolveConditions, log: host.log }),
+      createMcpHttpServer: openTransport,
     },
     install() { for (const event of invalidating) host.on(event, () => { cache = null; }, { priority: 10 }); },
   };
 }
-module.exports.createRuntimeModule = createRuntimeModule;
+module.exports.provideMcp = provideMcp;
+
+// Compatibility factories resolve their SDK from their own dependency graph.
+module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
+
+function requireCapabilityDependency(name, local) {
+  let entry;
+  try { entry = require.resolve(name); }
+  catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    entry = require.resolve(local);
+  }
+  return require(entry);
+}
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideMcp;

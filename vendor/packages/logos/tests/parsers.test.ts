@@ -222,4 +222,12 @@ describe('parseModule', () => {
   it('returns null without the decorator', () => {
     expect(parseModule(fn, '@phase boot')).toBeNull();
   });
+
+  it('accepts generic module declarations and required dependencies', () => {
+    expect(parseModule(fn, '@register module cache\n@requires env\n@requires db'))
+      .toMatchObject({ name: 'cache', requires: ['env', 'db'] });
+    expect(parseModule(fn, '@register_module cache\n@requires env'))
+      .toMatchObject({ name: 'cache', requires: ['env'] });
+    expect(() => parseModule(fn, '@register module')).toThrow(/requires a name/);
+  });
 });

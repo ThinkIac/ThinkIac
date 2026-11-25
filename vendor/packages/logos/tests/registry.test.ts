@@ -24,14 +24,14 @@ describe('PackageRegistry.discover', () => {
     expect(names).toEqual(['alpha', 'beta']);
   });
 
-  it('lists declared module roots without recursive package discovery', () => {
+  it('discovers packages recursively, including children of packages', () => {
     ws = makeWorkspace();
     ws.pkg('app', { 'package.json': '{"name":"app"}' });
     ws.pkg('modules/mcp', { 'package.json': '{"name":"@logos/mcp","runtime":{"role":"module"}}' });
     ws.pkg('agent/mcp', { 'package.json': '{"name":"@logos/agent-mcp","runtime":{"role":"module"}}' });
     ws.pkg('app/vendor/tool', { 'package.json': '{"name":"not-a-logos-package"}' });
     const reg = new PackageRegistry(ws.root);
-    expect(reg.discover().map(p => p.folder).sort()).toEqual(['agent', 'agent/mcp', 'app', 'modules/mcp']);
+    expect(reg.discover().map(p => p.folder).sort()).toEqual(['agent/mcp', 'app', 'app/vendor/tool', 'modules/mcp']);
     const mcp = reg.getPackage('modules/mcp');
     expect(mcp).toMatchObject({ folder: 'modules/mcp', name: '@logos/mcp' });
     expect(reg.isModulePackage(mcp)).toBe(true);

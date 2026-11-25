@@ -5,7 +5,10 @@ const { atomic, read, policy, request } = require('./common.cjs');
 
 /** Public LogosModule contract; lifecycle operations are supplied by the host. */
 function createRuntimeModule({ recoverIsolatedPackage, root } = {}) {
-  return { name: 'supervisor', phase: 'boot', swappable: false, install(container) {
+  let activeController = null;
+  return { name: 'supervisor', phase: 'boot', swappable: false,
+    close() { activeController?.close(); },
+    install(container) {
     const dir = path.join(container.workspace, '.logos', 'supervisor');
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     const file = path.join(dir, 'packages.json');
@@ -89,6 +92,7 @@ function createRuntimeModule({ recoverIsolatedPackage, root } = {}) {
       close() { closed = true; for (const folder of timers.keys()) cancel(folder); },
     };
     container.state('supervisor').set('controller', controller);
+    activeController = controller;
     container.bus.on('isolated:exit', async event => {
       if (event.expected || !wantsRunning(event.pkg)) return;
       const r = get(event.pkg); r.error = `Exit ${event.code ?? event.signal}`; r.health = 'unhealthy';
@@ -99,6 +103,7 @@ function createRuntimeModule({ recoverIsolatedPackage, root } = {}) {
     }, { owner: 'system' });
     container.bus.on('reload:swapped', event => { const r = get(event.pkg); if (wantsRunning(event.pkg)) Object.assign(r, { state: 'running', readyAt: Date.now(), error: null }); }, { owner: 'system' });
     container.bus.on('shutdown', () => controller.close(), { owner: 'system', priority: -1000 });
+    container.bus.on('logos:stopping', () => controller.close(), { owner: 'system', priority: -1000 });
   } };
 }
 function notifyReady() {
@@ -108,4 +113,16 @@ function notifyReady() {
   const timer = setInterval(() => send('logos:heartbeat'), 1000); timer.unref();
   return () => clearInterval(timer);
 }
-module.exports = { createRuntimeModule, notifyReady };
+/** Supervisor registration is ordinary package data; recovery is a host port. */
+function provideSupervisor(host) {
+  /**
+   * @register module supervisor
+   * @context capability
+   */
+  return createRuntimeModule({
+    root: host.applicationRoot(),
+    recoverIsolatedPackage: (_container, folder) => host.process.recoverIsolatedPackage(folder),
+  });
+}
+module.exports = { provideSupervisor, createRuntimeModule, notifyReady };
+module.exports.createHost = (...args) => require('@thinkiac/module-runtime-compat').createHost(...args);

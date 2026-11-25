@@ -3,9 +3,14 @@
 // Runtime binding for the reusable transport package.  Channel ownership is
 // package-scoped, so swapping one package cannot disturb another package's
 // live sockets.
-const { WsHub } = require('../websocket');
+const { WsHub } = requireCapabilityDependency("@thinkiac/module-websocket", "../websocket");
 
-function createRuntimeModule(host) {
+function provideWs(host) {
+  /**
+   * @register module ws
+   * @context capability
+   */
+
   function hub() {
     const state = host.state('ws'); let value = state.get('hub');
     if (!value) { value = new WsHub(); state.set('hub', value); }
@@ -25,6 +30,37 @@ function createRuntimeModule(host) {
     }
     return routes.filter(route => route.stream).length;
   }
-  return { name: 'ws', phase: 'wire', swappable: false, api: { getHub: hub, mountStreamRoutes: wire }, install() { host.on('package:wiring', ({ pkg }) => wire(pkg), { priority: 60 }); host.on('reload:streams', ({ pkg }) => wire(pkg), { priority: 60 }); } };
+  return {
+    name: 'ws', phase: 'wire', requires: ['http'], swappable: false,
+    api: { getHub: hub, mountStreamRoutes: wire },
+    async close() {
+      const value = host.state('ws').get('hub');
+      if (!value?.wss) return;
+      for (const socket of value.wss.clients) socket.terminate();
+      await new Promise(resolve => value.wss.close(() => resolve()));
+    },
+    install() {
+      // Streams need a live hub before the first package:wiring event.
+      hub().create(host.http.server(), { path: '/ws', authorize: host.config().ws?.authorize });
+      host.on('package:wiring', ({ pkg }) => wire(pkg), { priority: 60 });
+      host.on('reload:streams', ({ pkg }) => wire(pkg), { priority: 60 });
+    },
+  };
 }
-module.exports = { createRuntimeModule };
+module.exports = { provideWs };
+
+// Compatibility factories resolve their SDK from their own dependency graph.
+module.exports.createHost = (...args) => requireCapabilityDependency('@thinkiac/module-runtime-compat', '../runtime-compat').createHost(...args);
+
+function requireCapabilityDependency(name, local) {
+  let entry;
+  try { entry = require.resolve(name); }
+  catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    entry = require.resolve(local);
+  }
+  return require(entry);
+}
+
+// Library alias for existing direct consumers; not used for runtime discovery.
+module.exports.createRuntimeModule = provideWs;

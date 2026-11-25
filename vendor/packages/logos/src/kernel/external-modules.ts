@@ -4,169 +4,119 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire, isBuiltin } from 'node:module';
+import { buildAboveDocMap, resolveDoc } from './jsdoc';
+import { parseDeclarations } from './declarations';
+import { collectStructuralDeclaration } from './declarative-catalog';
 import { Container, LogosModule } from './container';
-import type { BusHandler, SubscribeOptions } from './bus';
-import { createRuntimeContext } from './context';
-import { resolveConditions } from './conditions';
-import { appendLog } from './debug-log';
-import { currentAuthority, runAsPackage, runAsSystem, SYSTEM_PRINCIPAL } from './authority-context';
-import { PrivateVault, openSqlCipherDatabase } from '../vault/private-vault';
-import { composePackageSchema } from '../database/schema-composer';
-import express from 'express';
-import { registerRoutes, registerHooks, registerTools, registerCommands } from './scan';
-import { getIsolatedRunner } from '../core/isolated/bridge';
-import { loadMiddlewareSnapshot, resolveMiddlewares, runMiddlewares } from './middleware';
-import { routeMountPath } from './utils';
-import { measurePhase, recordPhase, setPerformanceRoute } from './http-performance';
-import { generateManifest } from './manifest';
-import { getErrors } from './debug-log';
-import { requestReboot } from '../stabilizer/isolation';
+import { nativeModuleContext } from './module-context';
+import { modulePrimitives } from './module-primitives';
+import { externalModulePath, externalModuleRoots } from './module-resolution';
+export { externalModulePath } from './module-resolution';
 
 export interface ExternalRuntimeModule extends LogosModule { api?: Record<string, any>; }
 
 /** Resolve a capability without exposing the Logos source-tree layout. */
-function externalModuleRoots(): string[] {
-  return [path.resolve(__dirname, '../../../modules'), path.resolve(__dirname, '../../../../modules')];
-}
-
-export function externalModulePath(name: string): string {
-  for (const root of externalModuleRoots()) {
-    const candidate = path.join(root, name);
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  throw new Error(`[logos] external capability module not found: ${name}`);
-}
-
 /**
- * Finds ordinary module packages that participate in this runtime.  A package
- * is a capability only when its public entry exports createRuntimeModule;
- * libraries such as websocket transport and process-bridge remain libraries.
+ * Compatibility discovery reads declared entrypoints without executing packages.
+ * A broken declared capability fails during loading instead of disappearing.
  */
 export function discoverExternalRuntimeModules(): string[] {
-  const names = new Set<string>();
+  const entries = new Map<string, string>();
   for (const root of externalModuleRoots()) {
     if (!fs.existsSync(root)) continue;
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-      if (!entry.isDirectory() || names.has(entry.name)) continue;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        if (typeof require(path.join(root, entry.name)).createRuntimeModule === 'function') names.add(entry.name);
-      } catch {
-        // A library package may intentionally have unavailable optional peers.
-        // It is not a runtime capability unless its entry loads successfully.
-      }
+      if (!entry.isDirectory() || entries.has(entry.name)) continue;
+      const manifestPath = path.join(root, entry.name, 'package.json');
+      if (!fs.existsSync(manifestPath)) continue;
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      if (typeof manifest.runtime?.entry === 'string') entries.set(entry.name, path.join(root, entry.name));
     }
   }
-  return [...names].sort();
+  // Preserve the discovered package identity: a workspace dependency with the
+  // same short name (for example mcp) must not replace its capability module.
+  return [...entries].sort(([a], [b]) => a.localeCompare(b)).map(([, entry]) => entry);
 }
 
 /** The protocol deliberately exposes ports, not Logos implementation objects. */
-function host(container: Container) {
-  return Object.freeze({
-    applicationRoot: () => process.cwd(),
-    workspace: () => container.workspace,
-    dataDir: () => process.env.LOGOS_DATA_DIR,
-    composeSchema: composePackageSchema,
-    appendLog,
-    currentAuthority,
-    createVault: (config: any) => new PrivateVault(config),
-    openPrivateDatabase: openSqlCipherDatabase,
-    log: (message: string) => container.log(message),
-    createContext: createRuntimeContext,
-    resolveConditions,
-    scanHooks: registerHooks,
-    loadTools: (workspace: string) => externalApi<any>(container, 'tools').loadMcpTools(workspace),
-    // Keep the event port complete. External capabilities must not receive the
-    // container, but lifecycle listeners need the same one-shot semantics as
-    // built-in modules (for example, initialization after package wiring).
-    on: (event: string, handler: BusHandler, options?: SubscribeOptions) => container.bus.on(event, handler, options),
-    once: (event: string, handler: BusHandler, options?: SubscribeOptions) => container.bus.once(event, handler, options),
-    emit: (event: string, payload?: any, context?: any) => container.bus.emit(event, payload, context),
-    pipeline: (event: string, payload?: any, context?: any) => container.bus.pipeline(event, payload, context),
-    veto: (event: string, payload?: any, context?: any) => container.bus.veto(event, payload, context),
-    state: (namespace: string) => container.state(namespace),
-    registry: Object.freeze({
-      getPackage: (name: string) => container.registry.getPackage(name),
-      discover: () => container.registry.discover(),
-    }),
-    config: () => container.config,
-    // Capability modules receive narrowly-scoped runtime ports.  These are
-    // deliberately functions rather than the Container itself, so a package
-    // can own a capability without importing Logos internals.
-    http: Object.freeze({
-      app: () => container.app,
-      express,
-      getPackageMount: () => externalApi<any>(container, 'http').getPackageMount(),
-      scanRoutes: registerRoutes,
-      isolatedRunner: (pkg: string) => getIsolatedRunner(container, pkg),
-      createContext: createRuntimeContext,
-      loadMiddlewareSnapshot,
-      resolveMiddlewares,
-      runMiddlewares,
-      routeMountPath,
-      recordOfflineRoutes: (pkg: string, routes: any[]) => container.bus.emit('views:offline_routes', { pkg, routes }),
-      measurePhase,
-      recordPhase,
-      setPerformanceRoute,
-      runAsPackage: (pkg: string, work: () => any) => runAsPackage(container.authority, pkg, work),
-    }),
-    ws: Object.freeze({ getHub: () => externalApi<any>(container, 'ws').getHub() }),
-    tools: Object.freeze({
-      authority: () => container.authority,
-      scan: registerTools,
-      resolveMiddlewares,
-      runMiddlewares,
-      generateManifest,
-      getErrors,
-      requestReboot: (ignored: any, options: any) => requestReboot(container, options),
-      currentAuthority,
-      runAsPackage: (_authority: any, pkg: string, work: () => any) => runAsPackage(container.authority, pkg, work),
-      runAsSystem: (_authority: any, work: () => any) => runAsSystem(container.authority, work),
-      isolatedRunner: (_ignored: any, pkg: string) => getIsolatedRunner(container, pkg),
-    }),
-    commands: Object.freeze({
-      scan: registerCommands,
-      resolveConditions,
-      createContext: createRuntimeContext,
-      resolveMiddlewares,
-      runMiddlewares,
-    }),
-    storage: Object.freeze({
-      config: () => container.config.storage || {},
-      workspace: () => container.workspace,
-    }),
-    // Process and repository capabilities receive only the lifecycle ports
-    // they need.  They deliberately do not receive the Container itself.
-    process: Object.freeze({
-      getScope: (pkg: string) => container.getPackageScope(pkg),
-      createScope: (pkg: string, version: string) => container.createPackageScope(pkg, version),
-      disposeScope: (pkg: string, reason: string) => container.disposePackageScope(pkg, reason),
-      supervisor: () => container.state('supervisor').get('controller'),
-    }),
-    // Repository transport is external. This compatibility handle is only
-    // the capability port for the pre-event repository protocol.
-    repo: Object.freeze({
-      container: () => container,
-      isBranchInstance: () => process.env.LOGOS_ROLE === 'branch',
-    }),
-    scopes: Object.freeze({
-      get: (pkg: string) => container.getPackageScope(pkg),
-      create: (pkg: string, version: string) => container.createPackageScope(pkg, version),
-      dispose: (pkg: string, reason: string) => container.disposePackageScope(pkg, reason),
-      removeOwner: (pkg: string) => container.bus.removeOwner(pkg),
-    }),
-  });
-}
 
 export function installExternalModules(container: Container, names: readonly string[]): void {
   for (const name of names) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const factory = require(externalModulePath(name)).createRuntimeModule;
-    if (typeof factory !== 'function') throw new Error(`[logos] external module "${name}" must export createRuntimeModule(host)`);
-    const external: ExternalRuntimeModule = factory(host(container));
+    // Explicit paths and installed packages do not depend on the vendor layout.
+    let entry: string;
+    if (path.isAbsolute(name) || name.startsWith('.')) {
+      entry = path.resolve(container.workspace, name);
+    } else if (isBuiltin(name)) {
+      // Legacy capability aliases such as http must not resolve to Node built-ins.
+      entry = externalModulePath(name);
+    } else {
+      const resolve = createRequire(path.join(container.workspace, 'package.json'));
+      try { entry = resolve.resolve(name); }
+      catch (error: any) {
+        if (error.code !== 'MODULE_NOT_FOUND') throw error;
+        entry = externalModulePath(name);
+      }
+    }
+    // Honor the package's declared runtime entry even when npm's main points
+    // at a library API. Entrypoints cannot escape their package directory.
+    let directory = fs.statSync(entry).isDirectory() ? entry : path.dirname(entry);
+    while (true) {
+      const manifestPath = path.join(directory, 'package.json');
+      if (fs.existsSync(manifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        if (typeof manifest.runtime?.entry === 'string') {
+          const declared = path.resolve(directory, manifest.runtime.entry);
+          const relative = path.relative(directory, declared);
+          if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
+            throw new Error(`[logos] runtime entrypoint escapes package: ${name}`);
+          }
+          entry = declared;
+        }
+        break;
+      }
+      const parent = path.dirname(directory);
+      if (parent === directory) break;
+      directory = parent;
+    }
+    entry = require.resolve(entry);
+    const cleanups = container.state('runtime:entrypoints');
+    if (cleanups.has(entry)) continue;
+    const exported = require(entry);
+    const subscriptions = new Set<() => void>();
+    const clean = () => { for (const off of subscriptions) off(); subscriptions.clear(); };
+    cleanups.set(entry, clean);
+    const above = buildAboveDocMap(fs.readFileSync(entry, 'utf8'));
+    const declarations = [...new Set(Object.values(exported).filter((value): value is Function => typeof value === 'function'))]
+      .flatMap(handler => parseDeclarations(resolveDoc(handler, above) ?? '').filter(declaration => ['module', 'type'].includes(declaration.type))
+        .map(declaration => ({ declaration, handler, file: entry })));
+    if (declarations.length) {
+      const off = container.bus.on('logos:modules:register', async () => {
+        for (const declaration of declarations) {
+          // Explicit programmatic overrides retain their compatibility semantics.
+          if (declaration.declaration.type === 'module' && container.state('runtime:programmatic-modules').has(declaration.declaration.name!)) continue;
+          await collectStructuralDeclaration(container, declaration, `external:${directory}`, subscriptions);
+        }
+      });
+      subscriptions.add(off);
+      continue;
+    }
+    if (typeof exported.register === 'function') {
+      const native = nativeModuleContext(container, name, subscriptions);
+      const off = container.bus.on('logos:modules:register', () => native.collect(exported.register));
+      subscriptions.add(off);
+      continue;
+    }
+    const factory = exported.createRuntimeModule;
+    if (typeof factory !== 'function') throw new Error(`[logos] external module "${name}" must export register(context) or the compatibility factory createRuntimeModule(host)`);
+    const adapt = exported.createHost ?? require(externalModulePath('runtime-compat')).createHost;
+    const external: ExternalRuntimeModule = factory(adapt(container, modulePrimitives(), subscriptions));
     if (!external || typeof external.install !== 'function' || !external.name || !external.phase) throw new Error(`[logos] invalid external module "${name}"`);
-    container.use(external, `external:${name}`);
-    if (external.api) container.state('external-api').set(external.name, Object.freeze(external.api));
+    container.use({ ...external, async close() {
+      try { await external.close?.(); } finally {
+        for (const off of subscriptions) off();
+        subscriptions.clear();
+      }
+    } }, `external:${name}`);
   }
 }
 

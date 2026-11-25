@@ -18,10 +18,8 @@ import { ScanCache } from './cache';
 import { IGNORE_DIRS, resolveWorkspace } from './utils';
 import { buildAboveDocMap, resolveDoc } from './jsdoc';
 import { parseDeclarations } from './declarations';
-import {
-  parseTool, parseHook, parseRoute, parseCommand,
-  parsePredicate, parseMiddleware, parseModule,
-} from './parsers';
+import { parseModule } from './module-declarations';
+import { externalModulePath } from './module-resolution';
 
 export const scanCache = new ScanCache();
 
@@ -29,7 +27,7 @@ export const scanCache = new ScanCache();
 
 // Test fixtures can contain registration markers but must never execute at boot.
 const TEST_DIRS = new Set(['test', 'tests', '__tests__']);
-const TEST_FILE = /\.(?:test|spec)\.js$/;
+const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/;
 
 export function getJsFilesRecursively(dir: string): string[] {
   const results: string[] = [];
@@ -37,8 +35,10 @@ export function getJsFilesRecursively(dir: string): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (IGNORE_DIRS.has(entry.name) || TEST_DIRS.has(entry.name) || entry.name.startsWith('.')) continue;
+      // A nested manifest starts a separate package, scanned under its own owner.
+      if (fs.existsSync(path.join(dir, entry.name, 'package.json'))) continue;
       results.push(...getJsFilesRecursively(path.join(dir, entry.name)));
-    } else if (entry.isFile() && entry.name.endsWith('.js') && !TEST_FILE.test(entry.name)) {
+    } else if (entry.isFile() && /\.[cm]?js$/.test(entry.name) && !TEST_FILE.test(entry.name)) {
       results.push(path.join(dir, entry.name));
     }
   }
@@ -174,6 +174,7 @@ export async function registerGeneric(
     let source: string;
     try { source = fs.readFileSync(filePath, 'utf-8'); } catch { continue; }
     if (!/@register(?:_|\s)/.test(source)) continue;
+    if (parserName === 'structural-declarations' && !/@register(?:\s+(?:module|type)\b|_module\b)/.test(source)) continue;
 
     let mod: any;
       // Um pacote ESM pode conter um subdiretório CommonJS com runtime legado.
@@ -182,12 +183,13 @@ export async function registerGeneric(
       try { mod = await loadModule(filePath, isEsmFolder(path.dirname(filePath))); }
     catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
+      if (parserName === 'declarations' || parserName === 'structural-declarations') throw new Error(`[logos] failed loading structural declarations ${filePath}: ${reason}`, { cause: error });
       console.warn(`[scan:${parserName}] Failed to load ${filePath}: ${reason}`);
       continue;
     }
 
     const aboveMap = buildAboveDocMap(source);
-    for (const fn of extractExportedFunctions(mod)) {
+    for (const fn of new Set(extractExportedFunctions(mod))) {
       const doc = resolveDoc(fn, aboveMap);
       const meta = parser(fn, doc);
       if (!meta) continue;
@@ -202,69 +204,23 @@ export async function registerGeneric(
 
 // ── Public register* API (v1-compatible signatures) ─────────────────────────
 
-const JSON_SCHEMA_TYPES = new Set(['string', 'number', 'integer', 'boolean', 'object', 'array', 'null']);
-
-// @param {string[]} / {object[]} etc. chegam do parser com o "type" literal
-// (ex.: "string[]") — não é um tipo de JSON Schema válido, e a Anthropic API
-// rejeita a tool inteira (400 "JSON schema is invalid") quando algum
-// inputSchema traz isso. Convertido pra {type:'array', items:{type:...}}.
-//
-// @enum vira `enum` no próprio schema (JSON Schema padrão — o LLM e a UI já
-// entendem). @enumSource não tem equivalente padrão: o schema é estático e a
-// fonte é viva, então viaja como metadado `x-enumSource` e quem resolve é o
-// consumidor (o Lógos declara, o app resolve).
-function toJsonSchemaProperty(param: { type: string; description: string | null; enum?: string[]; enumSource?: string }) {
-  const { type: rawType, description } = param;
-  const extra: any = {};
-  if (param.enum && param.enum.length) extra.enum = param.enum;
-  if (param.enumSource) extra['x-enumSource'] = param.enumSource;
-
-  if (typeof rawType === 'string' && rawType.endsWith('[]')) {
-    const itemType = rawType.slice(0, -2);
-    return {
-      type: 'array',
-      items: { type: JSON_SCHEMA_TYPES.has(itemType) ? itemType : 'string', ...extra },
-      description,
-    };
-  }
-  return { type: JSON_SCHEMA_TYPES.has(rawType) ? rawType : 'string', description, ...extra };
-}
-
-export function registerTools(agentFolder: string) {
-  return registerGeneric(agentFolder, parseTool, 'tools', meta => ({
-    name: meta.name,
-    description: meta.description,
-    parameters: {
-      type: 'object',
-      properties: (meta.parameters || []).reduce((acc: any, p: any) => {
-        acc[p.name] = toJsonSchemaProperty(p);
-        return acc;
-      }, {}),
-      required: (meta.parameters || []).filter((p: any) => p.required).map((p: any) => p.name),
-    },
-    call: meta.call,
-    condition: meta.condition,
-    _file: meta._file,
-  }));
-}
-
-export function registerCommands(agentFolder: string) {
-  return registerGeneric(agentFolder, parseCommand, 'commands');
-}
-
-export function registerHooks(agentFolder: string)       { return registerGeneric(agentFolder, parseHook, 'hooks'); }
-export function registerRoutes(agentFolder: string)      { return registerGeneric(agentFolder, parseRoute, 'routes'); }
-export function registerPredicates(agentFolder: string)  { return registerGeneric(agentFolder, parsePredicate, 'predicates'); }
-export function registerMiddlewares(agentFolder: string) { return registerGeneric(agentFolder, parseMiddleware, 'middlewares'); }
-export function registerModules(agentFolder: string)     { return registerGeneric(agentFolder, parseModule, 'modules'); }
+// Concrete aliases delegate to the optional annotations compatibility package.
+function legacyScanners(): any { return require(externalModulePath('annotations')).createScanners(registerGeneric); }
+export function registerTools(folder: string): Promise<any[]> { return legacyScanners().registerTools(folder); }
+export function registerCommands(folder: string): Promise<any[]> { return legacyScanners().registerCommands(folder); }
+export function registerHooks(folder: string): Promise<any[]> { return legacyScanners().registerHooks(folder); }
+export function registerRoutes(folder: string): Promise<any[]> { return legacyScanners().registerRoutes(folder); }
+export function registerPredicates(folder: string): Promise<any[]> { return legacyScanners().registerPredicates(folder); }
+export function registerMiddlewares(folder: string): Promise<any[]> { return legacyScanners().registerMiddlewares(folder); }
+export function registerModules(folder: string) { return registerGeneric(folder, parseModule, 'modules'); }
 
 /** Discover generic declarations without assigning their semantics to the kernel. */
-export async function registerDeclarations(agentFolder: string) {
+export async function registerDeclarations(agentFolder: string, structuralOnly = false) {
   const groups = await registerGeneric(agentFolder, (fn, doc) => {
     if (!doc) return null;
-    const declarations = parseDeclarations(doc);
+    const declarations = parseDeclarations(doc).filter(entry => !structuralOnly || ['module', 'type'].includes(entry.type));
     return declarations.length ? { declarations, handler: fn } : null;
-  }, 'declarations');
+  }, structuralOnly ? 'structural-declarations' : 'declarations');
   return groups.flatMap(group => group.declarations.map((declaration: any) => ({
     declaration, handler: group.handler, file: group._file,
   })));

@@ -3,8 +3,6 @@ import { runAsPackage, runAsSystem } from './authority-context';
 import { externalApi } from './external-modules';
 import { callPackageEvent } from './package-event-calls';
 
-const { PackageFiles, PackageNetwork, PackageProcess, PackageSecrets } = require('@thinkiac/module-mediated-io');
-
 export class PackageContext {
   readonly package: string;
 
@@ -31,10 +29,19 @@ export class PackageContext {
     provide: <T>(service: string, value: T) => () => void;
   };
 
-  readonly files: any;
-  readonly secrets: any;
-  readonly network: any;
-  readonly process: any;
+  private readonly ioHost: any;
+  private readonly ioInstances = new Map<string, any>();
+  private io(name: string) {
+    if (!this.ioInstances.has(name)) {
+      const Provider = require('@thinkiac/module-mediated-io')[name];
+      this.ioInstances.set(name, new Provider(this.ioHost, this.package));
+    }
+    return this.ioInstances.get(name);
+  }
+  get files(): any { return this.io('PackageFiles'); }
+  get secrets(): any { return this.io('PackageSecrets'); }
+  get network(): any { return this.io('PackageNetwork'); }
+  get process(): any { return this.io('PackageProcess'); }
 
   constructor(private container: Container, packageName: string) {
     this.package = packageName;
@@ -82,7 +89,7 @@ export class PackageContext {
       use: <T = unknown>(service: string) => this.container.services.inject<T>(this.package, service),
       provide: <T>(service: string, value: T) => this.container.services.bind(this.package, service, value),
     });
-    const ioHost = {
+    this.ioHost = {
       enforce: (owner: string, surface: any, operation: any, resource: string, metadata?: Record<string, any>) => this.container.authority.enforce({ principal: { kind: 'package', id: owner }, surface, operation, resource, metadata }),
       grantsFor: (owner: string) => this.container.authority.grantsFor(owner),
       packageRoot: (owner: string) => this.container.registry.getPackage(owner).dir,
@@ -91,6 +98,5 @@ export class PackageContext {
       activeScope: (owner: string) => this.container.getPackageScope(owner),
       trackProcess: (scope: any, child: any, label: string) => scope.defer(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM'); }, { kind: 'child-process', label, pid: child.pid }),
     };
-    this.files = new PackageFiles(ioHost, this.package); this.secrets = new PackageSecrets(ioHost, this.package); this.network = new PackageNetwork(ioHost, this.package); this.process = new PackageProcess(ioHost, this.package);
   }
 }
