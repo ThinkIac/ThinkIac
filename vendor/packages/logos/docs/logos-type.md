@@ -7,11 +7,11 @@ carrega CommonJS e mantém o catálogo, a autoridade e a publicação nos módul
 ## Instalação
 
 O pacote chama-se `logostype`. Este PR fixa o commit
-`bb2917b74568dd6f866c40bafe51df0dfd7631fa`, pois a implementação da linguagem
+`acdcc6032ab94219e0d4a4d25b1538fb55fa19cf`, pois a implementação da linguagem
 está no PR do LogosType e ainda não está na `main` daquele repositório.
 
 ```bash
-npm install ThinkIac/LogosType#bb2917b74568dd6f866c40bafe51df0dfd7631fa
+npm install ThinkIac/LogosType#acdcc6032ab94219e0d4a4d25b1538fb55fa19cf
 ```
 
 Após o merge da linguagem, `npm install ThinkIac/LogosType#main` instala a versão
