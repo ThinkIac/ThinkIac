@@ -31,6 +31,8 @@ export interface LogosModule {
   version?: string;
   api?: Record<string, any>;
   resources?: Record<string, ResourceConsumer>;
+  /** Serializable argument tuples and result types for generic resource handlers. */
+  contracts?: Record<string, import('./resource-types').ResourceContract>;
   /** Mediated requests from isolated packages, interpreted by their provider. */
   capabilities?: Record<string, (request: any, context: Readonly<{ package: string }>) => any>;
   prepare?(): void | Promise<void>;

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { installResourceContracts } from './resource-types';
 import path from 'node:path';
 import type { Container } from './container';
 import { nativeModuleContext } from './module-context';
@@ -13,13 +14,15 @@ export async function collectStructuralDeclaration(container: Container, entry: 
   if (!declaration.name) throw new Error(`[logos] ${declaration.type} requires a name (${identity})`);
   let directory = path.dirname(fs.realpathSync(entry.file));
   while (!fs.existsSync(path.join(directory, 'package.json')) && path.dirname(directory) !== directory) directory = path.dirname(directory);
+  const legacyConsumer = !entry.file.endsWith('.type') && declaration.type === 'type' && declaration.tags.provider?.[0] !== 'descriptor';
+  const kind = legacyConsumer ? 'legacy-type' : 'provider';
   const key = `${directory}:${handler.name}:${declaration.type}:${declaration.name}`;
   const collected = container.state('runtime:structural-declarations');
   if (collected.has(key)) return;
   if (container.modulesSealed) throw new Error(`[logos] module catalog is sealed; structural declaration ${declaration.type} ${declaration.name} requires a new boot (${entry.file})`);
   collected.set(key, true);
   const name = declaration.name;
-  const owners = container.state(`runtime:declaration-owners:${declaration.type}`);
+  const owners = container.state(`runtime:declaration-owners:${kind}`);
   const previous = owners.get(name);
   if (previous && previous.key !== key) throw new Error(`[logos] duplicate ${declaration.type} "${name}": ${previous.identity} and ${identity}`);
   owners.set(name, { key, identity });
@@ -36,7 +39,7 @@ export async function collectStructuralDeclaration(container: Container, entry: 
     context = adapt(container, modulePrimitives(), subscriptions);
   }
   await native.collect(async () => {
-    if (declaration.type === 'type') {
+    if (legacyConsumer) {
       if (container.modules.has(`type.${name}`)) throw new Error(`[logos] type module name already registered: type.${name} (${identity})`);
       // A type handler is the consumer itself. Transactional providers declare
       // @transactional and return a generation with commit/rollback/dispose.
@@ -53,6 +56,7 @@ export async function collectStructuralDeclaration(container: Container, entry: 
     if (definition.name && definition.name !== name) throw new Error(`[logos] module name differs from declaration: ${name} (${entry.file})`);
     if (container.modules.has(name)) throw new Error(`[logos] duplicate module "${name}" (${identity}, ${entry.file})`);
     for (const type of tags.accepts?.flatMap((value: string) => value.split(/\s+/)) ?? []) container.state('runtime:accepted-types').set(type, name);
+    installResourceContracts(container, definition, entry.file.endsWith('.type') || tags.provider?.[0] === 'descriptor', identity);
     const close = definition.close;
     const descriptor = { ...definition, name, phase: definition.phase ?? tags.phase?.[0] ?? 'wire',
       requires: definition.requires ?? tags.requires ?? [], after: definition.after ?? tags.after ?? [],

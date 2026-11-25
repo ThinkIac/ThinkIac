@@ -34,32 +34,68 @@ A instalação Git requer acesso ao GitHub.
 
 ## Comentários e exports
 
-Use o bloco CoffeeScript acima da atribuição exportada:
+O bloco `###` fica imediatamente acima da função, na primeira coluna.
+`@register` e `# @register` são equivalentes, assim como os outros metadados.
+Somente funções registradas ganham export automático; auxiliares ficam locais.
+Exports CommonJS explícitos continuam aceitos, inclusive exportar a mesma função
+pelo mesmo nome. Exportar uma função diferente com esse nome gera erro.
 
 ```coffee
+formatar = (nome) -> nome.trim()
+
 ###
-# @register router
-# @name status
-# @method get
-# @public true
-#
+@register mensagem boasVindas
+@returns "string"
 ###
-exports.status = (req, res) ->
-  res.json ok: true
+boasVindas = (cliente) -> "Olá, #{formatar cliente.nome}!"
 ```
 
-O formato solicitado `###`, linhas com `#`, e `###` é aceito diretamente.
-O lexer distingue comentários reais de textos contendo `###`. O scanner associa
-os metadados à atribuição original, inclusive quando CoffeeScript gera funções
-anônimas em JavaScript. O bloco deve começar na primeira coluna e preceder a
-atribuição; use `exports.nome = ...` ou `module.exports.nome = ...`.
-Também é possível declarar uma função local e depois exportá-la pelo mesmo nome.
-Comentários internos à função não fazem parte do contrato inicial de `.type`.
+O nome omitido em `@register mensagem` usa o nome da função. `@name` continua
+aceito. Comentários internos à função não registram declarações nesta versão.
+Textos contendo `###` não são confundidos com comentários pelo lexer.
+A extensão não instala provedores automaticamente.
 
-`@register router` sem nome chega ao catálogo como declaração sem nome. O provedor
-define o significado e seus requisitos. O módulo HTTP existente exige nome na
-própria declaração (`@register router status`) ou em `@name`, como no exemplo.
-A extensão não cria um tipo `router` nem instala HTTP automaticamente.
+Em `.type`, `@register module tarefa` e `@register type tarefa` são aliases completos:
+ambos recebem o contexto, retornam um descritor, oferecem consumidores em `resources`
+e participam dos mesmos ciclos de dependências, instalação e encerramento.
+Declarar os dois com o mesmo nome é conflito, mesmo no mesmo arquivo.
+
+### Tipagem obrigatória
+
+Todo consumidor declarado em `resources` por um provedor `.type` exige uma entrada
+em `contracts`, com `input` e `output`. `input` é uma tupla de argumentos posicionais;
+`[]` significa nenhum argumento. Cada recurso que usa um contrato deve declarar
+exatamente um `@returns`, em JSON, igual ao tipo de saída do provedor.
+O contrato é validado antes da publicação. A chamada valida argumentos antes de
+executar o handler e valida o resultado após resolver eventual Promise.
+
+Tipos iniciais: `"string"`, `"number"` finito, `"boolean"`, `"null"`, `"void"`,
+objetos com campos obrigatórios e arrays com um tipo de elemento. Por exemplo:
+
+```coffee
+contracts:
+  saudacao:
+    input: [{nome: "string"}]
+    output: "string"
+  listar:
+    input: []
+    output: [{id: "number", nome: "string"}]
+```
+
+O recurso de `listar` usa `@returns [{"id":"number","nome":"string"}]`.
+Objetos aceitam campos extras; não há coerção. `"void"` exige `undefined`.
+Tipos desconhecidos, argumentos ausentes ou extras e campos obrigatórios ausentes
+produzem erro com pacote, recurso e caminho do valor. Não há `any`, uniões,
+genéricos nem inferência estática nesta versão. A gramática CoffeeScript permanece
+convencional: a tipagem é um contrato verificado em execução.
+
+**Compatibilidade:** os adaptadores JavaScript anteriores continuam aceitos sem
+migração forçada; seu `@register type` conserva o consumidor direto. Um provedor
+JavaScript pode adotar o novo descritor com `@provider descriptor`, usando o mesmo
+contrato obrigatório e aliases. Scanners de capacidades legadas (como HTTP e hooks)
+conservam seus contratos próprios; esta tipagem cobre handlers de recursos
+genéricos entregues pelo protocolo. Chamar diretamente uma função local ou importada
+não passa pela mediação do catálogo.
 
 ## Provedor e consumidor completos
 
@@ -85,18 +121,17 @@ packages/
 
 ```coffee
 ###
-# @register module arithmetic
-#
+@register type arithmetic
 ###
-exports.lifecycle = (context) ->
+arithmetic = (context) ->
+  contracts:
+    arithmetic:
+      input: ["number"]
+      output: "number"
+  resources:
+    arithmetic: (resource) ->
+      context.state.set resource.declaration.name, resource.handler
   close: -> context.state.clear()
-
-###
-# @register type arithmetic
-#
-###
-exports.accept = (resource, context) ->
-  context.state.set resource.declaration.name, resource.handler
 ```
 
 `abc/b/customer/package.json`:
@@ -109,10 +144,10 @@ exports.accept = (resource, context) ->
 
 ```coffee
 ###
-# @register arithmetic double
-#
+@register arithmetic double
+@returns "number"
 ###
-exports.double = (value) -> value * 2
+double = (value) -> value * 2
 ```
 
 Host JavaScript:
@@ -148,8 +183,8 @@ flowchart TD
   A[Descobrir manifests em qualquer profundidade] --> B[Ler arquivos JS e .type]
   B --> C[Compilar CoffeeScript e associar comentários aos exports]
   C --> D[Catalogar module e type e validar dependências]
-  D --> E[Instalar provedores]
-  E --> F[Entregar declarações e handlers mediados]
+  D --> E[Instalar provedores e contratos de tipos]
+  E --> F[Validar returns e entregar handlers mediados]
   F --> G[Preparar e publicar recursos]
   G --> H[Iniciar composição]
 ```
@@ -166,9 +201,10 @@ Um `.type` pode carregar CommonJS, JSON, bibliotecas npm e outro `.type` local:
 helper = require './lib/helper.type'
 ###
 # @register arithmetic answer
+# @returns "number"
 #
 ###
-exports.answer = -> helper.answer()
+answer = -> helper.answer()
 ```
 
 Para dependências `.type`, escreva a extensão explicitamente. O carregador local
@@ -206,7 +242,7 @@ A compilação não cria uma nova fronteira de segurança nem concede capacidade
 
 ```bash
 npm run build
-npx vitest run tests/type-source.test.ts
+npx vitest run tests/type-source.test.ts tests/resource-types.test.ts
 npm run test:independent
 ```
 

@@ -204,6 +204,7 @@ export async function registerGeneric(
       const meta = parser(fn, doc);
       if (!meta) continue;
       meta._file = filePath;
+      meta._exportName = exportName;
       results.push(mapFn(meta));
     }
   }
@@ -232,6 +233,6 @@ export async function registerDeclarations(agentFolder: string, structuralOnly =
     return declarations.length ? { declarations, handler: fn } : null;
   }, structuralOnly ? 'structural-declarations' : 'declarations');
   return groups.flatMap(group => group.declarations.map((declaration: any) => ({
-    declaration, handler: group.handler, file: group._file,
+    declaration: group._file.endsWith('.type') && !declaration.name ? { ...declaration, name: group._exportName || group.handler.name } : declaration, handler: group.handler, file: group._file,
   })));
 }

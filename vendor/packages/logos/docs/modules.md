@@ -82,7 +82,7 @@ a missing module fails the phase before any of its pending modules install.
 All workspace packages can declare modules and types using the generic grammar.
 See [workspace.md](workspace.md) for the primary declaration contract, nested
 packages, transactional type providers and complete examples. `@register module`
-functions return descriptors; `@register type` functions consume declarations.
+functions return descriptors; legacy JavaScript `@register type` functions consume declarations. In `.type`, both registrations return the same provider descriptor (see the LógosType section below).
 The underscore alias `@register_module` retains its old installer signature.
 
 ## Host boundary
@@ -334,3 +334,12 @@ while optional consumers may continue. No installer runs when that module is abs
 The same module/type/resource contract works in `.type` files using CoffeeScript 2
 and `###` blocks with `# @register ...` lines. See [the language guide](logos-type.md)
 for installation, flow, examples, reload and CommonJS boundaries.
+
+## LógosType: aliases e contratos de recursos
+
+Em arquivos `.type`, `module` e `type` registram o mesmo descritor de provedor.
+Cada entrada em `resources` exige `contracts[tipo] = { input: [...], output: ... }`.
+Recursos consumidores declaram `@returns` em JSON e recebem validação de argumentos
+e resultados, incluindo Promises e chamadas isoladas. `@register` gera export
+automático; o `#` nos blocos `###` é opcional. Veja os exemplos e a fronteira de
+compatibilidade com JavaScript em [logos-type.md](logos-type.md).

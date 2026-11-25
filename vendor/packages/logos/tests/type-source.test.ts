@@ -21,7 +21,7 @@ describe('native LógosType', () => {
         block('arithmetic double') + 'module.exports.double = (n) -> n * 2\n',
     });
     const entries = await registerDeclarations(dir);
-    expect(entries.map(e => [e.declaration.type, e.declaration.name])).toEqual([['router', null], ['arithmetic', 'double']]);
+    expect(entries.map(e => [e.declaration.type, e.declaration.name])).toEqual([['router', 'hello'], ['arithmetic', 'double']]);
     expect(entries[0].handler()).toBe('hello');
     expect(entries[1].handler(21)).toBe(42);
     expect(entries.every(e => e.file.endsWith('.type'))).toBe(true);
@@ -69,12 +69,11 @@ describe('native LógosType', () => {
   it('boots nested .type providers and mixed consumers using the existing authority boundary', async () => {
     const ws = makeWorkspace(); cleanup.push(ws.cleanup);
     ws.pkg('modules/deep/provider', { 'package.json': '{"name":"provider"}',
-      'index.type': block('module arithmetic') + 'exports.lifecycle = -> {}\n' +
-        block('type arithmetic') + 'exports.accept = (resource, context) ->\n  context.state.set resource.declaration.name, resource.handler\n',
+      'index.type': block('type arithmetic') + 'arithmetic = (context) ->\n  contracts:\n    arithmetic: {input: ["number"], output: "number"}\n  resources:\n    arithmetic: (resource) -> context.state.set resource.declaration.name, resource.handler\n',
     });
     ws.pkg('abc/b/consumer', { 'package.json': '{"name":"consumer"}',
-      'index.type': block('arithmetic double') + 'exports.double = (n) -> n * 2\n',
-      'other.cjs': 'exports.triple = function triple(n) { /** @register arithmetic triple */ return n * 3; };',
+      'index.type': block('arithmetic double').replace('#\n###', '# @returns "number"\n###') + 'exports.double = (n) -> n * 2\n',
+      'other.cjs': 'exports.triple = function triple(n) { /**\n * @register arithmetic triple\n * @returns "number"\n */ return n * 3; };',
     });
     const runtime = await bootstrap({ workspace: ws.root, externalModules: [] }); cleanup.push(() => runtime.close());
     const state = runtime.container.state('entrypoint:workspace:modules/deep/provider');

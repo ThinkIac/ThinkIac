@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { typedResource } from './resource-types';
 import type { Container } from './container';
 import { registerDeclarations } from './scan';
 import { getIsolatedRunner } from '../core/isolated/bridge';
@@ -25,7 +26,7 @@ export async function collectPackageDeclarations(container: Container, pkg: any)
   return entries.filter(entry => !['module', 'type'].includes(entry.declaration.type)).map(entry => ({
     declaration: entry.declaration, file: entry.file, package: pkg.folder,
     handler: (...args: any[]) => runAsPackage(container.authority, pkg.folder, () => entry.handler(...args)),
-  }));
+  })).map(resource => typedResource(container, resource));
 }
 
 export async function preparePackageResources(container: Container, pkg: any) {

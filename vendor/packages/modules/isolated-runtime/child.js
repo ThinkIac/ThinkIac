@@ -153,7 +153,7 @@ async function discover() {
       for (const declaration of registrations) {
         const handlerId = `declaration:${++id}`;
         functions.set(handlerId, fn);
-        result.declarations.push({ id: handlerId, file, declaration: { ...declaration, name: declaration.name ?? tags.name?.[0] ?? null, tags } });
+        result.declarations.push({ id: handlerId, file, declaration: { ...declaration, name: declaration.name ?? tags.name?.[0] ?? (compiled ? exportName : null), tags } });
       }
       for (const [kind, key] of [['tool','tools'], ['route','routes'], ['hook','hooks']]) {
         const handlerId = `${kind}:${++id}`; const item = descriptor(kind, handlerId, fn, doc);
