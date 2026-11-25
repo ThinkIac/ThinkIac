@@ -46,3 +46,12 @@ unknown types, local shadowing, missing persistence, captured-reference authorit
 isolated index requests and primary keys against SQLite. It also boots the actual
 external Scriba database provider. The packed distribution test validates named
 model returns with no adjacent modules and checks the missing-provider diagnostic.
+
+
+### Linguagem declarativa
+
+`tests/declarative-language.test.ts` cobre aliases, herança de descrições,
+validação de campo, schemas sem persistência, rollback, encerramento, metadados
+obrigatórios, conflitos entre arquivos, RPC isolado e o scanner de ferramentas.
+O compilador tem testes próprios em `ThinkIac/LogosType` (`npm run test:logostype`).
+A dependência do Lógos aponta para uma revisão imutável do compilador.

@@ -82,7 +82,7 @@ Veja [testing.md](docs/testing.md) para comandos e limites.
 ## Fontes `.type`
 
 O suporte nativo a [LógosType](docs/logos-type.md) acrescenta uma dependência de
-linguagem, `coffeescript` de `github:ThinkIac/LogosType#main`. O lockfile npm da raiz
+linguagem, `logostype` de `ThinkIac/LogosType`, com revisão fixada no manifest. O lockfile npm da raiz
 fixa o commit. Fontes JavaScript e seus registros existentes continuam aceitos.
 Para adotar `.type`, use CommonJS e blocos `###` com linhas `# @register ...`;
 HTTP, views e outras capacidades continuam dependendo dos módulos selecionados.

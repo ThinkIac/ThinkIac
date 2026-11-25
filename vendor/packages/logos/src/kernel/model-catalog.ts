@@ -50,12 +50,23 @@ export function modelCatalog(root: string) {
 }
 export type ModelCatalog = ReturnType<typeof modelCatalog>;
 
+/** Resolve field references without involving the persistence provider. */
+export function fieldReference(expression: string, catalog: ModelCatalog, location: string): { type: string; description: string } {
+  const match = expression.trim().match(/^([A-Za-z_]\w*)\.([A-Za-z_]\w*)(\[\]|\?)?$/);
+  if (!match) return { type: expression, description: '' };
+  const field = catalog.models[match[1]]?.fields.find((f: any) => f.name === match[2]);
+  if (!field) throw new TypeError(`${location}: unknown field ${match[1]}.${match[2]}`);
+  return { type: field.type + (field.isList ? '[]' : '') + (field.isOptional ? '?' : '') + (match[3] ?? ''), description: field.description ?? '' };
+}
+
 /** JSDoc type expressions are data, never eval. Model validation returns a DTO,
  * so ORM bookkeeping and lazy relation managers cannot leak into responses. */
 export function expressionValidator(expression: string, catalog: ModelCatalog, location: string) {
   const checked = new Set<string>();
   function check(raw: string): void {
     const type = raw.trim().replace(/^\((.*)\)$/, '$1').trim();
+    const resolved = fieldReference(type, catalog, location).type;
+    if (resolved !== type) return check(resolved);
     if (checked.has(type)) return;
     checked.add(type);
     if (type.endsWith('?') || type.endsWith('[]')) return check(type.slice(0, type.endsWith('?') ? -1 : -2));
@@ -68,6 +79,8 @@ export function expressionValidator(expression: string, catalog: ModelCatalog, l
   function validate(value: any, raw: string, at: string, depth = 0): any {
     if (depth > 100) throw new TypeError(`${at}: cyclic or excessively deep model value`);
     const type = raw.trim().replace(/^\((.*)\)$/, '$1').trim();
+    const resolved = fieldReference(type, catalog, at).type;
+    if (resolved !== type) return validate(value, resolved, at, depth + 1);
     if (type.endsWith('?')) return value == null ? value : validate(value, type.slice(0, -1), at, depth + 1);
     if (type.endsWith('[]')) {
       if (!Array.isArray(value)) throw new TypeError(`${at}: expected ${type}`);

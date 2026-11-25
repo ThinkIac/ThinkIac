@@ -1,4 +1,4 @@
-import { jsdocHandler } from './metadata-contracts';
+import { resolvedParameterDocs, jsdocHandler } from './metadata-contracts';
 import { schemaFiles } from './model-catalog';
 // kernel/scan.ts — file discovery + decorator registration.
 //
@@ -177,8 +177,8 @@ export async function registerGeneric(
   for (const filePath of files) {
     let source: string;
     try { source = fs.readFileSync(filePath, 'utf-8'); } catch { continue; }
-    if (!/@register(?:_|\s)/.test(source)) continue;
-    if (parserName === 'structural-declarations' && !/@register(?:\s+(?:module|type)\b|_module\b)/.test(source)) continue;
+    if (!filePath.endsWith('.type') && !/@register(?:_|\s)/.test(source)) continue;
+    if (!filePath.endsWith('.type') && parserName === 'structural-declarations' && !/@register(?:\s+(?:module|type)\b|_module\b)/.test(source)) continue;
 
     let mod: any;
     let typeDocs: Record<string, string> | undefined;
@@ -188,6 +188,8 @@ export async function registerGeneric(
       try {
         const compiled = filePath.endsWith('.type') ? compileType(source, filePath) : undefined;
         typeDocs = compiled?.docs;
+        if (compiled && !Object.values(compiled.docs).some(doc => parseDeclarations(doc).some(entry =>
+          parserName !== 'structural-declarations' || ['module', 'type'].includes(entry.type)))) continue;
         mod = await loadModule(filePath, isEsmFolder(path.dirname(filePath)), compiled?.js);
       }
     catch (error) {
@@ -207,7 +209,9 @@ export async function registerGeneric(
       const checked = filePath.endsWith('.type') && tags && !['declarations', 'structural-declarations'].includes(parserName)
         ? jsdocHandler(fn, tags, filePath, `${filePath}:${exportName || fn.name}`) : fn;
       if (checked !== fn) Object.defineProperty(checked, 'name', { value: fn.name });
-      const meta = parser(checked, doc);
+      const parserDoc = filePath.endsWith('.type') && !['declarations', 'structural-declarations'].includes(parserName) && tags?.params && doc
+        ? resolvedParameterDocs(doc, filePath) : doc;
+      const meta = parser(checked, parserDoc);
       if (!meta) continue;
       meta._file = filePath;
       meta._exportName = exportName;

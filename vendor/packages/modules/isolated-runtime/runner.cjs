@@ -33,7 +33,8 @@ class IsolatedRunner {
         this.stopping = false;
         const childPath = node_path_1.default.join(__dirname, 'child.js');
         const env = { ...this.options.env, LOGOS_TYPE_LOADER: node_path_1.default.join(node_path_1.default.dirname(require.resolve('logos')), 'kernel/type-source.js'), LOGOS_ISOLATED_PACKAGE: this.options.dir, LOGOS_ISOLATED_FOLDER: this.options.folder };
-        const compilerDir = node_path_1.default.dirname(require.resolve('coffeescript/package.json', { paths: [node_path_1.default.dirname(env.LOGOS_TYPE_LOADER)] }));
+        const compilerDir = node_path_1.default.dirname(require.resolve('logostype/package.json', { paths: [node_path_1.default.dirname(env.LOGOS_TYPE_LOADER)] }));
+        env.LOGOS_TYPE_COMPILER = require.resolve('logostype', { paths: [node_path_1.default.dirname(env.LOGOS_TYPE_LOADER)] });
         // Permission mode denies filesystem writes, child processes and workers by
         // default. Reads cover the package, bootstrap and language implementation;
         // Module._load still denies package imports outside its own root.

@@ -23,7 +23,10 @@ const JSON_SCHEMA_TYPES = new Set(['string', 'number', 'integer', 'boolean', 'ob
 // fonte é viva, então viaja como metadado `x-enumSource` e quem resolve é o
 // consumidor (o Lógos declara, o app resolve).
 function toJsonSchemaProperty(param) {
-    const { type: rawType, description } = param;
+    const aliases = { Int: 'integer', Float: 'number', String: 'string', Boolean: 'boolean', DateTime: 'string', Json: 'object' };
+    const raw = param.type;
+    const rawType = raw.endsWith('[]') ? (aliases[raw.slice(0, -2)] || raw.slice(0, -2)) + '[]' : aliases[raw] || raw;
+    const { description } = param;
     const extra = {};
     if (param.enum && param.enum.length)
         extra.enum = param.enum;

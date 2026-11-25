@@ -17,7 +17,7 @@ export async function collectStructuralDeclaration(container: Container, entry: 
   while (!fs.existsSync(path.join(directory, 'package.json')) && path.dirname(directory) !== directory) directory = path.dirname(directory);
   const legacyConsumer = !entry.file.endsWith('.type') && declaration.type === 'type' && declaration.tags.provider?.[0] !== 'descriptor';
   const kind = legacyConsumer ? 'legacy-type' : 'provider';
-  const key = `${directory}:${handler.name}:${declaration.type}:${declaration.name}`;
+  const key = `${fs.realpathSync(entry.file)}:${handler.name}:${declaration.type}:${declaration.name}`;
   const collected = container.state('runtime:structural-declarations');
   if (collected.has(key)) return;
   if (container.modulesSealed) throw new Error(`[logos] module catalog is sealed; structural declaration ${declaration.type} ${declaration.name} requires a new boot (${entry.file})`);
@@ -52,11 +52,36 @@ export async function collectStructuralDeclaration(container: Container, entry: 
       }, identity);
       return;
     }
-    const definition = await handler(context);
+    const resourceProvider = tags.provider?.[0] === 'resource';
+    const definition = resourceProvider ? {
+      resources: { [name]: { async prepare(resources: readonly any[]) {
+        const participants: any[] = [];
+        const reverse = async (method: string) => {
+          const errors = [];
+          for (const p of [...participants].reverse()) try { await p[method](); } catch (error) { errors.push(error); }
+          if (errors.length) throw new AggregateError(errors, `Provider ${name}: ${method} failed`);
+        };
+        try {
+          for (const resource of resources) {
+            const participant = await handler(resource);
+            if (!participant || ['prepare', 'commit', 'rollback', 'dispose'].some(method => typeof participant[method] !== 'function')) {
+              throw new TypeError(`Provider ${name} must return prepare/commit/rollback/dispose (${entry.file})`);
+            }
+            participants.push(participant);
+            await participant.prepare();
+          }
+        } catch (error) {
+          try { await reverse('rollback'); } catch (cleanup) { throw new AggregateError([error, cleanup], `Provider ${name} preparation failed`); }
+          throw error;
+        }
+        return { async commit() { for (const p of participants) await p.commit(); }, rollback: () => reverse('rollback'), dispose: () => reverse('dispose') };
+      } } }, install() {},
+    } : await handler(context);
     if (!definition || typeof definition !== 'object') throw new Error(`[logos] @register module ${name} must return a module descriptor (${entry.file})`);
     if (definition.name && definition.name !== name) throw new Error(`[logos] module name differs from declaration: ${name} (${entry.file})`);
     if (container.modules.has(name)) throw new Error(`[logos] duplicate module "${name}" (${identity}, ${entry.file})`);
     for (const type of tags.accepts?.flatMap((value: string) => value.split(/\s+/)) ?? []) container.state('runtime:accepted-types').set(type, name);
+    if (resourceProvider && !tags.tag?.length) throw new TypeError(`Provider ${name} requires @tag metadata contracts (${entry.file})`);
     const metadataContract = installMetadataContract(container, entry, definition);
     installResourceContracts(container, definition, !metadataContract && (entry.file.endsWith('.type') || tags.provider?.[0] === 'descriptor'), identity);
     const close = definition.close;

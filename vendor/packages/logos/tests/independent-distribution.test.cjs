@@ -15,9 +15,10 @@ try {
   fs.mkdirSync(installed, { recursive: true });
   execFileSync('tar', ['-xzf', path.join(temporary, packed[0].filename), '--strip-components=1', '-C', installed]);
   const metadata = JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8'));
-  assert.deepEqual(metadata.dependencies, { coffeescript: 'github:ThinkIac/LogosType#main' });
+  assert.deepEqual(Object.keys(metadata.dependencies), ['logostype']);
+  assert.match(metadata.dependencies.logostype, /^github:ThinkIac\/LogosType#[a-f0-9]{40}$/);
   // Copy the already installed compiler; the packed smoke test remains offline.
-  fs.cpSync(path.dirname(require.resolve('coffeescript/package.json')), path.join(project, 'node_modules', 'coffeescript'), { recursive: true });
+  fs.cpSync(path.dirname(require.resolve('logostype/package.json')), path.join(project, 'node_modules', 'logostype'), { recursive: true });
   assert.deepEqual(metadata.optionalDependencies || {}, {});
   const source = `
     const assert = require('node:assert/strict');

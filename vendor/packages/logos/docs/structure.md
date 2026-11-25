@@ -187,5 +187,5 @@ o mínimo do launcher não garante o mínimo de todos os módulos.
 
 `src/kernel/type-source.ts` compila CoffeeScript 2 em memória e carrega `.type`
 como CommonJS. `scan.ts` associa comentários às funções exportadas e usa o
-catálogo existente. O compilador vem de `ThinkIac/LogosType#main`; as capacidades
+catálogo existente. O compilador vem de `ThinkIac/LogosType` (revisão fixada no manifest e lockfile); as capacidades
 continuam externas. Veja [LógosType](logos-type.md) para fluxo e exemplos.

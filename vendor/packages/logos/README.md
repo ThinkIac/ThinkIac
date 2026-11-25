@@ -12,9 +12,10 @@ isso não significa que todos os consumidores já usem snapshots transacionais.
 
 ## LógosType nativo
 
-Arquivos `.type` usam CoffeeScript convencional e comentários `###` com linhas
-`# @register ...` (o `#` é opcional). Modelos `.scriba`/`.schema`, contratos
-JSDoc de metadados e acesso local `Cliente[id]` estão descritos no guia. Veja [instalação, fluxo e exemplos](docs/logos-type.md).
+Arquivos `.type` aceitam `module`/`type` como aliases, assinaturas tipadas,
+diretivas no início do corpo e exports automáticos. Blocos `###` com `@register`
+continuam aceitos. Modelos `.scriba`/`.schema` fornecem tipos e descrições de campos,
+como `ID: User.ID`; o módulo de persistência fornece `User[ID]`. Veja [instalação, fluxo e exemplos](docs/logos-type.md).
 
 ## Começar sem capacidades
 

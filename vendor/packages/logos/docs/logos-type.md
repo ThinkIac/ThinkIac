@@ -1,38 +1,133 @@
 # LógosType: arquivos `.type`
 
-A primeira versão de LógosType usa **CoffeeScript 2 convencional**, sem gramática
-adicional. O compilador vem de [ThinkIac/LogosType](https://github.com/ThinkIac/LogosType),
-um fork do CoffeeScript. O Lógos descobre, compila em memória e carrega `.type`
-nativamente, junto de `.js`, `.cjs` e `.mjs` no mesmo pacote. Não há build manual
-nem arquivos JavaScript gerados no workspace.
+O compilador [ThinkIac/LogosType](https://github.com/ThinkIac/LogosType/pull/1)
+acrescenta declarações tipadas ao CoffeeScript 2. O Lógos compila em memória,
+carrega CommonJS e mantém o catálogo, a autoridade e a publicação nos módulos.
 
-## Instalação pelo GitHub
+## Instalação
 
-A instalação direta foi validada:
+O pacote chama-se `logostype`. Este PR fixa o commit
+`bb2917b74568dd6f866c40bafe51df0dfd7631fa`, pois a implementação da linguagem
+está no PR do LogosType e ainda não está na `main` daquele repositório.
 
 ```bash
-npm install ThinkIac/LogosType#main
+npm install ThinkIac/LogosType#bb2917b74568dd6f866c40bafe51df0dfd7631fa
 ```
 
-O nome atual do pacote nesse repositório é `coffeescript`. Portanto, a dependência
-no manifest do Lógos é:
+Após o merge da linguagem, `npm install ThinkIac/LogosType#main` instala a versão
+nova. O lockfile do ThinkIac fixa a revisão para `npm ci`. Não é necessário
+instalar o compilador em cada pacote do workspace. HTTP, views e banco continuam
+externos ao launcher.
 
-```json
-{
-  "dependencies": {
-    "coffeescript": "github:ThinkIac/LogosType#main"
+## Tudo começa por um módulo
+
+`module` e `type` são aliases completos. Ambos declaram o provedor de um recurso.
+O provedor define o contrato dos metadados com `@tag` e recebe cada recurso normalizado.
+
+```coffee
+module task = (resource) ->
+  @description "Executa tarefas periodicamente"
+  @tag {number} interval
+
+  timer = null
+  {
+    prepare: ->
+      throw new Error "Intervalo inválido" unless resource.metadata.interval > 0
+    commit: -> timer = setInterval resource.handler, resource.metadata.interval
+    rollback: -> clearInterval timer if timer?
+    dispose: -> clearInterval timer if timer?
   }
+
+task cacheClean = (): void ->
+  @interval 60000
+  cache.clear()
+```
+
+O host precisa fornecer `cache`, ou o pacote deve importá-lo. O exemplo mostra a
+semântica do agendamento, sem criar uma API global de cache.
+
+O Lógos prepara todos os participantes antes de publicar, reverte em ordem inversa
+se algo falhar e descarta a geração anterior após a nova publicação. O provedor
+precisa implementar compensação de seus próprios efeitos e evitar que o descarte
+da geração antiga remova a nova. `prepare` não deve publicar efeitos visíveis.
+
+## Assinaturas e documentação de schema
+
+```prisma
+model User {
+  # Identificador do Usuário
+  ID Int @id
+  name String # Nome do Usuário
 }
 ```
 
-Não é necessário instalar novamente no pacote consumidor: o Lógos distribui essa
-dependência de linguagem. Ela não instala provedores de HTTP, views ou banco.
-O compilador é carregado somente ao processar `.type`. `#main` acompanha a branch;
-o `package-lock.json` da raiz fixa o commit resolvido para instalações com `npm ci`.
-Para atualizar o compilador, atualize também esse lockfile e execute os testes.
-A instalação Git requer acesso ao GitHub.
+```coffee
+module tool = (resource) ->
+  @tag {ParamDeclaration[]} [params]
+  @tag {TypeExpression} returns
+  @tag {string} [description]
+  # Retorne prepare/commit/rollback/dispose para publicar resource.handler.
+  prepararFerramenta resource
 
-## Comentários e exports
+tool getUser = (ID: User.ID): User? ->
+  @description "Busca um usuário"
+  User[ID]
+
+tool updateName = (ID: User.ID, newName: User.name): User ->
+  @param newName - Nome escolhido nesta operação
+  user = User[ID]
+  throw new Error "Usuário não encontrado" unless user?
+  user.name = newName
+  user
+```
+
+`prepararFerramenta` é uma função fornecida pelo pacote do provedor. O compilador
+não publica ferramentas por conta própria. No host Lógos, `User.ID` resolve para
+`Int` e herda a descrição do campo. `@param nome - descrição` substitui a descrição
+apenas naquela operação. `.schema` e `.scriba` usam o mesmo formato; `.prisma`
+continua aceito pelo host por compatibilidade. Não é necessário declarar `type`
+no schema. O suporte é ao formato Scriba, sem prometer toda a gramática Prisma.
+
+Usar modelos como tipos não abre banco. `User[ID]` depende do módulo de persistência
+e mantém a autorização e o escopo do pacote. O compilador sozinho não fornece ORM.
+
+## API do compilador
+
+```js
+const { compileResource } = require('logostype');
+const result = compileResource(source, { filename: '/packages/demo/index.type' });
+// result.js: CommonJS com exports automáticos e source map inline
+// result.docs: metadados normalizados por nome do handler
+// result.declarations: kind, name, params, returns e linha original
+```
+
+Fluxo: fonte `.type` → assinatura e diretivas → CoffeeScript → JavaScript + declarações
+→ host descobre provedores → valida contratos e tipos → prepara → publica.
+
+A API `compile()` e as ferramentas `coffee`/`cake` continuam compilando CoffeeScript
+convencional. Use `compileResource()` para a sintaxe LógosType. Os compiladores de
+browser existentes continuam sendo os do CoffeeScript.
+
+## Regras da primeira versão
+
+- Declarações no topo do arquivo, com assinatura em uma única linha.
+- Todo parâmetro de consumidor tem tipo; todo consumidor declara retorno.
+- O argumento `resource` do provedor é o envelope do protocolo, sem anotação obrigatória.
+- Provedores declaram contratos via `@tag`; o Lógos exige pelo menos uma tag.
+- Diretivas são estáticas, contíguas no início do corpo, e não executam por chamada.
+- Nessa posição, `@nome valor` é reservado aos metadados. Para acessar `this`, use `this.nome`.
+- Nomes como `tool`, `router`, `task` não são capacidades embutidas. O host exige seus provedores.
+- Assinaturas geram `@params` e `@returns`. Não repita essas diretivas no corpo.
+- Metadados simples usam literais; `@tag {Tipo} nome` define o contrato do provedor.
+- Funções registradas são exportadas automaticamente; auxiliares continuam locais.
+- Blocos `###` com `@register` ou `# @register` e exports explícitos continuam aceitos.
+- `void` descarta o retorno implícito do CoffeeScript, inclusive quando for Promise.
+- Este PR não implementa `on`, `before`, `after` nem notificações automáticas de chamadas.
+
+
+## Formato anterior e compatibilidade
+
+### Comentários e exports
 
 O bloco `###` fica imediatamente acima da função, na primeira coluna.
 `@register` e `# @register` são equivalentes, assim como os outros metadados.
@@ -55,7 +150,7 @@ aceito. Comentários internos à função não registram declarações nesta ver
 Textos contendo `###` não são confundidos com comentários pelo lexer.
 A extensão não instala provedores automaticamente.
 
-Em `.type`, `@register module tarefa` e `@register type tarefa` são aliases completos:
+No formato anterior com blocos `.type`, `@register module tarefa` e `@register type tarefa` são aliases completos:
 ambos recebem o contexto, retornam um descritor, oferecem consumidores em `resources`
 e participam dos mesmos ciclos de dependências, instalação e encerramento.
 Declarar os dois com o mesmo nome é conflito, mesmo no mesmo arquivo.

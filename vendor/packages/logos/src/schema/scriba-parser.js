@@ -65,8 +65,30 @@ function loadPrismaModels(path) {
 
 function parseScribaSchema(text) {
 
-  // remove comments
-  const noComments = text.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  const documentation = new Map();
+  let model = null, pending = [], block = false;
+  const noComments = text.split(/\r?\n/).map(line => {
+    let code = '', comment = '', quote = null;
+    for (let i = 0; i < line.length; i++) {
+      if (block) { if (line.slice(i, i + 2) === '*/') { block = false; i++; } continue; }
+      const c = line[i];
+      if (quote) { code += c; if (c === '\\') code += line[++i] ?? ''; else if (c === quote) quote = null; continue; }
+      if (c === '"' || c === "'") { quote = c; code += c; continue; }
+      if (line.slice(i, i + 2) === '/*') { block = true; i++; continue; }
+      if (c === '#' || line.slice(i, i + 2) === '//') { comment = line.slice(i + (c === '#' ? 1 : 2)).replace(/^\/+/, '').trim(); break; }
+      code += c;
+    }
+    const opening = code.match(/\bmodel\s+(\w+)\s*\{/);
+    if (opening) { model = opening[1]; pending = []; }
+    else if (model) {
+      const field = code.trim().match(/^(\w+)\s+[A-Za-z_]\w*/);
+      if (field) { documentation.set(model + '.' + field[1], [...pending, comment].filter(Boolean).join('\n')); pending = []; }
+      else if (comment) pending.push(comment);
+      else if (code.trim() || !line.trim()) pending = [];
+    }
+    if (code.includes('}')) { model = null; pending = []; }
+    return code;
+  }).join('\n');
 
   // parse enums first
   const enums = Object.create(null);
@@ -131,6 +153,7 @@ function parseScribaSchema(text) {
         isUnique,
         default: defaultRaw ? defaultRaw : null,
         rawAttributes: attrs,
+        ...(documentation.get(modelName + '.' + name) ? { description: documentation.get(modelName + '.' + name) } : {}),
         relation: relAttr ? relAttr : null
       });
     }

@@ -1,5 +1,5 @@
 import type { Container } from './container';
-import { expressionValidator, modelCatalog, packageRoot } from './model-catalog';
+import { expressionValidator, fieldReference, modelCatalog, packageRoot } from './model-catalog';
 
 export function paramDeclaration(text: string, location: string) {
   const match = text.match(/^\{([^}]+)\}\s+(\[[^\]]+\]|[\w$]+)(?:\s+-?\s*(.*))?$/);
@@ -34,9 +34,17 @@ export function installMetadataContract(container: Container, entry: any, defini
 
 export function metadataResource(container: Container, resource: any) {
   const contract = container.state('runtime:metadata-contracts').get(resource.declaration.type);
+  const local = modelCatalog(packageRoot(resource.file));
+  const signatureParams = [...(resource.declaration.tags.params ?? resource.declaration.tags.param ?? [])]
+    .filter((text: string) => text !== '[]').map((text: string) => {
+      const param = paramDeclaration(text, resource.file);
+      const field = fieldReference(param.type, local, resource.file);
+      return { ...param, type: field.type, description: param.description || field.description };
+    });
+  const signatureReturns = resource.declaration.tags.returns?.[0]?.match(/^\{([^}]+)\}$/)?.[1];
+  resource = { ...resource, params: signatureParams, returns: signatureReturns };
   if (!contract) return resource;
   const location = `${resource.package}:${resource.declaration.type}:${resource.declaration.name}`;
-  const local = modelCatalog(packageRoot(resource.file));
   const tags = resource.declaration.tags;
   const metadata: Record<string, any> = {};
   for (const spec of contract.specs) {
@@ -50,7 +58,8 @@ export function metadataResource(container: Container, resource: any) {
       metadata[spec.name] = values.length === 1 && values[0] === '[]' ? [] : values.map((text: string) => {
         const param = paramDeclaration(text, `${location}:@${spec.name}`);
         expressionValidator(param.type, local, `${location}:${param.name}`);
-        return param;
+        const field = fieldReference(param.type, local, location);
+        return { ...param, type: field.type, description: param.description || field.description };
       });
     } else if (spec.type === 'TypeExpression') {
       if (values.length !== 1 || !/^\{[^}]+\}$/.test(values[0])) throw new TypeError(`${location}: @${spec.name} requires one {Type}`);
@@ -62,7 +71,7 @@ export function metadataResource(container: Container, resource: any) {
       metadata[spec.name] = expressionValidator(spec.type, contract.catalog, `${location}:@${spec.name}`)(scalar(values[0]));
     }
   }
-  return { ...resource, metadata };
+  return { ...resource, metadata, params: metadata.params ?? signatureParams, returns: metadata.returns ?? signatureReturns };
 }
 
 /** A declaration owns its handler signature. This also works without persistence. */
@@ -93,4 +102,18 @@ export function jsdocHandler(handler: Function, tags: Record<string, string[]>, 
     if (!output) return result;
     return result && typeof result.then === 'function' ? Promise.resolve(result).then(value => output(value)) : output(result);
   };
+}
+
+
+/** Compatibility consumers receive resolved JSDoc without changing generic declarations. */
+export function resolvedParameterDocs(doc: string, file: string) {
+  const catalog = modelCatalog(packageRoot(file));
+  return doc.split('\n').flatMap(line => {
+    if (!line.startsWith('@params ')) return [line];
+    if (line === '@params []') return [];
+    const param = paramDeclaration(line.slice(8), file);
+    const field = fieldReference(param.type, catalog, file);
+    const type = field.type + (param.optional && !field.type.endsWith('?') ? '?' : '');
+    return [`@param {${type}} ${param.name} - ${(param.description || field.description).replace(/\n/g, ' ')}`];
+  }).join('\n');
 }

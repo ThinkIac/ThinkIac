@@ -93,7 +93,8 @@ function tag(doc, name) { const match = doc.match(new RegExp(`@${name}\\s+([^\\s
 function params(doc) {
   const properties = {}; const required = [];
   for (const match of doc.matchAll(/@param\s+\{([^}]+)\}\s+([\w.]+)\s*(?:-\s*([^\n*]+))?/g)) {
-    const optional = match[1].endsWith('?'); const type = match[1].replace('?', '').replace('[]', '');
+    const optional = match[1].endsWith('?'); const raw = match[1].replace('?', '').replace('[]', '');
+    const type = ({Int:'integer',Float:'number',String:'string',Boolean:'boolean',DateTime:'string',Json:'object'})[raw] || raw;
     properties[match[2]] = { type: ['string','number','integer','boolean','object','array'].includes(type) ? type : 'string', description: match[3]?.trim() || null };
     if (!optional) required.push(match[2]);
   }
@@ -101,8 +102,8 @@ function params(doc) {
 }
 function descriptor(kind, id, fn, doc) {
   let value = tag(doc, kind === 'tool' ? 'register_tool' : kind === 'route' ? 'register_router' : 'register_hook');
-  if (!value && kind !== 'tool') {
-    const type = kind === 'route' ? 'router' : 'hook';
+  if (!value) {
+    const type = kind === 'route' ? 'router' : kind === 'tool' ? 'tool' : 'hook';
     const lines = doc.split('\n').map(line => line.trim().replace(/^\/\*\*?\s*/, '').replace(/^\*\s?/, '').replace(/\s*\*\/$/, ''));
     const declaration = lines.map(line => line.match(new RegExp(`^@register[ \\t]+${type}(?:[ \\t]+([^\\s@]+))?(?:[ \\t]|$)`))).find(Boolean);
     if (declaration) {
@@ -161,7 +162,7 @@ async function discover() {
         result.declarations.push({ id: handlerId, file, declaration: { ...declaration, name: declaration.name ?? tags.name?.[0] ?? (compiled ? exportName : null), tags } });
       }
       for (const [kind, key] of [['tool','tools'], ['route','routes'], ['hook','hooks']]) {
-        const handlerId = `${kind}:${++id}`; const item = descriptor(kind, handlerId, fn, doc);
+        const handlerId = `${kind}:${++id}`; const item = descriptor(kind, handlerId, fn, compiled ? typeLoader.resolvedParameterDocs(doc, file) : doc);
         if (item) { functions.set(handlerId, fn); result[key].push(item); }
       }
     }

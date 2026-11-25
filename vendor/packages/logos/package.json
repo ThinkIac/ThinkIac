@@ -65,7 +65,7 @@
     "@tailwindcss/postcss": "^4.3.3"
   },
   "dependencies": {
-    "coffeescript": "github:ThinkIac/LogosType#main"
+    "logostype": "github:ThinkIac/LogosType#bb2917b74568dd6f866c40bafe51df0dfd7631fa"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -343,3 +343,31 @@ Recursos consumidores declaram `@returns` em JSON e recebem validação de argum
 e resultados, incluindo Promises e chamadas isoladas. `@register` gera export
 automático; o `#` nos blocos `###` é opcional. Veja os exemplos e a fronteira de
 compatibilidade com JavaScript em [logos-type.md](logos-type.md).
+
+
+## Provedores por sintaxe LógosType
+
+`module nome = (resource) ->` e `type nome = (resource) ->` são equivalentes.
+Cada provedor declara suas propriedades com diretivas `@tag` no início do corpo.
+O compilador marca esse contrato como `provider resource`; o adaptador do Lógos
+transforma os participantes individuais em gerações do protocolo transacional.
+
+Cada participante oferece `prepare`, `commit`, `rollback` e `dispose`.
+Todos os prepares terminam antes do commit. Falhas revertem os participantes
+preparados em ordem inversa, incluindo aquele cujo prepare falhou. Remoção e
+encerramento descartam os participantes publicados. Um factory que falha antes
+de retornar seu participante deve limpar as próprias aquisições.
+
+O recurso recebe `declaration`, `handler` mediado, `metadata`, `params` e `returns`.
+Parâmetros referenciando `User.ID` herdam o tipo e a descrição do campo no schema
+do consumidor; `@param nome - descrição` prevalece localmente. Assinaturas e
+retornos são validados no mesmo caminho de execução usado pelo JSDoc.
+
+A forma anterior, em que o handler recebe contexto e retorna descritor com
+`resources`, permanece disponível pelos blocos `###`. As duas formas disputam
+a mesma identidade de provedor. Alterar um provedor exige novo boot.
+
+Veja [guia e exemplos completos](logos-type.md). A linguagem não conhece uma
+lista fixa de recursos: `router`, `tool`, `task` ou qualquer outro prefixo dependem
+de seus provedores. O adaptador HTTP existente ainda recebe req/res; ele não
+converte automaticamente parâmetros posicionais de assinatura em parâmetros HTTP.
