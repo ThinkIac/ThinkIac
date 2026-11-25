@@ -1,3 +1,4 @@
+import { installMetadataContract } from './metadata-contracts';
 import fs from 'node:fs';
 import { installResourceContracts } from './resource-types';
 import path from 'node:path';
@@ -56,7 +57,8 @@ export async function collectStructuralDeclaration(container: Container, entry: 
     if (definition.name && definition.name !== name) throw new Error(`[logos] module name differs from declaration: ${name} (${entry.file})`);
     if (container.modules.has(name)) throw new Error(`[logos] duplicate module "${name}" (${identity}, ${entry.file})`);
     for (const type of tags.accepts?.flatMap((value: string) => value.split(/\s+/)) ?? []) container.state('runtime:accepted-types').set(type, name);
-    installResourceContracts(container, definition, entry.file.endsWith('.type') || tags.provider?.[0] === 'descriptor', identity);
+    const metadataContract = installMetadataContract(container, entry, definition);
+    installResourceContracts(container, definition, !metadataContract && (entry.file.endsWith('.type') || tags.provider?.[0] === 'descriptor'), identity);
     const close = definition.close;
     const descriptor = { ...definition, name, phase: definition.phase ?? tags.phase?.[0] ?? 'wire',
       requires: definition.requires ?? tags.requires ?? [], after: definition.after ?? tags.after ?? [],

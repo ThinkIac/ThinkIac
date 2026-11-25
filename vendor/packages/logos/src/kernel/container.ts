@@ -1,3 +1,4 @@
+import { registerModelRuntime } from './model-bindings';
 // kernel/container.ts — the Lógos container.
 //
 // One container = one runtime. All state that was module-level in v1
@@ -151,6 +152,7 @@ export class Container {
       10_000,
       packageName => this.config?.authority?.grants?.[packageName] ?? null,
     );
+    registerModelRuntime(this);
     this.bus = new EventBus(msg => this.log(msg), this.authority, this.eventContracts, this.eventGovernance);
   }
 

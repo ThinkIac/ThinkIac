@@ -26,13 +26,15 @@ export async function collectPackageDeclarations(container: Container, pkg: any)
   return entries.filter(entry => !['module', 'type'].includes(entry.declaration.type)).map(entry => ({
     declaration: entry.declaration, file: entry.file, package: pkg.folder,
     handler: (...args: any[]) => runAsPackage(container.authority, pkg.folder, () => entry.handler(...args)),
-  })).map(resource => typedResource(container, resource));
+  })).map(resource => {
+    const typed = typedResource(container, resource);
+    return { ...typed, handler: (...args: any[]) => runAsPackage(container.authority, pkg.folder, () => typed.handler(...args)) };
+  });
 }
 
 export async function preparePackageResources(container: Container, pkg: any) {
-  const transactional = [...container.modules.values()].some(mod =>
-    Object.values(mod.resources || {}).some(consumer => typeof consumer !== 'function'));
-  return container.resourceTransactions.prepare(pkg.folder, transactional ? await collectPackageDeclarations(container, pkg) : []);
+  // Validate every candidate, even when all consumers are nontransactional.
+  return container.resourceTransactions.prepare(pkg.folder, await collectPackageDeclarations(container, pkg));
 }
 
 export async function emitPackageDeclarations(container: Container, pkg: any): Promise<void> {

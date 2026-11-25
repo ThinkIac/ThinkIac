@@ -60,10 +60,11 @@ ambos recebem o contexto, retornam um descritor, oferecem consumidores em `resou
 e participam dos mesmos ciclos de dependências, instalação e encerramento.
 Declarar os dois com o mesmo nome é conflito, mesmo no mesmo arquivo.
 
-### Tipagem obrigatória
+### Contratos de função anteriores (compatibilidade)
 
-Todo consumidor declarado em `resources` por um provedor `.type` exige uma entrada
-em `contracts`, com `input` e `output`. `input` é uma tupla de argumentos posicionais;
+No formato anterior, consumidores de provedores `.type` declaram uma entrada
+em `contracts`, com `input` e `output`. Novos provedores podem usar `@tag`,
+conforme a seção de contratos JSDoc abaixo. `input` é uma tupla de argumentos posicionais;
 `[]` significa nenhum argumento. Cada recurso que usa um contrato deve declarar
 exatamente um `@returns`, em JSON, igual ao tipo de saída do provedor.
 O contrato é validado antes da publicação. A chamada valida argumentos antes de
@@ -251,3 +252,162 @@ em pastas profundas, coexistência com JavaScript, dependências locais, source 
 recarga, erro de compilação, candidatos e execução isolada com bloqueio de escapes.
 O teste de distribuição usa o artefato empacotado em projeto temporário sem módulos
 adjacentes; copia o compilador instalado para manter essa verificação offline.
+
+## Contratos JSDoc de metadados e modelos Scriba
+
+O provedor pode definir o formato das declarações que aceita usando `@tag`.
+Isso atende à tipagem dos **metadados do recurso**, além da assinatura da função.
+`module` e `type` continuam aliases. O formato anterior `contracts.input/output`
+continua aceito. Para novos provedores `.type`, declare `@tag` ou os contratos
+anteriores; somente retornar `resources` sem um contrato continua sendo erro.
+
+Exemplo completo de um provedor de consultas que mantém um catálogo local:
+
+```coffee
+###
+@register type consulta
+@tag {("GET"|"POST")} method
+@tag {string} path
+@tag {boolean} [public=false]
+@tag {ParamDeclaration[]} params
+@tag {TypeExpression} returns
+###
+consulta = (context) ->
+  resources:
+    consulta: (resource) ->
+      context.state.set resource.declaration.name, resource
+  close: -> context.state.clear()
+```
+
+As tags desse bloco descrevem os consumidores de `consulta`. `method`, `path`,
+`params` e `returns` são obrigatórias. `public` é opcional e recebe `false`.
+O provedor recebe os valores validados em `resource.metadata`; os textos
+originais permanecem em `resource.declaration.tags`. Os nomes das tags pertencem
+ao provedor, sem catálogo de tags HTTP no kernel. O contrato se aplica aos tipos
+presentes em `resources` desse descritor. Conflitos de contrato impedem o boot.
+Os adaptadores JavaScript existentes mantêm suas convenções e podem adotar `@tag`
+incrementalmente; esta mudança não redefine suas rotas ou argumentos de transporte.
+
+`ParamDeclaration[]` aceita tags repetidas `@params`, ou o alias JSDoc `@param`:
+`{Tipo} nome descrição`, `{Tipo} [nome]` e `{Tipo} [nome=valor]`. Use uma grafia
+por declaração. Para nenhum parâmetro, escreva `@params []`.
+`TypeExpression` exige uma expressão entre chaves, como `@returns {Cliente[]}`.
+A resolução dos tipos de parâmetros e retorno usa os schemas do **consumidor**.
+Tipos usados nas outras tags são resolvidos nos schemas do **provedor**.
+O kernel valida tipos e os módulos interpretam o significado de cada tag.
+
+### De onde vem `Cliente`
+
+Schemas `.scriba` e `.schema` são aliases com o mesmo formato do Scriba.
+`.prisma` permanece aceito por compatibilidade. O parser próprio do Scriba foi
+extraído para `logos/dist/src/schema/scriba-parser.js`; Scriba e LógosType usam
+esse mesmo código. Não é o parser oficial nem uma implementação completa de Prisma.
+Scriba declara sua dependência desse núcleo de linguagem. A dependência inversa
+não existe: importar Lógos ou validar modelos não carrega Scriba, SQLite ou HTTP.
+
+```text
+packages/
+├── infra/consultas/package.json
+├── infra/consultas/index.type
+└── abc/b/clientes/
+    ├── package.json
+    ├── clientes.schema
+    └── buscar.type
+```
+
+`clientes.schema` (o mesmo conteúdo pode usar `.scriba`):
+
+```prisma
+model Cliente {
+  codigo Int     @id @default(autoincrement())
+  nome   String
+  email  String?
+}
+```
+
+`buscar.type`:
+
+```coffee
+###
+@register consulta buscarCliente
+@method GET
+@path /clientes/:codigo
+@param {Int} codigo Código do cliente.
+@returns {Cliente?}
+###
+buscarCliente = (codigo) ->
+  return Cliente[codigo]
+```
+
+O catálogo do provedor guarda `resource.handler`; chamá-lo com `7` consulta a
+entidade `Cliente` no banco do pacote `abc/b/clientes`. O provedor `db` existente
+precisa estar selecionado pelo host. Este exemplo oferece um recurso `consulta`;
+a integração HTTP deve adaptar os parâmetros da requisição ao chamar seu handler.
+Não transforma automaticamente `req.params` em argumentos posicionais.
+
+O acesso indexado usa o campo marcado com `@id`, inclusive quando seu nome é
+`codigo`. Sem registro correspondente, retorna `undefined`; `Cliente?` aceita
+`undefined` e `null`. `Cliente[]` valida cada elemento da lista.
+
+### Fluxo e autoridade
+
+```mermaid
+flowchart TD
+  A[Descobrir schemas do pacote] --> B[Parser compartilhado do Scriba]
+  B --> C[Catálogo local de modelos e enums]
+  C --> D[Validar tags, parâmetros e retorno declarado]
+  D --> E[Publicar handler mediado]
+  E --> F[Executar Cliente por chave]
+  F --> G[Verificar autoridade e resolver provedor db]
+  G --> H[Scriba consulta a entidade do pacote]
+  H --> I[Validar retorno e produzir objeto com campos do modelo]
+```
+
+Os nomes dos modelos são parâmetros de um escopo local do carregador, sem
+`globalThis` e sem substituir identificadores por busca textual. Variáveis locais
+e parâmetros da função conservam precedência. Os nomes CommonJS `module`,
+`exports`, `require`, `__filename`, `__dirname`, `arguments` e `eval` são reservados
+para essa injeção. Cada pacote possui seu catálogo, respeitando a fronteira de
+manifests aninhados; modelos não são exportados implicitamente entre pacotes.
+
+A autorização é consultada a cada operação no modelo, nos métodos capturados
+e nos registros retornados. Referências capturadas fora de um contexto mediado
+não recebem autoridade implícita. Validação e conversão do resultado acontecem
+dentro da autoridade do pacote. O retorno de um modelo é um objeto com seus
+campos declarados, sem estruturas internas do ORM. Os modos de autoridade legados
+continuam seguindo sua política existente; pacotes `strict` aplicam seus grants.
+
+Em execução isolada, `return Cliente[codigo]` faz uma requisição assíncrona via IPC
+para o provedor `db` e devolve o resultado da Promise. Para usar campos antes de
+retornar, escreva `cliente = await Cliente[codigo]`. A requisição é limitada ao
+banco do próprio pacote e transporta dados, sem proxies ou conexão SQLite no filho.
+Esta primeira integração transparente isolada cobre consulta por índice; métodos
+de banco continuam disponíveis pela capacidade explícita já existente.
+
+### Validação, recarga e limites
+
+- Só `@returns {Cliente}` não abre banco. `Cliente[codigo]` sem `db` produz
+  `MODEL_PERSISTENCE_PROVIDER_MISSING` durante o acesso.
+- Modelos, enums, campos opcionais e listas usam a estrutura do parser Scriba.
+  `Int` exige inteiro seguro; `Float`/`number` exige número finito. `String`,
+  `Boolean`, `DateTime`, `Json`, `void`, `null`, uniões e literais também são aceitos.
+  `DateTime` é normalizado para ISO; campos opcionais aceitam ausência ou `null`.
+- Tipos desconhecidos, tags obrigatórias ausentes, enums inválidos e valores
+  padrão inválidos são rejeitados antes de entregar o recurso ao consumidor.
+  Argumentos e retornos, incluindo Promises, são validados ao chamar o handler.
+- As posições declaradas por `@param` são validadas; argumentos adicionais de
+  transporte continuam disponíveis ao adaptador. A linguagem não infere uma
+  assinatura HTTP a partir dos nomes dos parâmetros.
+- Alterações em `.scriba`, `.schema` e `.prisma` invalidam o scanner e entram no hash
+  dos candidatos. O estabilizador trata `.schema` como alteração de schema.
+  Candidatos são validados mesmo com consumidores não transacionais. Uma falha de
+  contrato preserva os handlers ativos; efeitos arbitrários de consumidores simples
+  continuam sem rollback automático. Alterar contratos de provedores requer novo boot.
+- Relações seguem o parser e o ORM existentes. Valores retornados devem materializar
+  os campos exigidos pelo modelo; não há inferência de projeções, importação de tipos
+  entre pacotes, chaves compostas no acesso indexado ou compatibilidade total com Prisma.
+  A correção da chave primária cobre operações comuns da tabela; não redefine a
+  implementação existente de relações do Scriba.
+- Isso é validação em execução com diagnóstico na descoberta, sem checker estático
+  completo de CoffeeScript. Chamadas diretas a funções fora do catálogo não recebem
+  automaticamente a mediação do runtime.

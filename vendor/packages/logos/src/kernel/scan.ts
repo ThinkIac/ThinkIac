@@ -1,3 +1,5 @@
+import { jsdocHandler } from './metadata-contracts';
+import { schemaFiles } from './model-catalog';
 // kernel/scan.ts — file discovery + decorator registration.
 //
 // This is the v2 successor of register/decorators.js. Differences:
@@ -164,7 +166,7 @@ export async function registerGeneric(
 
   const files = getJsFilesRecursively(folderPath);
   const cacheKey = `${folderPath}::${parserName}`;
-  const fp = fingerprint(files);
+  const fp = fingerprint([...files, ...schemaFiles(folderPath)]);
 
   const cached = scanCache.get(cacheKey, fp);
   if (cached !== undefined) return cached;
@@ -201,7 +203,11 @@ export async function registerGeneric(
       // as fn.name. Keep the existing JavaScript association unchanged.
       const exportName = typeDocs && Object.keys(mod).find(key => mod[key] === fn && typeDocs![key]);
       const doc = typeDocs ? (typeDocs[fn.name] ?? (exportName ? typeDocs[exportName] : null)) : resolveDoc(fn, aboveMap);
-      const meta = parser(fn, doc);
+      const tags = doc ? parseDeclarations(doc)[0]?.tags : undefined;
+      const checked = filePath.endsWith('.type') && tags && !['declarations', 'structural-declarations'].includes(parserName)
+        ? jsdocHandler(fn, tags, filePath, `${filePath}:${exportName || fn.name}`) : fn;
+      if (checked !== fn) Object.defineProperty(checked, 'name', { value: fn.name });
+      const meta = parser(checked, doc);
       if (!meta) continue;
       meta._file = filePath;
       meta._exportName = exportName;

@@ -39,3 +39,10 @@ Registre comando e falha observada antes de atribuí-la à mudança em avaliaç�
 Build aprovado não comprova comportamento; testes focados não comprovam toda a
 composição. Distribuição isolada comprova o artefato local testado, sem publicar
 uma versão nem fornecer aceite pelo Runtime em execução.
+
+Schema/metadata coverage: `npx vitest run tests/model-catalog.test.ts` exercises the
+shared parser, aliases, package boundaries, metadata requirements, model arrays,
+unknown types, local shadowing, missing persistence, captured-reference authority,
+isolated index requests and primary keys against SQLite. It also boots the actual
+external Scriba database provider. The packed distribution test validates named
+model returns with no adjacent modules and checks the missing-provider diagnostic.

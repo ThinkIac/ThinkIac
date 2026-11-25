@@ -1,3 +1,4 @@
+import { metadataResource, jsdocHandler } from './metadata-contracts';
 import type { Container } from './container';
 
 /** Small, serializable type algebra. Objects describe required fields; a one-item
@@ -74,8 +75,12 @@ function equalTypes(left: any, right: any): boolean {
  * Keep synchronous handlers synchronous; await only thenables for output checks.
  */
 export function typedResource(container: Container, resource: any) {
+  resource = metadataResource(container, resource);
   const contract = container.state('runtime:resource-contracts').get(resource.declaration.type) as ResourceContract | undefined;
-  if (!contract) return resource;
+  if (!contract) {
+    const invoke = jsdocHandler(resource.handler, resource.declaration.tags, resource.file, `${resource.package}:${resource.declaration.name}`);
+    return { ...resource, handler: invoke };
+  }
   const location = `${resource.package}:${resource.declaration.type}:${resource.declaration.name ?? resource.file}`;
   const annotations = resource.declaration.tags.returns;
   if (annotations?.length !== 1) throw new TypeError(`${location}: typed resource requires one @returns JSON type`);

@@ -6,7 +6,8 @@ class TableProxy {
 		this._db = db;
 		this._modelName = modelName;
 		this._fields = fields;
-		this._records = {};
+		this._primaryKey = fields.find(field => field.isId)?.name || "id";
+		this._records = Object.create(null);
 		this._relations = {};
 		this._nnRelations = {};
 		this._scriba = scriba;
@@ -29,12 +30,12 @@ class TableProxy {
 				const key = String(p);
 				if (t._records[key]) return t._records[key];
 
-				let sql = `SELECT * FROM "${t._modelName}" WHERE id = ?`;
+				let sql = `SELECT * FROM "${t._modelName}" WHERE "${t._primaryKey}" = ?`;
 				if (t._hasSoftDelete()) sql += ` AND deletedAt IS NULL`;
 				const row = t._db.prepare(sql).get(key);
 				if (row) {
 					const rec = new RecordProxy(t, row);
-					t._records[row.id] = rec;
+					t._records[row[t._primaryKey]] = rec;
 					return rec;
 				}
 				return undefined;
@@ -122,14 +123,14 @@ class TableProxy {
 		}
 
 		const finalUpdates = data;
-		const finalUpdateKeys = Object.keys(finalUpdates).filter(k => k !== "id");
+		const finalUpdateKeys = Object.keys(finalUpdates).filter(k => k !== this._primaryKey);
 		if (finalUpdateKeys.length === 0) return true;
 
 		const setClauses = finalUpdateKeys.map(k => `"${k}" = ?`).join(", ");
 		const values = finalUpdateKeys.map(k => finalUpdates[k]);
-		values.push(record.id);
+		values.push(record[this._primaryKey]);
 
-		const info = this._db.prepare(`UPDATE "${this._modelName}" SET ${setClauses} WHERE id = ?`).run(...values);
+		const info = this._db.prepare(`UPDATE "${this._modelName}" SET ${setClauses} WHERE "${this._primaryKey}" = ?`).run(...values);
 
 		if (info.changes > 0) {
 			for (const hook of this._hooks.afterUpdate) {
@@ -206,8 +207,8 @@ class TableProxy {
 
 		const rows = this._db.prepare(sql).all(...params);
 		return rows.map(r => {
-			if (!this._records[r.id]) this._records[r.id] = new RecordProxy(this, r);
-			return this._records[r.id];
+			if (!this._records[r[this._primaryKey]]) this._records[r[this._primaryKey]] = new RecordProxy(this, r);
+			return this._records[r[this._primaryKey]];
 		});
 	}
 
@@ -218,13 +219,13 @@ class TableProxy {
 		const key = String(id);
 		if (this._records[key]) return this._records[key];
 
-		let sql = `SELECT * FROM "${this._modelName}" WHERE id = ?`;
+		let sql = `SELECT * FROM "${this._modelName}" WHERE "${this._primaryKey}" = ?`;
 		if (this._hasSoftDelete()) sql += ` AND deletedAt IS NULL`;
 		const row = this._db.prepare(sql).get(key);
 		if (!row) return undefined;
 
 		const rec = new RecordProxy(this, row);
-		this._records[row.id] = rec;
+		this._records[row[this._primaryKey]] = rec;
 		return rec;
 	}
 
@@ -291,8 +292,8 @@ class TableProxy {
 		if (this._hasSoftDelete() && !includeDeleted) sql += ` WHERE deletedAt IS NULL`;
 		const rows = this._db.prepare(sql).all();
 		return rows.map(r => {
-			if (!this._records[r.id]) this._records[r.id] = new RecordProxy(this, r);
-			return this._records[r.id];
+			if (!this._records[r[this._primaryKey]]) this._records[r[this._primaryKey]] = new RecordProxy(this, r);
+			return this._records[r[this._primaryKey]];
 		});
 	}
 
@@ -311,9 +312,9 @@ class TableProxy {
 		let info;
 		if (this._hasSoftDelete()) {
 			const now = new Date().toISOString();
-			info = this._db.prepare(`UPDATE "${this._modelName}" SET deletedAt = ? WHERE id = ?`).run(now, idStr);
+			info = this._db.prepare(`UPDATE "${this._modelName}" SET deletedAt = ? WHERE "${this._primaryKey}" = ?`).run(now, idStr);
 		} else {
-			info = this._db.prepare(`DELETE FROM "${this._modelName}" WHERE id = ?`).run(idStr);
+			info = this._db.prepare(`DELETE FROM "${this._modelName}" WHERE "${this._primaryKey}" = ?`).run(idStr);
 		}
 		delete this._records[idStr];
 
@@ -371,8 +372,8 @@ class TableProxy {
 		const stmt = this._db.prepare(`INSERT INTO "${this._modelName}" (${fieldsStr}) VALUES (${placeholders})`);
 		const info = stmt.run(...vals);
 
-		let newId = validated.id ?? (idField?.type === "Int" ? info.lastInsertRowid : validated.id);
-		validated.id = newId;
+		let newId = validated[this._primaryKey] ?? (idField?.type === "Int" ? info.lastInsertRowid : validated[this._primaryKey]);
+		validated[this._primaryKey] = newId;
 
 		const rec = new RecordProxy(this, validated);
 		this._records[String(newId)] = rec;

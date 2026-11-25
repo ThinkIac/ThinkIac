@@ -13,7 +13,8 @@ isso não significa que todos os consumidores já usem snapshots transacionais.
 ## LógosType nativo
 
 Arquivos `.type` usam CoffeeScript convencional e comentários `###` com linhas
-`# @register ...`. Veja [instalação, fluxo e exemplos](docs/logos-type.md).
+`# @register ...` (o `#` é opcional). Modelos `.scriba`/`.schema`, contratos
+JSDoc de metadados e acesso local `Cliente[id]` estão descritos no guia. Veja [instalação, fluxo e exemplos](docs/logos-type.md).
 
 ## Começar sem capacidades
 

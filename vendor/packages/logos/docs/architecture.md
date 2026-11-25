@@ -79,3 +79,12 @@ for complete environment acceptance.
 
 [Structure and operation](structure.md) maps directories, configuration, boot,
 package failures and global state. [Migration](../MIGRATION.md) covers compatibility.
+
+## Shared schema language
+
+The dependency-free Scriba parser is language infrastructure in `src/schema`.
+Scriba imports this parser from Logos; Logos never imports the database runtime.
+Package-local model catalogs support JSDoc metadata contracts and handler signatures.
+Ambient model identifiers resolve persistence only at an authorized operation, via
+an installed `db` provider. Isolated index reads use the same mediated capability.
+See [LógosType schemas and contracts](logos-type.md#contratos-jsdoc-de-metadados-e-modelos-scriba).

@@ -90,6 +90,15 @@ try {
       });
       await typed.close();
       console.log('PASS: packed LogosType compiler, .type resource, original filename, no adjacent capability modules');
+      fs.writeFileSync(path.join(consumer, 'models.schema'), 'model Cliente {\\n id Int @id\\n nome String\\n}');
+      fs.writeFileSync(path.join(consumer, 'index.type'), '###\\n@register arithmetic customer\\n@returns {Cliente}\\n###\\ncustomer = -> {id: 7, nome: "Ana"}\\n###\\n@register arithmetic lookup\\n@param {Int} id\\n@returns {Cliente?}\\n###\\nlookup = (id) -> Cliente[id]\\n');
+      const models = await bootstrap({ workspace: declaredWorkspace, externalModules: [] });
+      const modelState = models.container.state('entrypoint:workspace:deep/abc/provider');
+      assert.deepEqual(modelState.get('customer')(), {id: 7, nome: 'Ana'});
+      assert.throws(() => modelState.get('lookup')(7), /PERSISTENCE_PROVIDER_MISSING/);
+      await models.close();
+      console.log('PASS: packed shared Scriba parser, schema alias, named model returns, lazy persistence diagnostic');
+
 
     })().catch(error => { console.error(error); process.exitCode = 1; });
   `;

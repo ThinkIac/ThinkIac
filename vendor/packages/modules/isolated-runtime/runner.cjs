@@ -39,7 +39,7 @@ class IsolatedRunner {
         // Module._load still denies package imports outside its own root.
         this.child = (0, node_child_process_1.fork)(childPath, [], {
             cwd: this.options.dir, env, stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
-            execArgv: ['--experimental-permission', `--allow-fs-read=${this.options.dir}`, `--allow-fs-read=${node_path_1.default.dirname(childPath)}`, `--allow-fs-read=${env.LOGOS_TYPE_LOADER}`, `--allow-fs-read=${compilerDir}`],
+            execArgv: ['--experimental-permission', `--allow-fs-read=${this.options.dir}`, `--allow-fs-read=${node_path_1.default.dirname(childPath)}`, `--allow-fs-read=${node_path_1.default.dirname(node_path_1.default.dirname(env.LOGOS_TYPE_LOADER))}`, `--allow-fs-read=${compilerDir}`],
         });
         const child = this.child;
         child.on('message', message => { if (this.child === child)

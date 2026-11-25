@@ -132,7 +132,12 @@ async function discover() {
     delete require.cache[require.resolve(file)];
     const source = fs.readFileSync(file, 'utf8');
     const compiled = file.endsWith('.type') ? typeLoader.compileType(source, file) : null;
-    const exports = compiled ? typeLoader.loadType(file, compiled.js, validateTypePath) : require(file);
+    const exports = compiled ? typeLoader.loadType(file, compiled.js, validateTypePath, (_root, entity) => new Proxy({}, {
+      get(_target, key) {
+        if (typeof key !== 'string' || key === 'then') return undefined;
+        return request('capability', { request: { surface: 'database', tenant: hostProcess.env.LOGOS_ISOLATED_FOLDER, entity, operation: 'index', key } });
+      },
+    })) : require(file);
     for (const [exportName, fn] of Object.entries(exports)) {
       if (typeof fn !== 'function') continue;
       const doc = compiled ? (compiled.docs[fn.name] ?? compiled.docs[exportName] ?? '') : docOf(fn, source);

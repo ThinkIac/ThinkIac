@@ -93,9 +93,9 @@ function schemaSources(packageDir) {
             if (entry.isDirectory() && utils_1.IGNORE_DIRS.has(entry.name))
                 continue;
             const full = path_1.default.join(dir, entry.name);
-            if (entry.isDirectory())
+            if (entry.isDirectory() && !fs_1.default.existsSync(path_1.default.join(full, "package.json")))
                 visit(full);
-            else if (entry.isFile() && /\.(prisma|scriba)$/i.test(entry.name))
+            else if (entry.isFile() && /\.(prisma|scriba|schema)$/i.test(entry.name))
                 found.push(full);
         }
     };

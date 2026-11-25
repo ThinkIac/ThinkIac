@@ -86,3 +86,13 @@ linguagem, `coffeescript` de `github:ThinkIac/LogosType#main`. O lockfile npm da
 fixa o commit. Fontes JavaScript e seus registros existentes continuam aceitos.
 Para adotar `.type`, use CommonJS e blocos `###` com linhas `# @register ...`;
 HTTP, views e outras capacidades continuam dependendo dos módulos selecionados.
+
+## Schemas and declaration contracts
+
+`.schema` and `.scriba` are equivalent; `.prisma` stays supported. The parser shared
+with Scriba now ships inside Logos without a database dependency. A provider can
+use `@tag {Type} name` to describe resource metadata, while handlers use JSDoc
+`@param` and `@returns {Cliente[]}`. Existing JSON input/output contracts remain
+supported. Model names in `.type` resolve locally to the package's database when
+used; select `db` to enable persistence. See the [complete guide](docs/logos-type.md#contratos-jsdoc-de-metadados-e-modelos-scriba)
+for authority, isolated Promise behavior, DTO returns, reload and compatibility limits.
