@@ -1,12 +1,13 @@
 FROM node:22-bookworm-slim
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends build-essential dumb-init python3 \
+  && apt-get install -y --no-install-recommends build-essential dumb-init python3 git ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 ENV NODE_ENV=production \
-    PUPPETEER_SKIP_DOWNLOAD=1
+    PUPPETEER_SKIP_DOWNLOAD=1 \
+    THINKIAC_HOME=/data/thinkiac
 
 COPY . .
 # The local Lógos package compiles TypeScript in its prepare hook. Install the

@@ -27,20 +27,13 @@ export { EventGovernance } from './kernel/event-governance';
 export type { EventApprovalChoice, EventApprovalReceipt, EventApprovalScope, EventDeliveryRequest, EventGovernanceOptions } from './kernel/event-governance';
 import { resolveLogosDependencies } from './kernel/logos-dependencies';
 
-import { installExternalModules, externalApi, discoverExternalRuntimeModules } from './kernel/external-modules';
+import { installExternalModules, externalApi, discoverExternalRuntimeModules, externalModulePath } from './kernel/external-modules';
 import { isolatedRunnerFor, stopIsolatedRunner } from './core/isolated/bridge';
 
 // The reusable Svelte library is external; the kernel only re-exports its
 // public compiler helpers for compatibility.
 function loadBuiltinModule(name: string): any {
-  const candidates = [
-    path.resolve(__dirname, '../../modules', name),
-    path.resolve(__dirname, '../../../modules', name),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return require(candidate);
-  }
-  throw new Error(`[logos] required built-in module "${name}" was not found`);
+  return require(externalModulePath(name));
 }
 /** Preserve callable/class exports without importing optional capabilities at boot. */
 function lazyExport(module: string, name: string): any {
