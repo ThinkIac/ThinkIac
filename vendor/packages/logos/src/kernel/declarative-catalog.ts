@@ -6,6 +6,7 @@ import type { Container } from './container';
 import { nativeModuleContext } from './module-context';
 import { modulePrimitives } from './module-primitives';
 import { externalModulePath } from './module-resolution';
+import { isTypeSource } from './type-source';
 
 /** Collect structural declarations before sealing. The returned descriptor is data,
  * not an imported Logos API. Capability ports preserve the distribution's adapters.
@@ -15,7 +16,7 @@ export async function collectStructuralDeclaration(container: Container, entry: 
   if (!declaration.name) throw new Error(`[logos] ${declaration.type} requires a name (${identity})`);
   let directory = path.dirname(fs.realpathSync(entry.file));
   while (!fs.existsSync(path.join(directory, 'package.json')) && path.dirname(directory) !== directory) directory = path.dirname(directory);
-  const legacyConsumer = !entry.file.endsWith('.type') && declaration.type === 'type' && declaration.tags.provider?.[0] !== 'descriptor';
+  const legacyConsumer = !isTypeSource(entry.file) && declaration.type === 'type' && declaration.tags.provider?.[0] !== 'descriptor';
   const kind = legacyConsumer ? 'legacy-type' : 'provider';
   const key = `${fs.realpathSync(entry.file)}:${handler.name}:${declaration.type}:${declaration.name}`;
   const collected = container.state('runtime:structural-declarations');
@@ -83,7 +84,7 @@ export async function collectStructuralDeclaration(container: Container, entry: 
     for (const type of tags.accepts?.flatMap((value: string) => value.split(/\s+/)) ?? []) container.state('runtime:accepted-types').set(type, name);
     if (resourceProvider && !tags.tag?.length) throw new TypeError(`Provider ${name} requires @tag metadata contracts (${entry.file})`);
     const metadataContract = installMetadataContract(container, entry, definition);
-    installResourceContracts(container, definition, !metadataContract && (entry.file.endsWith('.type') || tags.provider?.[0] === 'descriptor'), identity);
+    installResourceContracts(container, definition, !metadataContract && (isTypeSource(entry.file) || tags.provider?.[0] === 'descriptor'), identity);
     const close = definition.close;
     const descriptor = { ...definition, name, phase: definition.phase ?? tags.phase?.[0] ?? 'wire',
       requires: definition.requires ?? tags.requires ?? [], after: definition.after ?? tags.after ?? [],

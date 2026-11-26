@@ -16,7 +16,7 @@ import { schemaFiles } from './model-catalog';
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
-import { compileType, loadType } from './type-source';
+import { compileType, isTypeSource, loadType } from './type-source';
 import { ScanCache } from './cache';
 import { IGNORE_DIRS, resolveWorkspace } from './utils';
 import { buildAboveDocMap, resolveDoc } from './jsdoc';
@@ -30,7 +30,7 @@ export const scanCache = new ScanCache();
 
 // Test fixtures can contain registration markers but must never execute at boot.
 const TEST_DIRS = new Set(['test', 'tests', '__tests__']);
-const TEST_FILE = /\.(?:test|spec)\.(?:[cm]?js|type)$/;
+const TEST_FILE = /\.(?:test|spec)\.(?:[cm]?js|type|think|coffee|coffe)$/;
 
 export function getJsFilesRecursively(dir: string): string[] {
   const results: string[] = [];
@@ -41,7 +41,7 @@ export function getJsFilesRecursively(dir: string): string[] {
       // A nested manifest starts a separate package, scanned under its own owner.
       if (fs.existsSync(path.join(dir, entry.name, 'package.json'))) continue;
       results.push(...getJsFilesRecursively(path.join(dir, entry.name)));
-    } else if (entry.isFile() && /\.(?:[cm]?js|type)$/.test(entry.name) && !TEST_FILE.test(entry.name)) {
+    } else if (entry.isFile() && /\.(?:[cm]?js|type|think|coffee|coffe)$/.test(entry.name) && !TEST_FILE.test(entry.name)) {
       results.push(path.join(dir, entry.name));
     }
   }
@@ -100,7 +100,7 @@ async function loadModule(filePath: string, isEsm: boolean, compiledType?: strin
   moduleLoadLocks.set(filePath, queued);
   await previous;
   try {
-    if (filePath.endsWith('.type')) return loadType(filePath, compiledType);
+    if (isTypeSource(filePath)) return loadType(filePath, compiledType);
     if (isEsm) {
       // Do not retry declared ESM with require(): it is invalid and replaces
       // the actionable import failure with ERR_REQUIRE_ESM, leaving routes
@@ -177,8 +177,8 @@ export async function registerGeneric(
   for (const filePath of files) {
     let source: string;
     try { source = fs.readFileSync(filePath, 'utf-8'); } catch { continue; }
-    if (!filePath.endsWith('.type') && !/@register(?:_|\s)/.test(source)) continue;
-    if (!filePath.endsWith('.type') && parserName === 'structural-declarations' && !/@register(?:\s+(?:module|type)\b|_module\b)/.test(source)) continue;
+    if (!isTypeSource(filePath) && !/@register(?:_|\s)/.test(source)) continue;
+    if (!isTypeSource(filePath) && parserName === 'structural-declarations' && !/@register(?:\s+(?:module|type)\b|_module\b)/.test(source)) continue;
 
     let mod: any;
     let typeDocs: Record<string, string> | undefined;
@@ -186,7 +186,7 @@ export async function registerGeneric(
       // Resolva o modo pelo arquivo, não pela raiz do pacote, para não
       // importar CJS como namespace ESM e registrar cada handler duas vezes.
       try {
-        const compiled = filePath.endsWith('.type') ? compileType(source, filePath) : undefined;
+        const compiled = isTypeSource(filePath) ? compileType(source, filePath) : undefined;
         typeDocs = compiled?.docs;
         if (compiled && !Object.values(compiled.docs).some(doc => parseDeclarations(doc).some(entry =>
           parserName !== 'structural-declarations' || ['module', 'type'].includes(entry.type)))) continue;
@@ -206,10 +206,10 @@ export async function registerGeneric(
       const exportName = typeDocs && Object.keys(mod).find(key => mod[key] === fn && typeDocs![key]);
       const doc = typeDocs ? (typeDocs[fn.name] ?? (exportName ? typeDocs[exportName] : null)) : resolveDoc(fn, aboveMap);
       const tags = doc ? parseDeclarations(doc)[0]?.tags : undefined;
-      const checked = filePath.endsWith('.type') && tags && !['declarations', 'structural-declarations'].includes(parserName)
+      const checked = isTypeSource(filePath) && tags && !['declarations', 'structural-declarations'].includes(parserName)
         ? jsdocHandler(fn, tags, filePath, `${filePath}:${exportName || fn.name}`) : fn;
       if (checked !== fn) Object.defineProperty(checked, 'name', { value: fn.name });
-      const parserDoc = filePath.endsWith('.type') && !['declarations', 'structural-declarations'].includes(parserName) && tags?.params && doc
+      const parserDoc = isTypeSource(filePath) && !['declarations', 'structural-declarations'].includes(parserName) && tags?.params && doc
         ? resolvedParameterDocs(doc, filePath) : doc;
       const meta = parser(checked, parserDoc);
       if (!meta) continue;
@@ -243,6 +243,6 @@ export async function registerDeclarations(agentFolder: string, structuralOnly =
     return declarations.length ? { declarations, handler: fn } : null;
   }, structuralOnly ? 'structural-declarations' : 'declarations');
   return groups.flatMap(group => group.declarations.map((declaration: any) => ({
-    declaration: group._file.endsWith('.type') && !declaration.name ? { ...declaration, name: group._exportName || group.handler.name } : declaration, handler: group.handler, file: group._file,
+    declaration: isTypeSource(group._file) && !declaration.name ? { ...declaration, name: group._exportName || group.handler.name } : declaration, handler: group.handler, file: group._file,
   })));
 }

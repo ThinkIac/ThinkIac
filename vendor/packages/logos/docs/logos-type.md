@@ -1,8 +1,9 @@
-# LógosType: arquivos `.type`
+# LógosType: arquivos CoffeeScript e ThinkScript
 
 O compilador [ThinkIac/LogosType](https://github.com/ThinkIac/LogosType/pull/1)
-acrescenta declarações tipadas ao CoffeeScript 2. O Lógos compila em memória,
-carrega CommonJS e mantém o catálogo, a autoridade e a publicação nos módulos.
+acrescenta declarações tipadas ao CoffeeScript 2. O Lógos compila em memória
+arquivos `.type`, `.think`, `.coffee` e `.coffe`, carrega CommonJS e mantém o
+catálogo, a autoridade e a publicação nos módulos.
 
 ## Instalação
 
@@ -101,7 +102,7 @@ const result = compileResource(source, { filename: '/packages/demo/index.type' }
 // result.declarations: kind, name, params, returns e linha original
 ```
 
-Fluxo: fonte `.type` → assinatura e diretivas → CoffeeScript → JavaScript + declarações
+Fluxo: fonte CoffeeScript/ThinkScript → assinatura e diretivas → CoffeeScript → JavaScript + declarações
 → host descobre provedores → valida contratos e tipos → prepara → publica.
 
 A API `compile()` e as ferramentas `coffee`/`cake` continuam compilando CoffeeScript
