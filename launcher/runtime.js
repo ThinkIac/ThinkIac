@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { bootstrap, dispatchEvent as $ } from 'logos';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { installGracefulShutdown } from './lib/runtime-lifecycle.js';
 import { applyRuntimeBootstrapExtensions } from './lib/runtime-bootstrap-extensions.js';
 import { normalizeViewAlias, profileShellCompatibility } from './lib/view-alias.js';
@@ -15,31 +15,10 @@ async function loadIdentity() {
   return import(moduleUrl.href);
 }
 
-function initializeAgentConfig() {
-  const configFile = './packages/agent/agent.config.json';
-  if (!existsSync('./packages/agent/package.json') || existsSync(configFile)) return;
-  const config = JSON.parse(readFileSync('./agent.config.default.json', 'utf8'));
-  const token = process.env.THINKIAC_API_KEY || process.env.LLM_PROXY_TOKEN;
-  const gateway = (process.env.GATEWAY_URL || 'https://thinkiac.cloud').replace(/\/$/, '');
-  config.llm.pools = config.llm.pools.filter(pool => {
-    if (!pool.api_keys?.includes('__LLM_PROXY_TOKEN__')) return true;
-    if (!token) return false;
-    pool.api_keys = [token];
-    pool.base_url = gateway + '/thinkiac-provider/v1';
-    return true;
-  });
-  try {
-    writeFileSync(configFile, JSON.stringify(config, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-  }
-}
-
 const main = async () => {
   try {
     const desktop = process.env.THINKIAC_DESKTOP === '1';
     const profile = JSON.parse(readFileSync('./runtime-profile.json', 'utf8'));
-    initializeAgentConfig();
     const identity = await loadIdentity();
     const shellCompatibility = profileShellCompatibility({
       shell: existsSync('./packages/shell/views/Index.svelte'),

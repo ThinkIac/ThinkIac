@@ -3,7 +3,7 @@
   "dependencies": {
     "agent": {
       "source": "ThinkIac/agent#main",
-      "commit": "a520f8812d8c1991000c206660fc7c0f37d947fa"
+      "commit": "355bcafcf7da6902d86c965d9a330ca5a9f5f3e3"
     },
     "auth": {
       "source": "ThinkIac/auth#main",
