@@ -10,6 +10,7 @@ import { registerModelRuntime } from './model-bindings';
 
 import { EventBus } from './bus';
 import { ResourceTransactions, ResourceConsumer } from './resource-transactions';
+import type { ResourceReference } from './resource-identity';
 import { runtimeEvent } from './runtime-protocol';
 import { PackageRegistry } from './registry';
 import { resolveWorkspace } from './utils';
@@ -51,6 +52,12 @@ export interface LogosModule {
 
 export class Container {
   readonly resourceTransactions = new ResourceTransactions(this);
+
+  /** Resolve metadata relative to the caller's package directory. */
+  resolveResource(callerFolder: string, reference: ResourceReference) {
+    return this.resourceTransactions.resolve(callerFolder, reference);
+  }
+
   bus: EventBus;
   registry: PackageRegistry;
   authority: AccessController;

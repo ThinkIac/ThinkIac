@@ -507,3 +507,23 @@ de banco continuam disponíveis pela capacidade explícita já existente.
 - Isso é validação em execução com diagnóstico na descoberta, sem checker estático
   completo de CoffeeScript. Chamadas diretas a funções fora do catálogo não recebem
   automaticamente a mediação do runtime.
+
+## Identidade de recursos publicados
+
+O catálogo usa a identidade `{ package, kind, name }`, exibida como
+`pacote::espécie:nome`. O manifesto fornece o nome canônico. O diretório
+identifica a instância na autoridade e no ciclo de vida. Em pacotes sem nome,
+o catálogo usa o diretório como identidade.
+
+O host consulta o catálogo com
+`container.resolveResource(pastaDoChamador, { name, kind, package })`.
+Omitir `package` limita a busca ao pacote atual, incluindo declarações em outros
+arquivos desse pacote. Omitir `kind` exige que o nome identifique um único
+recurso no pacote escolhido.
+
+Identidades duplicadas na mesma publicação geram `RESOURCE_COLLISION`.
+Nomes que identificam várias espécies geram `RESOURCE_AMBIGUOUS`. Consultas
+sem correspondência geram `RESOURCE_NOT_FOUND`. Uma publicação que falha
+preserva o catálogo anterior. O catálogo indexa declarações nomeadas com
+`@register`. O despacho de eventos e a política opcional `$` continuam usando
+seus contratos próprios.

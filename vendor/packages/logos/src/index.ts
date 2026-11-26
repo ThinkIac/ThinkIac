@@ -505,3 +505,6 @@ export * from './types';
 export const SvelteEngine = lazyExport('svelte', 'SvelteEngine');
 
 export default bootstrap;
+
+export { formatResourceIdentity, ResourceResolutionError } from './kernel/resource-identity';
+export type { ResourceIdentity, ResourceReference } from './kernel/resource-identity';
