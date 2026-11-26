@@ -88,6 +88,9 @@ describe('transactional resource generations', () => {
         } } },
       }] });
     cleanup.push(() => runtime.close());
+    const reference = { kind: 'arithmetic', name: 'value' };
+    const resolve = () => runtime.container.resolveResource('sample', reference);
+    expect(resolve()).toEqual({ package: 'sample', ...reference });
     expect(await live[0].handler()).toBe(1);
     write(2);
     expect((await stagePackage(runtime.container, 'sample')).ok).toBe(true);
@@ -95,11 +98,13 @@ describe('transactional resource generations', () => {
     expect(retired).toBe(1);
     reject = true; write(3);
     expect((await stagePackage(runtime.container, 'sample')).ok).toBe(false);
+    expect(resolve()).toEqual({ package: 'sample', ...reference });
     expect(await live[0].handler()).toBe(2);
     reject = false;
     workspace.pkg('sample', { 'actions.js': 'exports.value = () => 4;' });
     expect((await stagePackage(runtime.container, 'sample')).ok).toBe(true);
     expect(live).toHaveLength(0);
+    expect(resolve).toThrow(expect.objectContaining({ code: 'RESOURCE_NOT_FOUND' }));
     await runtime.close();
     expect(retired).toBe(3);
   });
