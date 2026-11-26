@@ -60,3 +60,36 @@ node launcher/kernel-smoke.cjs
 
 Os testes de cada módulo e aplicação ficam nos respectivos repositórios.
 Instalar uma geração com sucesso não equivale a aceitar um deploy em produção.
+
+## Instância local com npx
+
+Com Node 22.12 ou superior, npm e Git, execute na pasta da instância:
+
+```bash
+npx github:ThinkIac/ThinkIac
+```
+
+No primeiro uso, o assistente solicita nome, perfil, portas HTTP e MCP e,
+quando o perfil inclui Auth, e-mail administrativo. Escolha `default` para
+usar a composição fornecida ou informe um JSON local acompanhado do
+respectivo `.lock.json`. O Auth provisiona o administrador no primeiro boot
+com a senha aleatória mostrada no terminal interativo.
+
+O launcher usa `.thinkiac/` na pasta atual para guardar a configuração, o perfil,
+o lockfile, as gerações instaladas e os dados persistentes. A credencial de
+bootstrap fica em `.thinkiac/.env`, com modo `0600` em sistemas POSIX.
+Mantenha `.thinkiac/` fora do controle de versão.
+
+Em novas execuções, o mesmo comando reutiliza a configuração e inicia o runtime
+em primeiro plano. Crie instâncias em pastas distintas com portas distintas.
+
+Para preparar uma instância em automação:
+
+```bash
+npx --yes github:ThinkIac/ThinkIac --name demo --port 5040 --mcp-port 3333 --install-only
+```
+
+Remova `--install-only` para iniciar após configurar. Em execuções posteriores,
+omita as opções de configuração e mantenha `--install-only` apenas se desejar
+instalar sem iniciar. Consulte [Perfis](docs/profiles.md) para o formato e as
+referências Git aceitas.
