@@ -44,7 +44,8 @@ export function installExternalModules(container: Container, names: readonly str
   for (const name of names) {
     // Explicit paths and installed packages do not depend on the vendor layout.
     let entry: string;
-    if (path.isAbsolute(name) || name.startsWith('.')) {
+    const explicitPath = path.isAbsolute(name) || name.startsWith('.');
+    if (explicitPath) {
       entry = path.resolve(container.workspace, name);
     } else if (isBuiltin(name)) {
       // Legacy capability aliases such as http must not resolve to Node built-ins.
@@ -59,12 +60,14 @@ export function installExternalModules(container: Container, names: readonly str
     }
     // Honor the package's declared runtime entry even when npm's main points
     // at a library API. Entrypoints cannot escape their package directory.
-    let directory = fs.statSync(entry).isDirectory() ? entry : path.dirname(entry);
+    const isDirectory = fs.statSync(entry).isDirectory();
+    const explicitFile = explicitPath && !isDirectory;
+    let directory = isDirectory ? entry : path.dirname(entry);
     while (true) {
       const manifestPath = path.join(directory, 'package.json');
       if (fs.existsSync(manifestPath)) {
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-        if (typeof manifest.runtime?.entry === 'string') {
+        if (!explicitFile && typeof manifest.runtime?.entry === 'string') {
           const declared = path.resolve(directory, manifest.runtime.entry);
           const relative = path.relative(directory, declared);
           if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {

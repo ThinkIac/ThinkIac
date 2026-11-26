@@ -180,24 +180,24 @@
   },
   "config": {
     "externalModules": [
-      "commands",
-      "credentials",
-      "db",
-      "env",
-      "hooks",
-      "http",
-      "isolated-runtime",
-      "legacy-entry",
-      "mcp",
-      "proc",
-      "repo",
-      "stabilizer",
-      "storage",
-      "svelte",
-      "tools",
-      "websocket-runtime",
-      "workers",
-      "supervisor"
+      "../vendor/packages/modules/commands",
+      "../vendor/packages/modules/credentials",
+      "../vendor/packages/modules/db",
+      "../vendor/packages/modules/env",
+      "../vendor/packages/modules/hooks",
+      "../vendor/packages/modules/http",
+      "../vendor/packages/modules/isolated-runtime",
+      "../vendor/packages/modules/legacy-entry",
+      "../vendor/packages/modules/mcp",
+      "../vendor/packages/modules/proc",
+      "../vendor/packages/modules/repo",
+      "../vendor/packages/modules/stabilizer",
+      "../vendor/packages/modules/storage",
+      "../vendor/packages/modules/svelte/dist/runtime-module.cjs",
+      "../vendor/packages/modules/tools",
+      "../vendor/packages/modules/websocket-runtime",
+      "../vendor/packages/modules/workers",
+      "../vendor/packages/modules/supervisor"
     ]
   }
 }

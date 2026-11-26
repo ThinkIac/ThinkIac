@@ -89,7 +89,7 @@ export async function configureInstance({ cwd, base, input = process.stdin, outp
     await save(path.join(stage, 'profile.json'), JSON.stringify(profile, null, 2) + '\n');
     await save(path.join(stage, 'profile.lock.json'), JSON.stringify(lock, null, 2) + '\n');
     await save(path.join(stage, '.env'), email
-      ? `INITIAL_AUTH_USER=admin\nINITIAL_AUTH_EMAIL=${email}\nINITIAL_AUTH_PASSWORD=${password}\n` : '');
+      ? `INITIAL_AUTH_USER=instance-admin\nINITIAL_AUTH_EMAIL=${email}\nINITIAL_AUTH_PASSWORD=${password}\n` : '');
     await save(path.join(stage, 'instance.json'), JSON.stringify(config, null, 2) + '\n');
     await fs.rename(stage, home);
   } finally {
