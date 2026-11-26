@@ -176,3 +176,6 @@ public/thinkiac.aab
 
 # Legacy Auth database export; may contain user data and password hashes
 /packages/auth/snapshot.json
+
+# Downloaded compositions and persistent local state
+.thinkiac/

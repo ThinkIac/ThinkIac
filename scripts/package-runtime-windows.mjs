@@ -12,7 +12,7 @@ const output = join(root, 'dist', 'runtime')
 if (!version || !/^[A-Za-z0-9._-]+$/.test(version)) throw new Error('RUNTIME_VERSION inválida.')
 if (process.platform !== 'win32' || basename(process.execPath).toLowerCase() !== 'node.exe') throw new Error('Execute em runner Windows com node.exe.')
 
-const ignored = new Set(['.git', '.github', '.local', '.logs', '.pm2', '.private', '.svelte-cache', 'data', 'dist', 'generated', 'memory', 'node_modules'])
+const ignored = new Set(['.git', '.github', '.local', '.logs', '.pm2', '.private', '.svelte-cache', '.thinkiac', 'data', 'dist', 'generated', 'memory', 'node_modules'])
 const keep = (source) => {
   const path = relative(root, source)
   if (!path || path.startsWith('..')) return true
@@ -43,11 +43,11 @@ try {
   // archive can run with no references to the runner checkout.
   // Provider setup expects a writable config. Ship an empty pool list so
   // credentials and Cloud gateway placeholders stay out of the desktop.
-  await writeFile(join(runtime, 'packages', 'agent', 'agent.config.json'), JSON.stringify({ llm: { pools: [] } }, null, 2))
+  // Packages and their configuration are materialized from the selected profile on first launch.
   await cp(join(root, 'node_modules'), join(runtime, 'node_modules'), { recursive: true, dereference: true })
   // Lógos resolves capability modules beside its own package. Include
   // them beside the materialized npm packages as well as in vendor/.
-  await cp(join(root, 'vendor', 'packages', 'modules'), join(runtime, 'node_modules', 'modules'), { recursive: true })
+  // Only the kernel is bundled; capability implementations remain in their own repositories.
   await mkdir(join(runtime, 'node'), { recursive: true })
   await cp(process.execPath, join(runtime, 'node', 'node.exe'))
   await writeFile(join(runtime, '.thinkiac-runtime.json'), JSON.stringify({ version, platform: 'win32', arch: 'x64' }, null, 2))

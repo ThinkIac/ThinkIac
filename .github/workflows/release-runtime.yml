@@ -25,14 +25,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --legacy-peer-deps --ignore-scripts
+      - run: npm ci --legacy-peer-deps
       - run: npm --prefix vendor/packages/logos run build
-      - run: npm run prepare:terminal-assets
       - run: npm run test:runner
-      - run: npm prune --omit=dev --legacy-peer-deps --ignore-scripts
-      # npm 11 ships node-gyp with support for Visual Studio 2026 on the runner.
-      - name: Build native runtime dependencies
-        run: npm exec --yes --package=npm@11.6.3 -- npm rebuild node-pty better-sqlite3 better-sqlite3-multiple-ciphers --foreground-scripts
       - name: Package Windows runtime with Node and dependencies
         env:
           RUNTIME_VERSION: main-${{ github.sha }}

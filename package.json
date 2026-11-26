@@ -1,133 +1,36 @@
 {
-  "name": "runtime",
+  "name": "thinkiac",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
-  "main": "index.js",
-  "bin": {
-    "think": "bin/think.js"
-  },
-  "scripts": {
-    "postinstall": "node scripts/prepare-terminal-assets.mjs",
-    "prepare:terminal-assets": "node scripts/prepare-terminal-assets.mjs",
-    "package:runtime": "node scripts/package-runtime.mjs",
-    "start": "logos supervisor start Agent",
-    "start:runtime": "node -r dotenv/config index.js",
-    "setup:minimal": "node scripts/install-minimal.mjs",
-    "test": "npm run test:all",
-    "test:all": "node scripts/test-all.mjs",
-    "test:runner": "node --test scripts/test/test-all.test.mjs",
-    "package:runtime:win": "node scripts/package-runtime.mjs",
-    "start:foreground": "logos supervisor run"
-  },
-  "keywords": [],
-  "author": "",
   "engines": {
     "node": ">=22.12.0"
   },
-  "description": "> \ud83e\udd16 **Thinkiac** is an autonomous AI agent platform.   > **Agent** is the internal agent that powers Thinkiac.",
-  "dependencies": {
-    "@codemirror/autocomplete": "^6.20.3",
-    "@codemirror/commands": "^6.10.4",
-    "@codemirror/lang-css": "^6.3.1",
-    "@codemirror/lang-html": "^6.4.12",
-    "@codemirror/lang-javascript": "^6.2.5",
-    "@codemirror/lang-json": "^6.0.2",
-    "@codemirror/lang-markdown": "^6.5.2",
-    "@codemirror/lang-python": "^6.2.1",
-    "@codemirror/lang-sql": "^6.10.0",
-    "@codemirror/lang-yaml": "^6.1.3",
-    "@codemirror/language": "^6.12.4",
-    "@codemirror/legacy-modes": "^6.5.3",
-    "@codemirror/search": "^6.7.1",
-    "@codemirror/state": "^6.7.1",
-    "@codemirror/view": "^6.43.8",
-    "@google/stitch-sdk": "^0.0.3",
-    "@iconify-json/lucide": "^1.2.123",
-    "@iconify-json/simple-icons": "^1.2.93",
-    "@lezer/highlight": "^1.2.3",
-    "@logos/supervisor": "file:vendor/packages/modules/supervisor",
-    "@modelcontextprotocol/sdk": "^1.27.1",
-    "@rollup/plugin-alias": "^6.0.0",
-    "@rollup/plugin-commonjs": "^24.1.0",
-    "@rollup/plugin-node-resolve": "^15.3.1",
-    "@svgdotjs/svg.js": "^3.2.8",
-    "@xterm/addon-fit": "0.10.0",
-    "@xterm/xterm": "5.5.0",
-    "archiver": "^8.0.0",
-    "baileys": "^7.0.0-rc13",
-    "better-sqlite3": "^12.11.1",
-    "brasileirao": "1.1.0",
-    "dockerode": "5.0.0",
-    "dotenv": "^16.6.1",
-    "https-proxy-agent": "^9.1.0",
-    "imapflow": "^1.6.5",
-    "inflect": "file:vendor/packages/inflect",
-    "katex": "^0.19.1",
-    "logos": "file:vendor/packages/logos",
-    "mailparser": "^3.9.14",
-    "marked": "^12.0.2",
-    "markmap-common": "^0.18.9",
-    "markmap-lib": "0.18.12",
-    "markmap-view": "0.18.12",
-    "mermaid": "^12.3.0",
-    "node-fetch": "^3.3.2",
-    "node-pty": "^1.1.0",
-    "node-telegram-bot-api": "^1.1.0",
-    "node-wifi": "^2.0.16",
-    "panzoom": "^9.4.4",
-    "phaser": "^3.90.0",
-    "pino": "^10.3.1",
-    "puppeteer": "^25.18.1",
-    "qrcode": "^1.5.4",
-    "rollup": "^4.62.2",
-    "rollup-plugin-svelte": "^7.2.3",
-    "scriba": "file:vendor/packages/scriba",
-    "socks-proxy-agent": "^10.1.0",
-    "svelte": "5.57.3",
-    "svelte-dnd-action": "^0.9.51",
-    "systeminformation": "^5.31.5",
-    "@thinkiac/module-annotations": "file:vendor/packages/modules/annotations",
-    "@thinkiac/module-commands": "file:vendor/packages/modules/commands",
-    "@thinkiac/module-credentials": "file:vendor/packages/modules/credentials",
-    "@thinkiac/module-db": "file:vendor/packages/modules/db",
-    "@thinkiac/module-env": "file:vendor/packages/modules/env",
-    "@thinkiac/module-hooks": "file:vendor/packages/modules/hooks",
-    "@thinkiac/module-http": "file:vendor/packages/modules/http",
-    "@thinkiac/module-legacy-entry": "file:vendor/packages/modules/legacy-entry",
-    "@thinkiac/module-mcp": "file:vendor/packages/modules/mcp",
-    "@thinkiac/module-proc": "file:vendor/packages/modules/proc",
-    "@thinkiac/module-repo": "file:vendor/packages/modules/repo",
-    "@thinkiac/module-stabilizer": "file:vendor/packages/modules/stabilizer",
-    "@thinkiac/module-storage": "file:vendor/packages/modules/storage",
-    "@thinkiac/module-svelte": "file:vendor/packages/modules/svelte",
-    "@thinkiac/module-tools": "file:vendor/packages/modules/tools",
-    "@thinkiac/module-websocket": "file:vendor/packages/modules/websocket",
-    "@thinkiac/module-websocket-runtime": "file:vendor/packages/modules/websocket-runtime",
-    "@thinkiac/module-workers": "file:vendor/packages/modules/workers",
-    "@thinkiac/module-mediated-io": "file:vendor/packages/modules/mediated-io",
-    "@thinkiac/module-process-bridge": "file:vendor/packages/modules/process-bridge",
-    "@thinkiac/module-runtime-compat": "file:vendor/packages/modules/runtime-compat",
-    "@thinkiac/module-isolated-runtime": "file:vendor/packages/modules/isolated-runtime"
+  "bin": {
+    "think": "bin/think.js",
+    "thinkiac": "bin/thinkiac.js"
   },
-  "logos": {
-    "cli": {
-      "supervisor": "./vendor/packages/modules/supervisor/cli.cjs"
-    }
-  },
-  "workspaces": [
-    "packages/*"
-  ],
-  "overrides": {
-    "effect": "^3.22.5",
-    "katex": "$katex",
-    "readdir-glob": {
-      "minimatch": "^11.0.1"
-    },
-    "nodemon": {
-      "minimatch": "^11.0.1"
-    }
+  "scripts": {
+    "start": "node index.js --supervisor start",
+    "start:runtime": "node index.js",
+    "start:foreground": "node index.js --supervisor run",
+    "profile:install": "node index.js --install-only",
+    "profile:update": "node index.js --install-only --update",
+    "build": "npm --prefix vendor/packages/logos run build",
+    "test": "node --test launcher/*.test.mjs",
+    "test:all": "npm test",
+    "test:runner": "npm test",
+    "prepare": "npm run build",
+    "package:runtime": "node scripts/package-runtime.mjs",
+    "package:runtime:win": "node scripts/package-runtime-windows.mjs"
   },
   "devDependencies": {
-    "vitest": "^4.1.12"
+    "typescript": "^5.4.0",
+    "@types/node": "^22",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.11",
+    "@types/ws": "^8.5.10",
+    "archiver": "^8.0.0",
+    "logos": "file:vendor/packages/logos"
   }
 }

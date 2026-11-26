@@ -1,88 +1,28 @@
-import { notifyReady } from '@logos/supervisor/runtime.cjs';
-import { bootstrap, dispatchEvent as $ } from 'logos';
-import { existsSync } from 'fs';
-import { installGracefulShutdown } from './lib/runtime-lifecycle.js';
-import { applyRuntimeBootstrapExtensions } from './lib/runtime-bootstrap-extensions.js';
-import { normalizeViewAlias } from './lib/view-alias.js';
-import { corsOptions, setSecurityHeaders } from './lib/http-security.js';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
+import { installProfile } from './launcher/profile.mjs';
 
-// Auth é uma extensão do host, não uma dependência do kernel Lógos. Uma
-// instalação mínima pode não carregar esse pacote e, nesse caso, não instala
-// nenhum gate de sessão, MCP ou WebSocket.
-async function loadIdentity() {
-  const moduleUrl = new URL('./packages/auth/index.js', import.meta.url);
-  if (!existsSync(moduleUrl)) return null;
-  return import(moduleUrl.href);
-}
-
-const main = async () => {
-  try {
-    const desktop = process.env.THINKIAC_DESKTOP === '1';
-    const identity = await loadIdentity();
-    const accessGate = (req, res, next) => {
-      if (desktop && req.method === 'GET' && req.path === '/__ready' && req.socket.remoteAddress === '127.0.0.1') return next();
-      return identity.accessGate(req, res, next);
-    };
-    const runtimeConfig = await applyRuntimeBootstrapExtensions({
-      workspace: './packages',
-      environment: process.env,
-      config: {
-        workspace: './packages',
-        // The host selects capabilities; Logos owns no product module list.
-        externalModules: ['commands', 'credentials', 'db', 'env', 'hooks', 'http',
-          'isolated-runtime', 'legacy-entry', 'mcp', 'proc', 'repo', 'stabilizer', 'storage', 'svelte',
-          'tools', 'websocket-runtime', 'workers', 'supervisor'],
-        port: Number(process.env.PORT) || 5040,
-        host: process.env.HOST || '127.0.0.1',
-        http: { public: 'public' },              // static files next to packages/
-        cors: corsOptions(process.env.THINKIAC_CORS_ORIGINS),
-        // Porta do transporte MCP. Fixa em 3333 no logos, o que impede duas
-        // instâncias na mesma máquina: a segunda morre com EADDRINUSE, e o
-        // erro vem por evento 'error' do server, fora do alcance do try/catch
-        // do bootstrap — derruba o processo. Com vários tenants por VPS
-        // (packages/tenant-systemd) isso deixa de ser hipótese, então a porta
-        // acompanha a do runtime por padrão.
-        // O default 3333 é mantido de propósito: clientes MCP já apontam para
-        // ele, e mudá-lo por conta da variável PORT quebraria as instalações
-        // existentes. Só um MCP_PORT explícito desvia.
-        mcp: { http: true, port: Number(process.env.MCP_PORT) || 3333,
-          host: process.env.MCP_HOST || '127.0.0.1',
-          allowRemote: process.env.MCP_ALLOW_REMOTE === '1',
-          ...(identity ? { auth: identity.mcpAuth } : {}) },
-        // Com Auth instalado, preserva o controle de acesso atual. Sem ele,
-        // omitimos os três adaptadores para o Runtime continuar público.
-        middleware: [normalizeViewAlias, setSecurityHeaders, ...(identity ? [accessGate] : [])],
-        ...(identity ? {
-          ws: { authorize: async req => {
-            const resolved = await identity.identityProvider.resolve(req);
-            return Boolean(resolved?.user.role === 'admin' && !resolved.session.delegatedSubject);
-          } },
-        } : {}),
-        views: {
-          precompileCss: true,
-          warmup: process.env.THINKIAC_VIEW_WARMUP === '0' ? [] : [
-            desktop ? { package: 'auth', page: 'Login' } : { package: 'desktop', page: 'Index' },
-            { package: 'shell', page: 'Index' },
-          ],
-          bootstrap5: false,                     // conflita com o CSS próprio de main-site/auth
-          tailwind: true,                        // agent inteira depende de classes utilitárias Tailwind — sem isso nada delas gera CSS de verdade
-          theme: { 'bs-primary': '#6d28d9', 'border': '#000' },       // CSS variables into every page
-          index: { package: 'main-site', page: 'Index' }
-        },
-      },
+const base = path.dirname(fileURLToPath(import.meta.url));
+const args = process.argv.slice(2);
+try {
+  const at = args.indexOf('--profile');
+  if (at >= 0 && !args[at + 1]) throw new Error('--profile precisa de um arquivo JSON');
+  const profileFile = path.resolve(at >= 0 ? args[at + 1] : process.env.THINKIAC_PROFILE || path.join(base, 'profiles/default.json'));
+  const installed = await installProfile({ base, profileFile, update: args.includes('--update') });
+  if (!args.includes('--install-only')) {
+    const state = path.join(installed.home, installed.profile.name, 'state');
+    const supervisor = args.indexOf('--supervisor');
+    const entry = supervisor >= 0
+      ? ['node_modules/logos/dist/src/cli/index.js', 'supervisor', args[supervisor + 1] || 'start', ...(args[supervisor + 1] === 'run' ? [] : ['Agent'])]
+      : ['--import', 'dotenv/config', 'index.js'];
+    const child = spawn(process.execPath, entry, {
+      cwd: installed.directory, stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+      env: { ...process.env, LOGOS_DATA_DIR: process.env.LOGOS_DATA_DIR || state, DOTENV_CONFIG_PATH: process.env.DOTENV_CONFIG_PATH || path.join(base, '.env') },
     });
-
-    await bootstrap(runtimeConfig);
-
-    console.log("Runtime is ready.")
-
-    await $('boot', {})
-    installGracefulShutdown({ dispatch: $ })
-    notifyReady()
-  } catch (err) {
-    console.error("Runtime bootstrap failed:", err)
-    process.exit(1)
+    child.on('message', message => process.send?.(message));
+    for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal));
+    child.on('error', error => { console.error(error.message); process.exitCode = 1; });
+    child.on('exit', code => { process.exitCode = code ?? 1; });
   }
-}
-
-main();
+} catch (error) { console.error(`[profile] ${error.message}`); process.exitCode = 1; }

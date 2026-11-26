@@ -1,0 +1,10 @@
+node_modules/
+.svelte-cache/
+.runtime-errors.json
+uploads/
+# workspace runtime artefacts
+packages/**/.database/
+packages/.logos/
+*.log
+__pycache__/
+*.pyc
