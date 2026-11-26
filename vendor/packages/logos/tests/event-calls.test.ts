@@ -4,6 +4,8 @@ import { normalizePackageContract } from '../src/kernel/package-contract';
 import { runAsPackage } from '../src/kernel/authority-context';
 import { callPackageEvent } from '../src/kernel/package-event-calls';
 import { makeWorkspace } from './helpers';
+import { emitPackageDeclarations } from '../src/kernel/declaration-events';
+import type { ResourceReference } from '../src/kernel/resource-identity';
 
 describe('optional package $ event-call policy', () => {
   it('preserves legacy event names and behavior when $ is absent', async () => {
@@ -85,5 +87,48 @@ describe('optional package $ event-call policy', () => {
         surface: 'events', operation: 'request', resource: 'agent::llm:call', allowed: true,
       }));
     } finally { ws.cleanup(); }
+  });
+});
+
+describe('canonical resource resolution', () => {
+  it.each([undefined, []])('scopes abbreviated names to the manifest package with $ = %j', async policy => {
+    const ws = makeWorkspace('logos-resource-resolution-');
+    const container = new Container({ workspace: ws.root });
+    const source = (kind: string, name: string) =>
+      `exports.handler = function handler() { /**\n * @register ${kind} ${name}\n */ return 1; };`;
+    try {
+      const manifest = { name: 'agenda', $: policy };
+      ws.pkg('agenda-folder', {
+        'package.json': JSON.stringify(manifest),
+        'one.js': source('task', 'open'),
+        'nested/two.js': source('query', 'open'),
+      });
+      ws.pkg('remote-folder', {
+        'package.json': '{"name":"remote"}',
+        'one.js': source('task', 'remoteOnly'),
+      });
+      container.registry.setActiveContract('agenda-folder', normalizePackageContract(manifest));
+      container.bus.on('register:task', () => {});
+      container.bus.on('register:query', () => {});
+      await emitPackageDeclarations(container, { folder: 'agenda-folder' });
+      await emitPackageDeclarations(container, { folder: 'remote-folder' });
+
+      const resolve = (reference: ResourceReference) => container.resolveResource('agenda-folder', reference);
+      expect(resolve({ kind: 'query', name: 'open' })).toEqual({ package: 'agenda', kind: 'query', name: 'open' });
+      expect(resolve({ package: 'remote', kind: 'task', name: 'remoteOnly' })).toEqual({
+        package: 'remote', kind: 'task', name: 'remoteOnly',
+      });
+      expect(() => resolve({ name: 'open' })).toThrow(expect.objectContaining({ code: 'RESOURCE_AMBIGUOUS' }));
+      expect(() => resolve({ name: 'remoteOnly' })).toThrow(expect.objectContaining({ code: 'RESOURCE_NOT_FOUND' }));
+
+      await expect(container.resourceTransactions.prepare('agenda-folder', [
+        { declaration: { type: 'query', name: 'open' }, file: 'first.js' },
+        { declaration: { type: 'query', name: 'open' }, file: 'second.js' },
+      ])).rejects.toMatchObject({ code: 'RESOURCE_COLLISION' });
+      expect(resolve({ kind: 'query', name: 'open' }).package).toBe('agenda');
+    } finally {
+      await container.resourceTransactions.close();
+      ws.cleanup();
+    }
   });
 });
