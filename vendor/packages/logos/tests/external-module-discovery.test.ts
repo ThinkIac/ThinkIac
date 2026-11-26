@@ -12,18 +12,23 @@ describe('external capability discovery', () => {
         'package.json': JSON.stringify({ name: 'mcp', main: 'index.cjs' }),
         'index.cjs': 'throw new Error("workspace application must not replace capability");',
       });
+      ws.pkg('capabilities/mcp', {
+        'package.json': JSON.stringify({ name: '@thinkiac/module-mcp', runtime: { entry: 'index.cjs' } }),
+        'index.cjs': `exports.register = context => context.register({ name: 'mcp', phase: 'wire', install() {} });`,
+      });
       const container = new Container({ workspace: ws.root });
-      const entries = discoverExternalRuntimeModules().filter(entry => path.basename(entry) === 'mcp');
+      const entries = discoverExternalRuntimeModules([path.join(ws.root, 'capabilities')]).filter(entry => path.basename(entry) === 'mcp');
       expect(entries).toHaveLength(1);
       expect(() => installExternalModules(container, entries)).not.toThrow();
     } finally { ws.cleanup(); }
   });
   it('loads runtime capabilities but never treats transport libraries as runtime modules', () => {
-    const entries = discoverExternalRuntimeModules();
-    expect(entries.every(entry => path.isAbsolute(entry))).toBe(true);
-    const modules = entries.map(entry => path.basename(entry));
-    expect(modules).toEqual(expect.arrayContaining(['http', 'hooks', 'legacy-entry', 'repo', 'svelte', 'websocket-runtime']));
-    expect(modules).not.toContain('websocket');
-    expect(modules).not.toContain('process-bridge');
+    const ws = makeWorkspace();
+    try {
+      ws.pkg('capabilities/http', { 'package.json': '{"runtime":{"entry":"index.cjs"}}' });
+      ws.pkg('capabilities/websocket', { 'package.json': '{"main":"index.cjs"}' });
+      const entries = discoverExternalRuntimeModules([path.join(ws.root, 'capabilities')]);
+      expect(entries).toEqual([path.join(ws.root, 'capabilities/http')]);
+    } finally { ws.cleanup(); }
   });
 });

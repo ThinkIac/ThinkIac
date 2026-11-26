@@ -75,9 +75,11 @@ function equalTypes(left: any, right: any): boolean {
  * Keep synchronous handlers synchronous; await only thenables for output checks.
  */
 export function typedResource(container: Container, resource: any) {
-  resource = metadataResource(container, resource);
+  const metadataContract = container.state('runtime:metadata-contracts').has(resource.declaration.type);
+  if (metadataContract || resource.file.endsWith('.type')) resource = metadataResource(container, resource);
   const contract = container.state('runtime:resource-contracts').get(resource.declaration.type) as ResourceContract | undefined;
   if (!contract) {
+    if (!metadataContract && !resource.file.endsWith('.type')) return resource;
     const invoke = jsdocHandler(resource.handler, resource.declaration.tags, resource.file, `${resource.package}:${resource.declaration.name}`);
     return { ...resource, handler: invoke };
   }

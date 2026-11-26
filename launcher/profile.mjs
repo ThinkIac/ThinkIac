@@ -85,7 +85,7 @@ export async function installProfile({ base, profileFile, update = false, fetchP
       }
     }
     for (const dir of ['vendor/packages/logos/dist', 'lib', 'public']) await hashTree(path.join(base, dir));
-    for (const file of ['launcher/runtime.js', 'launcher/profile.mjs', 'vendor/packages/logos/package.json', 'logos.supervisor.json', 'agent.config.default.json']) hash.update(await fs.readFile(path.join(base, file)));
+    for (const file of ['launcher/runtime.js', 'launcher/profile.mjs', 'vendor/packages/logos/package.json', 'logos.supervisor.json']) hash.update(await fs.readFile(path.join(base, file)));
     const kernel = hash.digest('hex');
     const fingerprintFor = resolved => createHash('sha256').update(stable({ profile, lock: resolved, kernel })).digest('hex');
     const fingerprint = fingerprintFor(lock);
@@ -132,7 +132,7 @@ export async function installProfile({ base, profileFile, update = false, fetchP
     }
     for (const dir of ['lib', 'public']) await fs.cp(path.join(base, dir), path.join(stage, dir), { recursive: true });
     await fs.copyFile(path.join(base, 'launcher/runtime.js'), path.join(stage, 'index.js'));
-    for (const file of ['logos.supervisor.json', 'agent.config.default.json']) await fs.copyFile(path.join(base, file), path.join(stage, file));
+    for (const file of ['logos.supervisor.json']) await fs.copyFile(path.join(base, file), path.join(stage, file));
     await writeJson(path.join(stage, 'runtime-profile.json'), { config: profile.config || {} });
     await writeJson(path.join(stage, 'package.json'), { name: 'thinkiac-profile-installation', private: true, type: 'module', workspaces: Object.values(paths), dependencies: profile.npmDependencies || {}, overrides: profile.overrides || {}, logos: { cli: { supervisor: './vendor/packages/modules/supervisor/cli.cjs' } } });
     if (installNpm) {

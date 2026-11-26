@@ -10,7 +10,7 @@ async function fixture(t, dependencies = { sample: 'ThinkIac/sample#main' }) {
   const base = await fs.mkdtemp(path.join(os.tmpdir(), 'thinkiac-profile-'));
   t.after(() => fs.rm(base, { recursive: true, force: true }));
   for (const dir of ['lib', 'public', 'launcher', 'vendor/packages/logos/dist']) await fs.mkdir(path.join(base, dir), { recursive: true });
-  for (const file of ['launcher/runtime.js', 'launcher/profile.mjs', 'logos.supervisor.json', 'agent.config.default.json']) await fs.writeFile(path.join(base, file), '{}');
+  for (const file of ['launcher/runtime.js', 'launcher/profile.mjs', 'logos.supervisor.json']) await fs.writeFile(path.join(base, file), '{}');
   await fs.writeFile(path.join(base, 'vendor/packages/logos/package.json'), JSON.stringify({ name: 'logos', version: '2.0.0' }));
   const profile = { version: 1, name: 'test', dependencies };
   const profileFile = path.join(base, 'test.json');

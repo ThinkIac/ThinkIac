@@ -3,7 +3,7 @@ import { bootstrap, dispatchEvent as $ } from 'logos';
 import { existsSync, readFileSync } from 'fs';
 import { installGracefulShutdown } from './lib/runtime-lifecycle.js';
 import { applyRuntimeBootstrapExtensions } from './lib/runtime-bootstrap-extensions.js';
-import { normalizeViewAlias } from './lib/view-alias.js';
+import { normalizeViewAlias, profileShellCompatibility } from './lib/view-alias.js';
 import { corsOptions, setSecurityHeaders } from './lib/http-security.js';
 
 // Auth é uma extensão do host, não uma dependência do kernel Lógos. Uma
@@ -20,6 +20,11 @@ const main = async () => {
     const desktop = process.env.THINKIAC_DESKTOP === '1';
     const profile = JSON.parse(readFileSync('./runtime-profile.json', 'utf8'));
     const identity = await loadIdentity();
+    const shellCompatibility = profileShellCompatibility({
+      shell: existsSync('./packages/shell/views/Index.svelte'),
+      nestedRuntime: existsSync('./packages/shell/runtime/package.json'),
+      desktop: existsSync('./packages/desktop/views/Index.svelte'),
+    });
     const accessGate = (req, res, next) => {
       if (desktop && req.method === 'GET' && req.path === '/__ready' && req.socket.remoteAddress === '127.0.0.1') return next();
       return identity.accessGate(req, res, next);
@@ -50,7 +55,7 @@ const main = async () => {
           ...(identity ? { auth: identity.mcpAuth } : {}) },
         // Com Auth instalado, preserva o controle de acesso atual. Sem ele,
         // omitimos os três adaptadores para o Runtime continuar público.
-        middleware: [normalizeViewAlias, setSecurityHeaders, ...(identity ? [accessGate] : [])],
+        middleware: [normalizeViewAlias, setSecurityHeaders, ...(identity ? [accessGate] : []), shellCompatibility],
         ...(identity ? {
           ws: { authorize: async req => {
             const resolved = await identity.identityProvider.resolve(req);
@@ -60,7 +65,7 @@ const main = async () => {
         views: {
           precompileCss: true,
           warmup: process.env.THINKIAC_VIEW_WARMUP === '0' ? [] : [
-            desktop ? { package: 'auth', page: 'Login' } : { package: 'desktop', page: 'Index' },
+            ...(desktop ? [{ package: 'auth', page: 'Login' }] : []),
             { package: 'shell', page: 'Index' },
           ],
           bootstrap5: false,                     // conflita com o CSS próprio de main-site/auth
