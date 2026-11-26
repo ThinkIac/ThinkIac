@@ -24,15 +24,13 @@
     "package:runtime": "node scripts/package-runtime.mjs",
     "package:runtime:win": "node scripts/package-runtime-windows.mjs"
   },
-  "dependencies": {
-    "logos": "file:vendor/packages/logos"
-  },
   "devDependencies": {
     "typescript": "^5.4.0",
     "@types/node": "^22",
     "@types/express": "^4.17.21",
     "@types/multer": "^1.4.11",
     "@types/ws": "^8.5.10",
-    "archiver": "^8.0.0"
+    "archiver": "^8.0.0",
+    "logos": "file:vendor/packages/logos"
   }
 }
