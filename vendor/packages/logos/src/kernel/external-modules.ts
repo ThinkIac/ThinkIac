@@ -21,9 +21,9 @@ export interface ExternalRuntimeModule extends LogosModule { api?: Record<string
  * Compatibility discovery reads declared entrypoints without executing packages.
  * A broken declared capability fails during loading instead of disappearing.
  */
-export function discoverExternalRuntimeModules(): string[] {
+export function discoverExternalRuntimeModules(roots = externalModuleRoots()): string[] {
   const entries = new Map<string, string>();
-  for (const root of externalModuleRoots()) {
+  for (const root of roots) {
     if (!fs.existsSync(root)) continue;
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
       if (!entry.isDirectory() || entries.has(entry.name)) continue;

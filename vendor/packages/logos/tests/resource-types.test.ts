@@ -1,7 +1,8 @@
 import { describe, expect, it, afterEach } from 'vitest';
 import { bootstrap } from '../src/index';
 import { compileType, loadType } from '../src/kernel/type-source';
-import { assertValue, checkType } from '../src/kernel/resource-types';
+import { Container } from '../src/kernel/container';
+import { assertValue, checkType, typedResource } from '../src/kernel/resource-types';
 import { makeWorkspace } from './helpers';
 const cleanup: Array<() => any> = [];
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close(); });
@@ -21,6 +22,15 @@ ${contract ? '  contracts:\n    arithmetic:\n      input: ["number"]\n      outp
 }
 const handler = (r: any) => r.container.state('entrypoint:workspace:providers/deep/arithmetic').get('double');
 describe('LógosType contracts', () => {
+  it('preserves advisory JSDoc on legacy JavaScript resources', () => {
+    const container = new Container();
+    const handler = (value: object) => value;
+    const resource = {
+      file: '/legacy/index.js', handler,
+      declaration: { type: 'tool', tags: { params: ['{}', '{object} value'] } },
+    };
+    expect(typedResource(container, resource)).toBe(resource);
+  });
   for (const alias of ['module', 'type']) it(`${alias} uses the same typed contract`, async () => {
     const fn = handler(await boot(alias));
     expect(fn(21)).toBe(42);

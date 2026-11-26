@@ -1,11 +1,10 @@
 // Test adapter for the external MCP capability.
-import { createRequire } from 'node:module';
+import { externalModulePath } from '../src/kernel/module-resolution';
 import { createRuntimeContext } from '../src/kernel/context';
 import { resolveConditions } from '../src/kernel/conditions';
 import { loadMcpTools } from '../src/modules/tools';
 
-const require = createRequire(import.meta.url);
-const { createRuntimeModule } = require('../../modules/mcp');
+const { createRuntimeModule } = require(externalModulePath('mcp'));
 
 export function mcpApi(container: any) {
   return createRuntimeModule({
