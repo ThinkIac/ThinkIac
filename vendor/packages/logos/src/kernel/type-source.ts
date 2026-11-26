@@ -7,6 +7,11 @@ import Module from 'module';
 
 let compiler: any;
 
+/** Source formats compiled by the embedded LogosType/CoffeeScript compiler. */
+export function isTypeSource(filename: string): boolean {
+  return /\.(?:type|coffee|coffe)$/i.test(filename);
+}
+
 /** The language compiler owns syntax, documentation and automatic exports. */
 export function compileType(source: string, filename: string): { js: string; docs: Record<string, string> } {
   const language = compiler ??= require(process.env.LOGOS_TYPE_COMPILER || 'logostype');
@@ -26,7 +31,7 @@ export function loadType(filename: string, js?: string, validate?: (filename: st
   loaded.require = (id: string) => {
     if (id.startsWith('.') || path.isAbsolute(id)) {
       const target = path.resolve(path.dirname(filename), id);
-      if (target.endsWith('.type')) return loadType(target, undefined, validate, binding);
+      if (isTypeSource(target)) return loadType(target, undefined, validate, binding);
     }
     return nativeRequire(id);
   };
