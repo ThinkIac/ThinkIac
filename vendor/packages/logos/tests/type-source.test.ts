@@ -59,23 +59,24 @@ describe('native LógosType', () => {
     expect(map.sourcesContent).toEqual([source]);
   });
 
-  it('loads CoffeeScript and ThinkScript extensions while keeping test files and nested packages outside the owning scan', async () => {
+  it('loads LogosType and CoffeeScript extensions while keeping test files and nested packages outside the owning scan', async () => {
     const ws = makeWorkspace(); cleanup.push(ws.cleanup);
     const dir = ws.pkg('sample', {
-      'actions.type': '', 'actions.test.type': '', 'tests/fixture.type': '',
+      'actions.type': "helper = require './coffee.coffee'\n" + block('arithmetic actions') + 'exports.actions = -> helper.coffee()\n',
+      'actions.test.type': '', 'tests/fixture.type': '',
       'nested/package.json': '{}', 'nested/actions.type': '', 'actions.js': '',
-      'coffee.coffee': block('arithmetic coffee') + 'exports.coffee = -> 40 + 2\n',
+      'coffee.coffee': "helper = require './short.coffe'\n" + block('arithmetic coffee') + 'exports.coffee = -> helper.short()\n',
       'short.coffe': block('arithmetic short') + 'exports.short = -> 6 * 7\n',
       'think.think': "helper = require './short.coffe'\n" + block('arithmetic think') + 'exports.think = -> helper.short()\n',
-      'ignored.spec.think': block('arithmetic ignored') + 'exports.ignored = -> 0\n',
+      'ignored.spec.coffe': block('arithmetic ignored') + 'exports.ignored = -> 0\n',
     });
     expect(getJsFilesRecursively(dir).map(f => path.relative(dir, f)).sort()).toEqual([
-      'actions.js', 'actions.type', 'coffee.coffee', 'short.coffe', 'think.think',
+      'actions.js', 'actions.type', 'coffee.coffee', 'short.coffe',
     ]);
     const entries = await registerDeclarations(dir);
-    expect(entries.map(entry => entry.declaration.name).sort()).toEqual(['coffee', 'short', 'think']);
+    expect(entries.map(entry => entry.declaration.name).sort()).toEqual(['actions', 'coffee', 'short']);
     expect(entries.find(entry => entry.declaration.name === 'coffee')!.handler()).toBe(42);
-    expect(entries.find(entry => entry.declaration.name === 'think')!.handler()).toBe(42);
+    expect(entries.find(entry => entry.declaration.name === 'actions')!.handler()).toBe(42);
   });
 
   it('boots nested .type providers and mixed consumers using the existing authority boundary', async () => {

@@ -9,7 +9,7 @@ let compiler: any;
 
 /** Source formats compiled by the embedded LogosType/CoffeeScript compiler. */
 export function isTypeSource(filename: string): boolean {
-  return /\.(?:type|think|coffee|coffe)$/i.test(filename);
+  return /\.(?:type|coffee|coffe)$/i.test(filename);
 }
 
 /** The language compiler owns syntax, documentation and automatic exports. */

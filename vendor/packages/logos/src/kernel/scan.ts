@@ -30,7 +30,7 @@ export const scanCache = new ScanCache();
 
 // Test fixtures can contain registration markers but must never execute at boot.
 const TEST_DIRS = new Set(['test', 'tests', '__tests__']);
-const TEST_FILE = /\.(?:test|spec)\.(?:[cm]?js|type|think|coffee|coffe)$/;
+const TEST_FILE = /\.(?:test|spec)\.(?:[cm]?js|type|coffee|coffe)$/;
 
 export function getJsFilesRecursively(dir: string): string[] {
   const results: string[] = [];
@@ -41,7 +41,7 @@ export function getJsFilesRecursively(dir: string): string[] {
       // A nested manifest starts a separate package, scanned under its own owner.
       if (fs.existsSync(path.join(dir, entry.name, 'package.json'))) continue;
       results.push(...getJsFilesRecursively(path.join(dir, entry.name)));
-    } else if (entry.isFile() && /\.(?:[cm]?js|type|think|coffee|coffe)$/.test(entry.name) && !TEST_FILE.test(entry.name)) {
+    } else if (entry.isFile() && /\.(?:[cm]?js|type|coffee|coffe)$/.test(entry.name) && !TEST_FILE.test(entry.name)) {
       results.push(path.join(dir, entry.name));
     }
   }

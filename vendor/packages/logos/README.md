@@ -5,7 +5,7 @@ catálogo, dependências, declarações, autoridade e ciclo de vida. Recursos co
 são fornecidos pelos módulos selecionados pelo host.
 
 O pacote inclui o compilador de [LógosType](docs/logos-type.md) para arquivos
-`.type`, `.think`, `.coffee` e `.coffe` com CoffeeScript 2. Capacidades concretas
+`.type`, `.coffee` e `.coffe` com CoffeeScript 2. Capacidades concretas
 não são dependências do launcher.
 A distribuição empacotada pode iniciar sem HTTP, banco, Svelte, workers,
 estabilizador ou diretório de módulos adjacente. Há fachadas de compatibilidade;
@@ -13,7 +13,7 @@ isso não significa que todos os consumidores já usem snapshots transacionais.
 
 ## LógosType nativo
 
-Arquivos `.type`, `.think`, `.coffee` e `.coffe` são compilados em memória. Eles
+Arquivos `.type`, `.coffee` e `.coffe` são compilados em memória. Eles
 aceitam `module`/`type` como aliases, assinaturas tipadas,
 diretivas no início do corpo e exports automáticos. Blocos `###` com `@register`
 continuam aceitos. Modelos `.scriba`/`.schema` fornecem tipos e descrições de campos,
