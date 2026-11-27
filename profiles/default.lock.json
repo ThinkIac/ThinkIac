@@ -167,7 +167,7 @@
     },
     "@thinkiac/module-svelte": {
       "source": "ThinkIac/svelte#main",
-      "commit": "4f315d8ffd8212a937830e70249c6ee75b5bd7cd"
+      "commit": "d6a8e28165a9a770a31ade61db612385344a00ca"
     },
     "@thinkiac/module-tools": {
       "source": "ThinkIac/tools#main",
