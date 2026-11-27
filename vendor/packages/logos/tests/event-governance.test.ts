@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Container } from '../src/kernel/container';
-import { runAsPackage } from '../src/kernel/authority-context';
+import { currentAuthority, runAsPackage } from '../src/kernel/authority-context';
 import { makeWorkspace } from './helpers';
 
 function setup(prompt: any) {
@@ -107,5 +107,71 @@ it('requires approval for the original caller on a nested asynchronous delivery'
     expect(decisions).toEqual(['source->target', 'target->downstream', 'source->downstream']);
     await expect(runAsPackage(container.authority, 'target', () =>
       container.bus.request('downstream::read:secret', 'direct'))).resolves.toBe('secret');
+  } finally { ws.cleanup(); }
+});
+
+it('binds delegated approvals to the immutable host delivery chain', async () => {
+  const requests: import('../src/kernel/event-governance').EventDeliveryRequest[] = [];
+  let approveDelegation = false;
+  const { ws, container } = setup((request: typeof requests[number]) => {
+    requests.push(request);
+    return request.delegation && !approveDelegation ? 'deny' : 'package';
+  });
+  const isText = (value: unknown): value is string => typeof value === 'string';
+  const contract = { input: isText, output: isText };
+  const event = 'downstream::response:read';
+  const proxy = 'target::response:forward';
+  let delivered = 0;
+  try {
+    container.bus.provide(event, contract, value => { delivered++; return value; }, { owner: 'downstream' });
+    container.bus.provide(proxy, contract, async value => {
+      await Promise.resolve();
+      const [frame] = currentAuthority().delegation;
+      expect(frame.caller).toEqual({ kind: 'package', id: 'source' });
+      expect(frame.provider).toEqual({ kind: 'package', id: 'target' });
+      expect(Object.isFrozen(frame)).toBe(true);
+      expect(Object.isFrozen(currentAuthority().delegation)).toBe(true);
+      return await container.bus.request(event, value, {
+        flowId: 'untrusted-flow',
+      }) as string;
+    }, { owner: 'target' });
+    const call = (source: string, resource: string) => runAsPackage(container.authority, source,
+      () => container.bus.request(resource, JSON.stringify({ caller: 'system', delegation: [] })));
+    await call('target', event);
+    await call('source', event);
+    await expect(call('source', proxy)).rejects.toMatchObject({ code: 'EVENT_REQUEST_DENIED' });
+    expect(delivered).toBe(2);
+    approveDelegation = true;
+    await call('source', proxy);
+    const promptCount = requests.length;
+    await call('source', proxy);
+    expect(requests).toHaveLength(promptCount);
+    expect(requests.filter(request => request.delegation).map(request => [
+      request.source, request.flowId, request.delegation?.[0].event,
+    ])).toEqual([['target', null, proxy], ['target', null, proxy], ['source', null, proxy]]);
+    expect(container.eventGovernance.list().filter(receipt => receipt.receiptVersion === 3)).toHaveLength(2);
+    expect(delivered).toBe(4);
+  } finally { ws.cleanup(); }
+});
+
+it('checks upstream strict request authority when delivery governance is disabled', async () => {
+  const ws = makeWorkspace('logos-delegated-strict-');
+  const proxy = 'target::response:forward';
+  const event = 'downstream::response:read';
+  try {
+    ws.pkg('source', { 'package.json': JSON.stringify({
+      name: 'source',
+      $: [proxy],
+      runtime: { contractVersion: 1, mode: 'strict' },
+    }) });
+    const container = new Container({ workspace: ws.root });
+    const isText = (value: unknown): value is string => typeof value === 'string';
+    const contract = { input: isText, output: isText };
+    const downstream = () => { throw new Error('Unauthorized provider entry'); };
+    container.bus.provide(event, contract, downstream, { owner: 'downstream' });
+    container.bus.provide(proxy, contract, async value => await container.bus.request(event, value) as string,
+      { owner: 'target' });
+    await expect(runAsPackage(container.authority, 'source', () => container.bus.request(proxy, 'check')))
+      .rejects.toMatchObject({ code: 'AUTHORITY_DENIED', decision: { caller: 'source', resource: event } });
   } finally { ws.cleanup(); }
 });

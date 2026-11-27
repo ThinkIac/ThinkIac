@@ -38,6 +38,9 @@ jobs:
           LOGOS_TEST_ISOLATION_PROVIDER: ${{ runner.temp }}/thinkiac-isolated-runtime
           NODE_PATH: ${{ github.workspace }}/node_modules
         run: npm test -- tests/scriba-primary-key.test.ts tests/extension-declarations.test.ts
+      - name: Test delivery authority and delegation
+        working-directory: vendor/packages/logos
+        run: npm test -- tests/event-governance.test.ts tests/bus.test.ts
       - name: Install resource lifecycle test dependencies
         working-directory: vendor/packages/logos
         run: npm install --legacy-peer-deps --no-save --package-lock=false git+https://github.com/ThinkIac/stabilizer.git#b85b49d49cca5fe63b5d612fd4c411bda1212564
