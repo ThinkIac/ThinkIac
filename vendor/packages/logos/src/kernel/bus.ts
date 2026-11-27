@@ -23,6 +23,7 @@
 
 'use strict';
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { deserialize, serialize } from 'node:v8';
 import type {
   AccessController,
@@ -33,6 +34,13 @@ import { currentAuthority, runAsPrincipal, SYSTEM_PRINCIPAL } from './authority-
 import type { EventContractRegistry } from './event-contracts';
 import type { EffectScope } from './effects';
 import type { EventGovernance, EventDeliveryRequest } from './event-governance';
+
+interface DeliveryFrame {
+  readonly caller: AuthorityPrincipal;
+  readonly provider: AuthorityPrincipal;
+  readonly event: string;
+  readonly operation: EventDeliveryRequest['operation'];
+}
 
 export type BusHandler = (payload: any, ctx?: any) => any;
 
@@ -100,6 +108,7 @@ export function matchesEvent(pattern: string, eventName: string): boolean {
 }
 
 export class EventBus {
+  private readonly deliveries = new AsyncLocalStorage<readonly DeliveryFrame[]>();
   private subs: Subscription[] = [];
   private log: (msg: string) => void;
 
@@ -127,7 +136,14 @@ export class EventBus {
     access?.enforce({ principal, surface: 'events', operation, resource });
   }
 
-  private invoke(sub: Subscription, payload: any, ctx?: any): any {
+  private invoke(sub: Subscription, payload: any, ctx: any, event: string, operation: DeliveryFrame['operation']): any {
+    const caller = currentAuthority().principal;
+    const frame = Object.freeze({ caller, provider: sub.principal, event, operation });
+    return this.deliveries.run(Object.freeze([...(this.deliveries.getStore() ?? []), frame]),
+      () => this.invokeHandler(sub, payload, ctx));
+  }
+
+  private invokeHandler(sub: Subscription, payload: any, ctx: any): any {
     const access = this.authority ?? currentAuthority().access;
     if (!access) return sub.handler(payload, ctx);
     // Kernel handlers mediate the publisher's operation and therefore retain
@@ -144,8 +160,20 @@ export class EventBus {
     const principal = currentAuthority().principal;
     const source = principal.kind === 'package' ? principal.id : 'system';
     const target = sub.principal.kind === 'package' ? sub.principal.id : 'system';
-    const request = this.governance.createRequest({ event, source, target, sourceIntegrity: source === 'system' ? 'system' : this.governance.integrityFor(source), flowId: ctx?.flowId ?? null, operation, payload });
-    return this.governance.authorize(request);
+    const sources = new Set([source]);
+    for (const frame of this.deliveries.getStore() ?? []) {
+      if (frame.caller.kind === 'package') sources.add(frame.caller.id);
+    }
+    for (const origin of sources) {
+      const request = this.governance.createRequest({
+        event, source: origin, target,
+        sourceIntegrity: origin === 'system' ? 'system' : this.governance.integrityFor(origin),
+        flowId: origin === source ? ctx?.flowId ?? null : null,
+        operation, payload,
+      });
+      if (!await this.governance.authorize(request)) return false;
+    }
+    return true;
   }
 
   on(pattern: string, handler: BusHandler, opts: SubscribeOptions = {}): () => void {
@@ -267,7 +295,7 @@ export class EventBus {
       if (!await this.permits(hook, event, current, undefined, operation)) continue;
       context.signal.throwIfAborted();
       if (!this.subs.includes(hook) || !this.subs.includes(provider)) continue;
-      const result = await this.invoke(hook, deserialize(serialize(current)), context);
+      const result = await this.invoke(hook, deserialize(serialize(current)), context, event, operation);
       if (validate && result !== undefined) {
         const replacement = deserialize(serialize(result));
         if (!validate(replacement)) throw new EventRequestError('EVENT_REQUEST_INVALID_OUTPUT', event);
@@ -306,7 +334,7 @@ export class EventBus {
         }
         signal.throwIfAborted();
         if (!this.subs.includes(provider)) throw new EventRequestError('EVENT_PROVIDER_NOT_FOUND', event);
-        return this.invoke(provider, payload, Object.freeze({ event, signal }));
+        return this.invoke(provider, payload, Object.freeze({ event, signal }), event, 'request');
       };
       return await Promise.race([aborted, deliver()]);
     } finally {
@@ -323,7 +351,7 @@ export class EventBus {
     for (const sub of this.listeners(event)) {
       try {
         if (!await this.permits(sub, event, payload, ctx, 'emit')) continue;
-        await this.invoke(sub, payload, { ...(ctx ?? {}), event });
+        await this.invoke(sub, payload, { ...(ctx ?? {}), event }, event, 'emit');
       } catch (err: any) {
         this.log(`[bus] handler for '${event}' (owner: ${sub.owner ?? 'kernel'}) failed: ${err?.message ?? err}`);
       }
@@ -336,7 +364,7 @@ export class EventBus {
     this.eventContracts?.validate(event, payload);
     for (const sub of this.listeners(event)) {
       if (!await this.permits(sub, event, payload, ctx, 'emit')) continue;
-      await this.invoke(sub, payload, { ...(ctx ?? {}), event });
+      await this.invoke(sub, payload, { ...(ctx ?? {}), event }, event, 'emit');
     }
   }
 
@@ -348,7 +376,7 @@ export class EventBus {
     for (const sub of this.listeners(event)) {
       try {
         if (!await this.permits(sub, event, current, ctx, 'pipeline')) continue;
-        const result = await this.invoke(sub, current, { ...(ctx ?? {}), event });
+        const result = await this.invoke(sub, current, { ...(ctx ?? {}), event }, event, 'pipeline');
         if (result !== undefined && result !== null) {
           this.eventContracts?.validate(event, result);
           current = result;
@@ -373,7 +401,7 @@ export class EventBus {
     for (const sub of this.listeners(event)) {
       try {
         if (!await this.permits(sub, event, payload, ctx, 'veto')) continue;
-        const result = await this.invoke(sub, payload, ctx);
+        const result = await this.invoke(sub, payload, ctx, event, 'veto');
         if (result === false) return { allowed: false, by: sub.owner ?? 'kernel' };
         if (result && typeof result === 'object' && result.veto) {
           return { allowed: false, reason: result.reason, by: sub.owner ?? 'kernel', code: result.code, details: result.details };

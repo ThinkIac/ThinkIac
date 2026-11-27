@@ -83,3 +83,29 @@ describe('event delivery governance', () => {
     } finally { ws.cleanup(); }
   });
 });
+
+it('requires approval for the original caller on a nested asynchronous delivery', async () => {
+  const decisions: string[] = [];
+  const { ws, container } = setup((request: { source: string; target: string }) => {
+    const edge = request.source + '->' + request.target;
+    decisions.push(edge);
+    return edge === 'source->downstream' ? 'deny' : 'package';
+  });
+  try {
+    const isText = (value: unknown): value is string => typeof value === 'string';
+    const contract = { input: isText, output: isText };
+    container.bus.provide('downstream::read:secret', contract, () => 'secret', { owner: 'downstream' });
+    container.bus.provide('target::read:proxy', contract, async text => {
+      await Promise.resolve();
+      return await container.bus.request('downstream::read:secret', text, {
+        flowId: 'claimed-flow',
+      }) as string;
+    }, { owner: 'target' });
+    await expect(runAsPackage(container.authority, 'source', () =>
+      container.bus.request('target::read:proxy', 'claimed-system-origin')))
+      .rejects.toMatchObject({ code: 'EVENT_REQUEST_DENIED' });
+    expect(decisions).toEqual(['source->target', 'target->downstream', 'source->downstream']);
+    await expect(runAsPackage(container.authority, 'target', () =>
+      container.bus.request('downstream::read:secret', 'direct'))).resolves.toBe('secret');
+  } finally { ws.cleanup(); }
+});

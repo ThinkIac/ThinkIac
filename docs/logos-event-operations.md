@@ -44,3 +44,9 @@ Recibos de entrega da versão 2 incluem origem, integridade da origem, evento,
 destinatário e operação. Recibos de fluxo também incluem o identificador do
 fluxo. Recibos da versão 1 permanecem disponíveis para auditoria e precisam
 de nova decisão para autorizar entregas futuras.
+
+Com governança de entrega habilitada, uma chamada aninhada no mesmo processo
+exige decisão para o principal imediato e para os chamadores anteriores da
+cadeia do barramento. A cadeia fica no contexto assíncrono do host. Identidade
+e autorização de fluxo do intermediário não são usadas pelos chamadores
+anteriores. As decisões registram metadados de entrega e o hash do payload.
