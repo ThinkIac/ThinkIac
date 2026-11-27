@@ -1,13 +1,14 @@
 // kernel/bus.ts — Lógos event bus
 //
 // The bus is the spine of Lógos. Everything above the kernel — system modules
-// and user packages alike — participates through the same three primitives:
+// and user packages alike — uses explicit delivery operations:
 //
 //   emit(event, payload)      fire-and-forget, all handlers run, errors logged
 //   pipeline(event, payload)  handlers run in priority order; a handler that
 //                             returns a non-undefined/non-null value REPLACES
 //                             the payload for the next handler (v1 dispatchEvent
 //                             semantics, formalised)
+//   request(event, payload) one explicitly registered provider, typed result
 //   veto(event, payload)      handlers may block an operation by returning
 //                             `false` or `{ veto: true, reason }`
 //
@@ -30,9 +31,32 @@ import type {
 import { currentAuthority, runAsPrincipal, SYSTEM_PRINCIPAL } from './authority-context';
 import type { EventContractRegistry } from './event-contracts';
 import type { EffectScope } from './effects';
-import type { EventGovernance } from './event-governance';
+import type { EventGovernance, EventDeliveryRequest } from './event-governance';
 
 export type BusHandler = (payload: any, ctx?: any) => any;
+
+export interface RequestContext {
+  event: string;
+  signal: AbortSignal;
+}
+
+export interface RequestOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  flowId?: string;
+}
+
+export interface RequestContract<Input, Output> {
+  input: (value: unknown) => value is Input;
+  output: (value: unknown) => value is Output;
+}
+
+export class EventRequestError extends Error {
+  constructor(readonly code: string, readonly event: string) {
+    super(`${code}: ${event}`);
+    this.name = 'EventRequestError';
+  }
+}
 
 export interface SubscribeOptions {
   /** Lower runs first. Kernel modules default to 50, packages to 100. */
@@ -46,6 +70,7 @@ export interface SubscribeOptions {
 }
 
 export interface Subscription {
+  requestProvider?: boolean;
   pattern: string;
   handler: BusHandler;
   priority: number;
@@ -108,7 +133,7 @@ export class EventBus {
     return runAsPrincipal(access, sub.principal, () => sub.handler(payload, ctx));
   }
 
-  private async permits(sub: Subscription, event: string, payload: any, ctx: any, operation: 'emit' | 'pipeline' | 'veto'): Promise<boolean> {
+  private async permits(sub: Subscription, event: string, payload: any, ctx: any, operation: EventDeliveryRequest['operation']): Promise<boolean> {
     if (!this.governance?.enabled) return true;
     const principal = currentAuthority().principal;
     const source = principal.kind === 'package' ? principal.id : 'system';
@@ -118,12 +143,17 @@ export class EventBus {
   }
 
   on(pattern: string, handler: BusHandler, opts: SubscribeOptions = {}): () => void {
+    return this.register(pattern, handler, opts);
+  }
+
+  private register(pattern: string, handler: BusHandler, opts: SubscribeOptions, requestProvider = false): () => void {
     const principal = this.principalFor(opts.owner);
     const operation = opts.operation ?? 'subscribe';
     this.enforce(operation, pattern, principal);
     const sub: Subscription = {
       pattern,
       handler,
+      ...(requestProvider ? { requestProvider } : {}),
       priority: opts.priority ?? 100,
       owner: opts.owner ?? (principal.kind === 'package' ? principal.id : null),
       principal,
@@ -166,8 +196,65 @@ export class EventBus {
 
   listeners(event: string): Subscription[] {
     return this.subs
-      .filter(s => matchesEvent(s.pattern, event))
+      .filter(s => !s.requestProvider && matchesEvent(s.pattern, event))
       .sort((a, b) => a.priority - b.priority);
+  }
+
+  provide<Input, Output>(
+    event: string,
+    contract: RequestContract<Input, Output>,
+    handler: (payload: Input, context: RequestContext) => Output | Promise<Output>,
+    opts: Pick<SubscribeOptions, 'scope' | 'owner'> = {},
+  ): () => void {
+    if (!event || event.includes('*')) throw new EventRequestError('EVENT_PROVIDER_INVALID_NAME', event);
+    if (this.subs.some(sub => sub.requestProvider && sub.pattern === event)) {
+      throw new EventRequestError('EVENT_PROVIDER_DUPLICATE', event);
+    }
+    return this.register(event, async (payload: unknown, context: RequestContext) => {
+      if (!contract.input(payload)) throw new EventRequestError('EVENT_REQUEST_INVALID_INPUT', event);
+      const result = await handler(payload, context);
+      if (!contract.output(result)) throw new EventRequestError('EVENT_REQUEST_INVALID_OUTPUT', event);
+      return result;
+    }, opts, true);
+  }
+
+  async request(event: string, payload: unknown, options: RequestOptions = {}): Promise<unknown> {
+    this.enforce('request', event);
+    const timeoutMs = options.timeoutMs ?? 30_000;
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) {
+      throw new RangeError('timeoutMs must be a positive integer supported by setTimeout');
+    }
+    const controller = new AbortController();
+    const { signal } = controller;
+    const cancel = () => controller.abort(new EventRequestError('EVENT_REQUEST_CANCELLED', event));
+    if (options.signal?.aborted) cancel();
+    signal.throwIfAborted();
+
+    const provider = this.subs.find(sub => sub.requestProvider && sub.pattern === event);
+    if (!provider) throw new EventRequestError('EVENT_PROVIDER_NOT_FOUND', event);
+    const timer = setTimeout(() => {
+      controller.abort(new EventRequestError('EVENT_REQUEST_TIMEOUT', event));
+    }, timeoutMs);
+    options.signal?.addEventListener('abort', cancel, { once: true });
+    let rejectAbort!: (reason: unknown) => void;
+    const aborted = new Promise<never>((_, reject) => { rejectAbort = reject; });
+    const onAbort = () => rejectAbort(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    try {
+      const deliver = async () => {
+        if (!await this.permits(provider, event, payload, options, 'request')) {
+          throw new EventRequestError('EVENT_REQUEST_DENIED', event);
+        }
+        signal.throwIfAborted();
+        if (!this.subs.includes(provider)) throw new EventRequestError('EVENT_PROVIDER_NOT_FOUND', event);
+        return this.invoke(provider, payload, { event, signal });
+      };
+      return await Promise.race([aborted, deliver()]);
+    } finally {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      options.signal?.removeEventListener('abort', cancel);
+    }
   }
 
   /** Fire-and-forget. Handler errors are logged, never thrown. */

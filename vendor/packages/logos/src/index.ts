@@ -489,6 +489,8 @@ export interface OfflineManifest { generatedAt: string; packages: Record<string,
 export { OFFLINE_POLICIES, parseOffline } from './kernel/parsers';
 export { readConfig, saveConfig };
 export { getErrors, clearErrors, scanCache, matchesEvent, EventBus };
+export { EventRequestError } from './kernel/bus';
+export type { RequestContext, RequestContract, RequestOptions } from './kernel/bus';
 export { resolveLogosDependencies, parseLogosDependencies, selectRegistryVersion, DEFAULT_LOGOS_REGISTRY } from './kernel/logos-dependencies';
 export type { LogosDependencySpec, DependencyDiagnostic, DependencyResolution } from './kernel/logos-dependencies';
 export const bootstrapMcp = (workspace: string, container = getDefaultContainer()) => externalApi<any>(container, 'mcp').bootstrapMcp(workspace);
