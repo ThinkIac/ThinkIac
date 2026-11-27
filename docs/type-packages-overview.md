@@ -15,6 +15,35 @@ Disponibilizar pacotes ThinkIac como arquivos `.type` (CoffeeScript 2 com anota�
 | `tools-bridge` | `packages/github/.private/repos/tools/src/tools-bridge.type` | Bridge de ferramentas |
 | Módulos ThinkIac | `packages/github/.private/repos/ThinkIac/.thinkiac/default/generations/.../vendor/packages/modules/` | Gerações instaladas com `.type` |
 
+### Suporte entregue neste PR
+
+O Lógos já registrava arquivos `.type` em pacotes normais do workspace. Este PR
+estende o mesmo carregamento para capabilities externas declaradas em
+`runtime.entry`: se o entrypoint terminar em `.type`, ele é compilado em memória
+pelo LogosType e executado sem gerar arquivo JavaScript e sem usar um hook global
+em `require.extensions`.
+
+Exemplo mínimo de uma capability distribuível:
+
+```text
+package.json
+tools/calc.type
+routes/abc.type
+```
+
+```json
+{
+  "name": "@thinkiac/calculator",
+  "version": "1.0.0",
+  "runtime": { "entry": "tools/calc.type" },
+  "dependencies": { "logos": "*" }
+}
+```
+
+`runtime.entry` deve ser um caminho relativo dentro do próprio pacote. O runtime
+rejeita entradas que escapem desse diretório. Arquivos `.type` adicionais, como
+`routes/abc.type`, podem ser importados relativamente pelo entrypoint.
+
 ### Formato `.type`
 
 ```coffee
@@ -45,13 +74,12 @@ Anotações suportadas:
 
 ## O que precisa ser feito por pacote
 
-### 1. Verificar `package.json`
+### 1. Declarar o entrypoint no `package.json`
 ```json
 {
-  "name": "pacote",
+  "name": "@thinkiac/pacote",
   "version": "1.0.0",
-  "type": "module",
-  "main": "index.type",
+  "runtime": { "entry": "tools/calc.type" },
   "dependencies": { "logos": "*" }
 }
 ```
@@ -67,11 +95,9 @@ Anotações suportadas:
 - Usar apenas imports relativos a `.type` ou dependências npm
 
 ### 4. Testar interpretação em execução
-```bash
-# O Lógos deve conseguir:
-logos load ./pacote/index.type
-logos run --module pacote
-```
+O teste automatizado `external-module-discovery.test.ts` cobre uma capability com
+apenas `package.json` e `tools/calc.type`; não existe `dist/` nem `.cjs` no
+fixture.
 
 ## Pacotes candidatos para migração
 
@@ -87,7 +113,7 @@ logos run --module pacote
 ## Próximos passos
 
 1. **Inventário completo** — Listar todos os pacotes com `.type` no repositório
-2. **Teste de carga** — Verificar se `logos load` funciona com `.type` direto
+2. **Teste de integração** — Validar cada capability migrada no tarball instalado, sem módulos adjacentes
 3. **Contrato mínimo** — Documentar declarações obrigatórias para auto-descoberta
 4. **Migração incremental** — Converter um pacote por vez, validando em execução
 5. **Remoção de `dist/`** — Após validação, remover infraestrutura de build dos pacotes migrados
@@ -95,5 +121,5 @@ logos run --module pacote
 ## Referências
 
 - [Issue #75](https://github.com/ThinkIac/ThinkIac/issues/75)
-- [LogosType docs](docs/logostype.md)
+- [LogosType docs](../vendor/packages/logos/docs/logos-type.md)
 - [Módulos Lógos](vendor/packages/logos/docs/modules.md)
