@@ -40,6 +40,9 @@ jobs:
         run: npm test -- tests/scriba-primary-key.test.ts tests/extension-declarations.test.ts
       - name: Test delivery authority and delegation
         working-directory: vendor/packages/logos
+        env:
+          LOGOS_TEST_ISOLATION_PROVIDER: ${{ runner.temp }}/thinkiac-isolated-runtime
+          NODE_PATH: ${{ github.workspace }}/node_modules
         run: npm test -- tests/event-governance.test.ts tests/bus.test.ts
       - name: Install resource lifecycle test dependencies
         working-directory: vendor/packages/logos
