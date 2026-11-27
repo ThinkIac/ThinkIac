@@ -260,7 +260,7 @@ export class EventBus {
       if (!contract.input(payload)) throw new EventRequestError('EVENT_REQUEST_INVALID_INPUT', event);
       if (extensionPhases.includes('before')) await this.runExtensionPhase(event, 'before', contract.exposeInput ? contract.exposeInput(payload) : payload, context);
       context.signal.throwIfAborted();
-      const result = await handler(payload, context);
+      const result = await handler(payload, this.deliveryContext(context));
       if (!contract.output(result)) throw new EventRequestError('EVENT_REQUEST_INVALID_OUTPUT', event);
       const output = extensionPhases.includes('transform')
         ? await this.runExtensionPhase(event, 'transform', contract.exposeOutput ? contract.exposeOutput(result) : result, context, contract.output, contract.exposeOutput) : result;
@@ -318,6 +318,12 @@ export class EventBus {
     }, { extensionPhase: phase });
   }
 
+  private deliveryContext(context: RequestContext): RequestContext {
+    // A handler can dispatch an Event on its own signal. Keep the request's
+    // cancellation signal private so synthetic events cannot affect other phases.
+    return Object.freeze({ ...context, signal: AbortSignal.any([context.signal]) });
+  }
+
   private async runExtensionPhase(
     event: string,
     phase: ExtensionPhase,
@@ -338,7 +344,7 @@ export class EventBus {
       if (!await this.permits(hook, event, current, context, operation)) continue;
       context.signal.throwIfAborted();
       if (!this.subs.includes(hook) || !this.subs.includes(provider)) continue;
-      const result = await this.invoke(hook, deserialize(serialize(current)), context, event, operation);
+      const result = await this.invoke(hook, deserialize(serialize(current)), this.deliveryContext(context), event, operation);
       if (validate && result !== undefined) {
         const replacement = deserialize(serialize(result));
         if (!validate(replacement)) throw new EventRequestError('EVENT_REQUEST_INVALID_OUTPUT', event);

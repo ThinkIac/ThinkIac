@@ -28,6 +28,7 @@ it('runs typed prompt extensions in order and replaces them transactionally', as
     'hooks.type': [
       'extensionHook inspect = before agent::response:compose ({message}, ctx) ->',
       '  throw new Error("invalid host context") unless message is "hello" and ctx.event is "agent::response:compose" and ctx.flowId is "trace"',
+      '  ctx.signal.dispatchEvent new Event("abort")',
       '  "ignored before"',
       'extensionHook customize = transform agent::response:compose ({result}) -> ' + transform,
       'extensionHook finish = after agent::response:compose ({result}) ->',
