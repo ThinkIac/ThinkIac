@@ -12,6 +12,7 @@ import { Container, LogosModule } from './container';
 import { nativeModuleContext } from './module-context';
 import { modulePrimitives } from './module-primitives';
 import { externalModulePath, externalModuleRoots } from './module-resolution';
+import { isTypeSource, loadType } from './type-source';
 export { externalModulePath } from './module-resolution';
 
 export interface ExternalRuntimeModule extends LogosModule { api?: Record<string, any>; }
@@ -81,10 +82,18 @@ export function installExternalModules(container: Container, names: readonly str
       if (parent === directory) break;
       directory = parent;
     }
-    entry = require.resolve(entry);
+    // `.type` is an executable LogosType source file.  Do not pass it through
+    // Node's resolver: Node has no loader for that extension and the source is
+    // compiled in-memory by loadType below.  Other entries retain Node's normal
+    // resolution semantics.
+    if (isTypeSource(entry)) {
+      if (!fs.existsSync(entry)) throw new Error(`[logos] runtime entrypoint was not found: ${entry}`);
+    } else {
+      entry = require.resolve(entry);
+    }
     const cleanups = container.state('runtime:entrypoints');
     if (cleanups.has(entry)) continue;
-    const exported = require(entry);
+    const exported = isTypeSource(entry) ? loadType(entry) : require(entry);
     const subscriptions = new Set<() => void>();
     const clean = () => { for (const off of subscriptions) off(); subscriptions.clear(); };
     cleanups.set(entry, clean);

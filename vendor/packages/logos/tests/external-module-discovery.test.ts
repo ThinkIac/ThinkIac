@@ -31,4 +31,20 @@ describe('external capability discovery', () => {
       expect(entries).toEqual([path.join(ws.root, 'capabilities/http')]);
     } finally { ws.cleanup(); }
   });
+  it('loads and registers a declared .type runtime entry without a generated JavaScript file', async () => {
+    const ws = makeWorkspace();
+    try {
+      ws.pkg('capabilities/calculator', {
+        'package.json': JSON.stringify({ name: '@thinkiac/calculator', runtime: { entry: 'tools/calc.type' } }),
+        'tools/calc.type': 'exports.register = (context) -> context.register { name: \'calculator\', phase: \'wire\', install: -> }\n',
+      });
+      const container = new Container({ workspace: ws.root });
+      const entries = discoverExternalRuntimeModules([path.join(ws.root, 'capabilities')]);
+      expect(entries).toEqual([path.join(ws.root, 'capabilities/calculator')]);
+      expect(() => installExternalModules(container, entries)).not.toThrow();
+      await container.bus.emitStrict('logos:modules:register');
+      expect(container.modules.get('calculator')).toBeDefined();
+      expect(container.state('runtime:entrypoints').has(path.join(ws.root, 'capabilities/calculator/tools/calc.type'))).toBe(true);
+    } finally { ws.cleanup(); }
+  });
 });
