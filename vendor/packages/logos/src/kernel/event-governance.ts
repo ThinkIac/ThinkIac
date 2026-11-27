@@ -39,8 +39,11 @@ export interface EventApprovalReceipt {
   revokedAt?: string;
 }
 
+export type EventDeliveryGrant = Readonly<Pick<EventDeliveryRequest, 'source' | 'target' | 'event' | 'operation'>>;
+
 export interface EventGovernanceOptions {
   enabled?: boolean;
+  grants?: readonly EventDeliveryGrant[];
   dataDir?: string;
   issuer?: string;
   prompt?: (request: Readonly<EventDeliveryRequest>) => EventApprovalChoice | Promise<EventApprovalChoice>;
@@ -66,6 +69,7 @@ function unsigned(receipt: EventApprovalReceipt): Omit<EventApprovalReceipt, 'si
 export class EventGovernance {
   readonly enabled: boolean;
   private options: EventGovernanceOptions;
+  private grants: readonly EventDeliveryGrant[];
   private receipts = new Map<string, EventApprovalReceipt>();
   private dataDir: string;
   private privateKey: string;
@@ -75,6 +79,7 @@ export class EventGovernance {
 
   constructor(options: EventGovernanceOptions = {}, workspace = process.cwd(), resolveManifest: (source: string) => any = source => ({ folder: source })) {
     this.options = options;
+    this.grants = (options.grants ?? []).map(grant => Object.freeze({ ...grant }));
     this.resolveManifest = resolveManifest;
     this.enabled = options.enabled === true;
     this.dataDir = options.dataDir ?? path.join(workspace, '.logos', 'event-governance');
@@ -117,12 +122,27 @@ export class EventGovernance {
 
   async authorize(request: EventDeliveryRequest): Promise<boolean> {
     if (!this.enabled || request.source === request.target || request.source === 'system' || request.target === 'system') return true;
-    if (this.findValid(request)) return true;
+    const grant = this.grants.find(grant =>
+      grant.source === request.source && grant.target === request.target &&
+      grant.operation === request.operation && (grant.event === request.event || grant.event === '*'));
+    if (grant) {
+      this.audit('decision', request, { choice: 'host-grant' });
+      return true;
+    }
+    const receipt = this.findValid(request);
+    if (receipt) {
+      this.audit('decision', request, { choice: 'receipt', receiptId: receipt.receiptId });
+      return true;
+    }
     const choice = await this.options.prompt?.(Object.freeze({ ...request })) ?? 'deny';
     this.audit('decision', request, { choice });
     if (choice === 'deny' || (choice === 'flow' && !request.flowId)) return false;
     this.approve(request, choice);
     return true;
+  }
+
+  auditCallDenial(source: string, event: string): void {
+    if (this.enabled) this.audit('decision', null, { source, event, choice: 'deny', reason: 'active-call-policy' });
   }
 
   approve(request: EventDeliveryRequest, scope: EventApprovalScope, issuer = this.options.issuer ?? 'local-user'): EventApprovalReceipt {
