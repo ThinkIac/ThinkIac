@@ -148,7 +148,7 @@ export class Container {
     process.env.PACKAGES_PATH = workspace; // v1 modules & packages read this
     this.registry = new PackageRegistry(workspace);
     this.eventContracts = new EventContractRegistry();
-    this.eventGovernance = new EventGovernance(config.eventGovernance ?? {}, workspace, source => this.registry.getPackage(source));
+    this.eventGovernance = new EventGovernance(config.eventGovernance ?? {}, workspace);
     this.services = new ServiceGraph({ selections: config?.services?.selections });
     this.lifecycle = new ReactiveLifecycle({
       services: this.services,

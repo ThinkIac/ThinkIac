@@ -24,7 +24,7 @@ describe('event delivery governance', () => {
     } finally { ws.cleanup(); }
   });
 
-  it('package approval covers only the same event, recipient and operation', async () => {
+  it('reduces package approval for unverified code to a single delivery', async () => {
     let prompts = 0;
     const { ws, container } = setup(() => { prompts++; return 'package'; });
     try {
@@ -35,16 +35,21 @@ describe('event delivery governance', () => {
       await runAsPackage(container.authority, 'source', () => container.bus.emit('other:event', {}));
       await runAsPackage(container.authority, 'source', () => container.bus.pipeline('new:event', {}));
       const request = container.eventGovernance.createRequest({
-        event: 'new:event', source: 'source', sourceIntegrity: container.eventGovernance.integrityFor('source'),
+        event: 'new:event', source: 'source', sourceIntegrity: 'unverified',
         target: 'other-target', operation: 'emit', payload: {}, flowId: null,
       });
       expect(await container.eventGovernance.authorize(request)).toBe(true);
-      expect({ calls, prompts }).toEqual({ calls: 4, prompts: 4 });
-      expect(container.eventGovernance.verify(container.eventGovernance.list()[0] as any)).toBe(true);
+      expect({ calls, prompts }).toEqual({ calls: 4, prompts: 5 });
+      expect(container.eventGovernance.list()).toHaveLength(5);
+      for (const receipt of container.eventGovernance.list()) {
+        expect(receipt).toMatchObject({ decision: 'once', sourceIntegrity: 'unverified' });
+        expect(container.eventGovernance.verify(receipt)).toBe(true);
+      }
+      expect(() => container.eventGovernance.approve(request, 'package')).toThrow(/verified executable generation/);
     } finally { ws.cleanup(); }
   });
 
-  it('flow approval accepts the same origin only in that flow', async () => {
+  it('requires a flow ID and still prompts for every delivery of unverified code', async () => {
     let prompts = 0;
     const { ws, container } = setup(() => { prompts++; return 'flow'; });
     try {
@@ -53,8 +58,9 @@ describe('event delivery governance', () => {
       await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}, { flowId: 'f1' }));
       await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}, { flowId: 'f1' }));
       await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}, { flowId: 'f2' }));
-      expect({ calls, prompts }).toEqual({ calls: 3, prompts: 2 });
-      expect(container.eventGovernance.endFlow('f1')).toBe(1);
+      await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}));
+      expect({ calls, prompts }).toEqual({ calls: 3, prompts: 4 });
+      expect(container.eventGovernance.endFlow('f1')).toBe(0);
     } finally { ws.cleanup(); }
   });
 
@@ -69,7 +75,7 @@ describe('event delivery governance', () => {
     } finally { ws.cleanup(); }
   });
 
-  it('asks again after the source identity changes and after revocation', async () => {
+  it('asks again after source edits with the same manifest', async () => {
     let prompts = 0;
     const { ws, container } = setup(() => { prompts++; return 'package'; });
     try {
@@ -77,7 +83,7 @@ describe('event delivery governance', () => {
       await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}));
       expect(container.eventGovernance.revoke(container.eventGovernance.list()[0].receiptId)).toBe(true);
       await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}));
-      fs.writeFileSync(path.join(ws.root, 'source', 'package.json'), JSON.stringify({ name: 'source', version: '2.0.0' }));
+      fs.writeFileSync(path.join(ws.root, 'source', 'index.js'), 'exports.value = () => 42;');
       await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}));
       expect(prompts).toBe(3);
     } finally { ws.cleanup(); }
@@ -145,11 +151,11 @@ it('binds delegated approvals to the immutable host delivery chain', async () =>
     await call('source', proxy);
     const promptCount = requests.length;
     await call('source', proxy);
-    expect(requests).toHaveLength(promptCount);
+    expect(requests).toHaveLength(promptCount + 3);
     expect(requests.filter(request => request.delegation).map(request => [
       request.source, request.flowId, request.delegation?.[0].event,
-    ])).toEqual([['target', null, proxy], ['target', null, proxy], ['source', null, proxy]]);
-    expect(container.eventGovernance.list().filter(receipt => receipt.receiptVersion === 3)).toHaveLength(2);
+    ])).toEqual([['target', null, proxy], ['target', null, proxy], ['source', null, proxy], ['target', null, proxy], ['source', null, proxy]]);
+    expect(container.eventGovernance.list().filter(receipt => receipt.receiptVersion === 3 && receipt.decision === 'once')).toHaveLength(4);
     expect(delivered).toBe(4);
   } finally { ws.cleanup(); }
 });

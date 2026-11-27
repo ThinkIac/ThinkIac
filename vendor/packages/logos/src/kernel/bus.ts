@@ -194,7 +194,7 @@ export class EventBus {
     for (const origin of sources) {
       const request = this.governance.createRequest({
         event, source: origin, target,
-        sourceIntegrity: origin === 'system' ? 'system' : this.governance.integrityFor(origin),
+        sourceIntegrity: origin === 'system' ? 'system' : 'unverified',
         flowId: delegation ? null : ctx?.flowId ?? null,
         delegation, operation, payload,
       });
