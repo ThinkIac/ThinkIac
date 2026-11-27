@@ -163,8 +163,10 @@ export class Container {
     registerModelRuntime(this);
     this.bus = new EventBus(msg => this.log(msg), this.authority, this.eventContracts, this.eventGovernance, principal => {
       if (principal.kind !== 'package') return null;
-      return (this.registry.getActiveContract(principal.id)
-        ?? normalizePackageContract(this.registry.getPackage(principal.id))).contract;
+      const active = this.registry.getActiveContract(principal.id);
+      if (active) return active.contract;
+      const manifest = this.registry.getPackage(principal.id);
+      return manifest.name ? normalizePackageContract(manifest).contract : null;
     });
   }
 
