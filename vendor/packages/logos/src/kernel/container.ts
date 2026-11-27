@@ -1,3 +1,4 @@
+import { normalizePackageContract } from './package-contract';
 import { registerModelRuntime } from './model-bindings';
 // kernel/container.ts — the Lógos container.
 //
@@ -160,7 +161,11 @@ export class Container {
       packageName => this.config?.authority?.grants?.[packageName] ?? null,
     );
     registerModelRuntime(this);
-    this.bus = new EventBus(msg => this.log(msg), this.authority, this.eventContracts, this.eventGovernance);
+    this.bus = new EventBus(msg => this.log(msg), this.authority, this.eventContracts, this.eventGovernance, principal => {
+      if (principal.kind !== 'package') return null;
+      return (this.registry.getActiveContract(principal.id)
+        ?? normalizePackageContract(this.registry.getPackage(principal.id))).contract;
+    });
   }
 
   get workspace(): string {
