@@ -341,7 +341,8 @@ export class EventBus {
       context.signal.throwIfAborted();
       const operation = phase === 'transform' ? 'extension-transform'
         : phase === 'before' ? 'extension-before' : 'extension-after';
-      if (!await this.permits(hook, event, current, context, operation)) continue;
+      // The request's trace ID does not authorize a different delivery edge.
+      if (!await this.permits(hook, event, current, undefined, operation)) continue;
       context.signal.throwIfAborted();
       if (!this.subs.includes(hook) || !this.subs.includes(provider)) continue;
       const result = await this.invoke(hook, deserialize(serialize(current)), this.deliveryContext(context), event, operation);
