@@ -75,12 +75,10 @@ export class EventGovernance {
   private privateKey: string;
   private publicKey: string;
   private keyId: string;
-  private resolveManifest: (source: string) => any;
 
-  constructor(options: EventGovernanceOptions = {}, workspace = process.cwd(), resolveManifest: (source: string) => any = source => ({ folder: source })) {
+  constructor(options: EventGovernanceOptions = {}, workspace = process.cwd()) {
     this.options = options;
     this.grants = (options.grants ?? []).map(grant => Object.freeze({ ...grant }));
-    this.resolveManifest = resolveManifest;
     this.enabled = options.enabled === true;
     this.dataDir = options.dataDir ?? path.join(workspace, '.logos', 'event-governance');
     if (!this.enabled) {
@@ -103,15 +101,6 @@ export class EventGovernance {
     this.load();
   }
 
-  sourceIntegrity(manifest: any): string {
-    const { path: _path, dir: _dir, folder, ...declared } = manifest ?? {};
-    return digest({ folder, manifest: declared });
-  }
-
-  integrityFor(source: string): string {
-    return this.sourceIntegrity(this.resolveManifest(source));
-  }
-
   createRequest(input: Omit<EventDeliveryRequest, 'deliveryId' | 'payloadHash' | 'occurredAt'> & { payload: any }): EventDeliveryRequest {
     const { payload, delegation, ...rest } = input;
     return Object.freeze({
@@ -129,15 +118,13 @@ export class EventGovernance {
       this.audit('decision', request, { choice: 'host-grant' });
       return true;
     }
-    const receipt = this.findValid(request);
-    if (receipt) {
-      this.audit('decision', request, { choice: 'receipt', receiptId: receipt.receiptId });
-      return true;
-    }
     const choice = await this.options.prompt?.(Object.freeze({ ...request })) ?? 'deny';
-    this.audit('decision', request, { choice });
-    if (choice === 'deny' || (choice === 'flow' && !request.flowId)) return false;
-    this.approve(request, choice);
+    if (choice === 'deny' || (choice === 'flow' && !request.flowId)) {
+      this.audit('decision', request, { choice: 'deny' });
+      return false;
+    }
+    this.audit('decision', request, { choice: 'once', requestedScope: choice, reason: 'unverified-code' });
+    this.approve(request, 'once');
     return true;
   }
 
@@ -146,7 +133,7 @@ export class EventGovernance {
   }
 
   approve(request: EventDeliveryRequest, scope: EventApprovalScope, issuer = this.options.issuer ?? 'local-user'): EventApprovalReceipt {
-    if (scope === 'flow' && !request.flowId) throw new TypeError('Flow approval requires flowId');
+    if (scope !== 'once') throw new TypeError('Reusable approval requires a verified executable generation');
     const body = {
       ...(request.delegation
         ? { receiptVersion: 3 as const, delegationHash: digest(request.delegation) }
@@ -154,7 +141,7 @@ export class EventGovernance {
       receiptId: randomUUID(), decision: scope, issuer,
       source: request.source, sourceIntegrity: request.sourceIntegrity,
       event: request.event, target: request.target, operation: request.operation,
-      flowId: scope === 'flow' ? request.flowId : null,
+      flowId: null,
       deliveryId: scope === 'once' ? request.deliveryId : null,
       payloadHash: scope === 'once' ? request.payloadHash : null,
       issuedAt: new Date().toISOString(), keyId: this.keyId,
@@ -194,22 +181,6 @@ export class EventGovernance {
     catch { return false; }
   }
 
-  private findValid(request: EventDeliveryRequest): EventApprovalReceipt | null {
-    for (const receipt of this.receipts.values()) {
-      if (receipt.revokedAt || receipt.source !== request.source || receipt.sourceIntegrity !== request.sourceIntegrity || !this.verify(receipt)) continue;
-      if (request.delegation
-        ? receipt.receiptVersion !== 3 || receipt.delegationHash !== digest(request.delegation)
-        : receipt.receiptVersion !== 2) continue;
-      if (receipt.event !== request.event ||
-          receipt.target !== request.target || receipt.operation !== request.operation) continue;
-      if (receipt.decision === 'package') return receipt;
-      if (receipt.decision === 'flow' && receipt.flowId === request.flowId) return receipt;
-      // A one-time receipt documents the delivery that was authorized in the
-      // current call. It is never a reusable credential, even after restart.
-    }
-    return null;
-  }
-
   private load(): void {
     const file = path.join(this.dataDir, 'receipts.json');
     if (!fs.existsSync(file)) return;
@@ -227,6 +198,6 @@ export class EventGovernance {
   }
 
   private audit(action: string, request: EventDeliveryRequest | null, detail: Record<string, any>): void {
-    fs.appendFileSync(path.join(this.dataDir, 'audit.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), action, ...(request ? { deliveryId: request.deliveryId, event: request.event, source: request.source, target: request.target, operation: request.operation, flowId: request.flowId, delegation: request.delegation, payloadHash: request.payloadHash } : {}), ...detail })}\n`, { mode: 0o600 });
+    fs.appendFileSync(path.join(this.dataDir, 'audit.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), action, ...(request ? { deliveryId: request.deliveryId, event: request.event, source: request.source, target: request.target, operation: request.operation, sourceIntegrity: request.sourceIntegrity, flowId: request.flowId, delegation: request.delegation, payloadHash: request.payloadHash } : {}), ...detail })}\n`, { mode: 0o600 });
   }
 }

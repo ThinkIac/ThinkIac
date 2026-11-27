@@ -24,3 +24,16 @@ with an active host invocation. The host restores the invocation's original
 authority before running the mediator. Concurrent invocations have separate
 contexts, and the mediator rejects requests from completed, cancelled or
 expired invocations. Capability providers apply their own surface permissions.
+
+## Aprovações sem vínculo com o executável
+
+Uma alteração no manifesto não representa os bytes executados. Enquanto o
+carregador não apresentar a identidade verificável da geração em execução, a
+origem consta como `unverified`. Uma resposta positiva do prompt vale apenas
+para a entrega corrente. As escolhas `flow` e `package` são registradas
+como escopo solicitado no log, e o recibo efetivo tem escopo `once`.
+
+Recibos históricos continuam disponíveis para consulta e revogação, mas não
+autorizam novas entregas. As concessões explícitas do host continuam sendo
+avaliadas pela política configurada. A verificação de conteúdo e o isolamento
+são controles independentes.
