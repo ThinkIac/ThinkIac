@@ -52,6 +52,7 @@ export declare class IsolatedRunner {
     get pid(): number | undefined;
     start(): Promise<IsolatedManifest>;
     invoke(id: string, args: any[], context?: any): Promise<any>;
+    invokeWithContext?(id: string, args: any[], context: Omit<import('../../kernel/bus').RequestContext, 'signal'>, signal: AbortSignal): Promise<any>;
     stop(reason?: string): Promise<void>;
     private request;
     private onMessage;
