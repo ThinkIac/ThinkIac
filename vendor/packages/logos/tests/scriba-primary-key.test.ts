@@ -52,6 +52,12 @@ exports.legacy = (id) -> User[id]
     });
     await expect(run('north', () => northern.read('missing'))).resolves.toBeNull();
     expect(run('north', () => northern.legacy(7).name)).toBe('legacy');
+    const isolatedRead = runtime.container.state('runtime:capabilities').get('scriba:primary-key');
+    const request = { operation: 'read', model: 'User', key: 'ana', tenant: 'south' };
+    expect(() => run('north', () => isolatedRead(request, { package: 'south' }))).toThrow('Invalid isolated Scriba read');
+    await expect(run('north', () => isolatedRead(request, { package: 'north' }))).resolves.toEqual({
+      tenant: 'north', model: 'User', key: { slug: 'ana' },
+    });
   } finally {
     await runtime.close();
     workspace.cleanup();

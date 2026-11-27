@@ -5,7 +5,19 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 const runtimes = new WeakMap<object, Container>();
-export function registerModelRuntime(container: Container) { runtimes.set(container.authority, container); }
+export function registerModelRuntime(container: Container) {
+  runtimes.set(container.authority, container);
+  container.state('runtime:capabilities').set('scriba:primary-key', (request: any, context: Readonly<{ package: string }>) => {
+    const { principal } = currentAuthority();
+    const pkg = container.registry.getPackage(context.package);
+    if (principal.kind !== 'package' || principal.id !== context.package || !pkg ||
+        request?.operation !== 'read' || typeof request.model !== 'string' ||
+        !/^[A-Za-z_][\w]*$/.test(request.model)) {
+      throw Object.assign(new Error('Invalid isolated Scriba read'), { code: 'SCRIBA_READ_DENIED' });
+    }
+    return modelBinding(pkg.dir, request.model).__logosReadPrimaryKey(request.key);
+  });
+}
 
 /** Resolve at every operation, never retain a privileged database/table proxy.
  * Captured methods and records receive the same checks as the initial lookup. */
@@ -51,7 +63,7 @@ export function modelBinding(root: string, name: string): any {
       throw Object.assign(new Error(`Cannot read ${name} in the current authority context`, { cause }), { code: 'SCRIBA_READ_DENIED' });
     }
     const catalog = modelCatalog(root);
-    const model = catalog.models[name];
+    const model = Object.hasOwn(catalog.models, name) ? catalog.models[name] : undefined;
     const invalid = () => Object.assign(new TypeError(`Invalid primary key for ${name}`), { code: 'SCRIBA_INVALID_KEY' });
     if (!model?.primaryKey) throw invalid();
     const { fields, composite } = model.primaryKey;
