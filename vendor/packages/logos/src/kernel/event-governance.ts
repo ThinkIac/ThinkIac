@@ -13,12 +13,15 @@ export interface EventDeliveryRequest {
   sourceIntegrity: string;
   flowId: string | null;
   payloadHash: string;
-  operation: 'emit' | 'pipeline' | 'veto';
+  operation: 'emit' | 'pipeline' | 'veto' | 'request' | 'extension-before' | 'extension-transform' | 'extension-after';
   occurredAt: string;
 }
 
 export interface EventApprovalReceipt {
-  receiptVersion: 1;
+  receiptVersion: 1 | 2;
+  event?: string;
+  target?: string;
+  operation?: EventDeliveryRequest['operation'];
   receiptId: string;
   decision: EventApprovalScope;
   issuer: string;
@@ -119,8 +122,9 @@ export class EventGovernance {
   approve(request: EventDeliveryRequest, scope: EventApprovalScope, issuer = this.options.issuer ?? 'local-user'): EventApprovalReceipt {
     if (scope === 'flow' && !request.flowId) throw new TypeError('Flow approval requires flowId');
     const body = {
-      receiptVersion: 1 as const, receiptId: randomUUID(), decision: scope, issuer,
+      receiptVersion: 2 as const, receiptId: randomUUID(), decision: scope, issuer,
       source: request.source, sourceIntegrity: request.sourceIntegrity,
+      event: request.event, target: request.target, operation: request.operation,
       flowId: scope === 'flow' ? request.flowId : null,
       deliveryId: scope === 'once' ? request.deliveryId : null,
       payloadHash: scope === 'once' ? request.payloadHash : null,
@@ -164,6 +168,8 @@ export class EventGovernance {
   private findValid(request: EventDeliveryRequest): EventApprovalReceipt | null {
     for (const receipt of this.receipts.values()) {
       if (receipt.revokedAt || receipt.source !== request.source || receipt.sourceIntegrity !== request.sourceIntegrity || !this.verify(receipt)) continue;
+      if (receipt.receiptVersion !== 2 || receipt.event !== request.event ||
+          receipt.target !== request.target || receipt.operation !== request.operation) continue;
       if (receipt.decision === 'package') return receipt;
       if (receipt.decision === 'flow' && receipt.flowId === request.flowId) return receipt;
       // A one-time receipt documents the delivery that was authorized in the
@@ -189,6 +195,6 @@ export class EventGovernance {
   }
 
   private audit(action: string, request: EventDeliveryRequest | null, detail: Record<string, any>): void {
-    fs.appendFileSync(path.join(this.dataDir, 'audit.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), action, ...(request ? { deliveryId: request.deliveryId, event: request.event, source: request.source, target: request.target, flowId: request.flowId, payloadHash: request.payloadHash } : {}), ...detail })}\n`, { mode: 0o600 });
+    fs.appendFileSync(path.join(this.dataDir, 'audit.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), action, ...(request ? { deliveryId: request.deliveryId, event: request.event, source: request.source, target: request.target, operation: request.operation, flowId: request.flowId, payloadHash: request.payloadHash } : {}), ...detail })}\n`, { mode: 0o600 });
   }
 }

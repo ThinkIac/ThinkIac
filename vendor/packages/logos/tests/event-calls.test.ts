@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Container } from '../src/kernel/container';
 import { normalizePackageContract } from '../src/kernel/package-contract';
 import { runAsPackage } from '../src/kernel/authority-context';
-import { callPackageEvent } from '../src/kernel/package-event-calls';
+import { callPackageEvent, requestPackageResponse } from '../src/kernel/package-event-calls';
 import { makeWorkspace } from './helpers';
 import { emitPackageDeclarations } from '../src/kernel/declaration-events';
 import type { ResourceReference } from '../src/kernel/resource-identity';
@@ -52,6 +52,30 @@ describe('optional package $ event-call policy', () => {
 
       await expect(runAsPackage(container.authority, 'agenda', () =>
         callPackageEvent(container, 'ntfy::notification:send', {}))).rejects.toMatchObject({ code: 'EVENT_PERMISSION_REQUIRED' });
+    } finally { ws.cleanup(); }
+  });
+
+  it('applies active call policy before prompting for a typed response delivery', async () => {
+    const ws = makeWorkspace('logos-response-policy-');
+    const prompt = vi.fn(() => 'package' as const);
+    try {
+      const approved = { name: 'agenda', $: ['agent::prompt:get'] };
+      ws.pkg('agenda', { 'package.json': JSON.stringify({ ...approved, $: '*' }) });
+      const container = new Container({ workspace: ws.root, eventGovernance: { enabled: true, prompt } });
+      container.registry.setActiveContract('agenda', normalizePackageContract(approved));
+      const isText = (value: unknown): value is string => typeof value === 'string';
+      for (const event of ['agent::prompt:get', 'agent::prompt:private']) {
+        container.bus.provide(event, { input: isText, output: isText }, text => text, { owner: 'agent' });
+      }
+      const call = (event: string) => runAsPackage(container.authority, 'agenda',
+        () => requestPackageResponse(container, event, 'hello'));
+      await expect(call('agent::prompt:private')).rejects.toMatchObject({ code: 'EVENT_PERMISSION_REQUIRED' });
+      expect(prompt).not.toHaveBeenCalled();
+      await expect(call('agent::prompt:get')).resolves.toBe('hello');
+      expect(prompt).toHaveBeenCalledOnce();
+      expect(prompt).toHaveBeenCalledWith(expect.objectContaining({
+        source: 'agenda', target: 'agent', operation: 'request', event: 'agent::prompt:get',
+      }));
     } finally { ws.cleanup(); }
   });
 

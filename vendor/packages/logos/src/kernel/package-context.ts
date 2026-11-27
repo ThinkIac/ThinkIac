@@ -1,7 +1,8 @@
+import type { ExtensionPhase, RequestContext, RequestContract, RequestOptions } from './bus';
 import type { Container } from './container';
 import { runAsPackage, runAsSystem } from './authority-context';
 import { externalApi } from './external-modules';
-import { callPackageEvent } from './package-event-calls';
+import { callPackageEvent, requestPackageResponse } from './package-event-calls';
 
 export class PackageContext {
   readonly package: string;
@@ -13,6 +14,14 @@ export class PackageContext {
     transform: (event: string, handler: any, options?: any) => () => void;
     veto: (event: string, handler: any, options?: any) => () => void;
     request: (event: string, payload?: any, ctx?: any) => Promise<any>;
+    hook: (event: string, phase: ExtensionPhase, handler: (payload: unknown, context: RequestContext) => unknown,
+      priority?: number) => () => void;
+    requestResponse: (event: string, payload: unknown, options?: RequestOptions) => Promise<unknown>;
+    provideResponse: <Input, Output>(
+      event: string,
+      contract: RequestContract<Input, Output>,
+      handler: (payload: Input, context: RequestContext) => Output | Promise<Output>,
+    ) => () => void;
   };
 
   readonly tools: {
@@ -49,7 +58,25 @@ export class PackageContext {
       runAsPackage(this.container.authority, this.package, () =>
         this.container.bus.on(event, handler, { ...options, owner: this.package, operation }));
 
+    const provideResponse: PackageContext['events']['provideResponse'] = (event, contract, handler) => {
+      const name = (this.container.registry.getActiveContract(this.package)?.contract.package.name
+        ?? this.package);
+      if (!event.startsWith(`${name}::`)) throw new TypeError(`Provider must use the ${name}:: namespace`);
+      return runAsPackage(this.container.authority, this.package, () =>
+        this.container.bus.provide(event, contract, handler, {
+          scope: this.container.getPackageScope(this.package),
+          owner: this.package,
+        }));
+    };
     this.events = Object.freeze({
+      provideResponse,
+      hook: (event: string, phase: ExtensionPhase, handler: (payload: unknown, context: RequestContext) => unknown,
+        priority?: number) => runAsPackage(this.container.authority, this.package, () =>
+        this.container.bus.hook(event, phase, handler, {
+          owner: this.package, scope: this.container.getPackageScope(this.package), priority,
+        })),
+      requestResponse: (event: string, payload: unknown, options?: RequestOptions) =>
+        runAsPackage(this.container.authority, this.package, () => requestPackageResponse(this.container, event, payload, options)),
       call: (event: string, payload?: any, ctx?: any) =>
         runAsPackage(this.container.authority, this.package, () =>
           callPackageEvent(this.container, event, payload, ctx)),

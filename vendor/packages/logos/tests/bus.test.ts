@@ -185,3 +185,107 @@ describe('EventBus subscription management', () => {
     expect(bus.listeners('e')[0].priority).toBe(100);
   });
 });
+
+describe('EventBus.request', () => {
+  const contract = {
+    input: (value: unknown): value is number => typeof value === 'number',
+    output: (value: unknown): value is string | null => value === null || typeof value === 'string',
+  };
+
+  it('dispatches only to the explicit provider and returns null unchanged', async () => {
+    const bus = new EventBus();
+    const observer = vi.fn();
+    const provider = vi.fn(() => null);
+    bus.on('*', observer);
+    bus.provide('example::lookup', contract, provider);
+
+    expect(await bus.request('example::lookup', 12)).toBeNull();
+    expect(observer).not.toHaveBeenCalled();
+    await bus.emit('example::lookup', 12);
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(observer).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects absence, duplicate registration and invalid input and allows replacement after teardown', async () => {
+    const bus = new EventBus();
+    const provider = vi.fn(() => null);
+    const event = 'example::lookup';
+    await expect(bus.request(event, 1)).rejects.toMatchObject({ code: 'EVENT_PROVIDER_NOT_FOUND' });
+    bus.provide(event, contract, provider, { owner: 'example' });
+    expect(() => bus.provide(event, contract, provider)).toThrow('EVENT_PROVIDER_DUPLICATE');
+    await expect(bus.request(event, '1')).rejects.toMatchObject({ code: 'EVENT_REQUEST_INVALID_INPUT' });
+    expect(provider).not.toHaveBeenCalled();
+    expect(bus.removeOwner('example')).toBe(1);
+    bus.provide(event, contract, String);
+    expect(await bus.request(event, 1)).toBe('1');
+  });
+
+  it('propagates provider errors and rejects invalid output', async () => {
+    const bus = new EventBus();
+    const error = new Error('unavailable');
+    bus.provide('failure', contract, () => { throw error; });
+    bus.provide('invalid', contract, JSON.parse.bind(null, 'false'));
+    await expect(bus.request('failure', 1)).rejects.toBe(error);
+    await expect(bus.request('invalid', 1)).rejects.toMatchObject({ code: 'EVENT_REQUEST_INVALID_OUTPUT' });
+  });
+
+  it('cancels timed-out requests and forwards caller cancellation to the provider', async () => {
+    const bus = new EventBus();
+    const signals: AbortSignal[] = [];
+    bus.provide('slow', contract, (_, { signal }) => {
+      signals.push(signal);
+      return new Promise(() => {});
+    });
+    await expect(bus.request('slow', 1, { timeoutMs: 5 }))
+      .rejects.toMatchObject({ code: 'EVENT_REQUEST_TIMEOUT' });
+    const controller = new AbortController();
+    const pending = bus.request('slow', 1, { signal: controller.signal });
+    await Promise.resolve();
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ code: 'EVENT_REQUEST_CANCELLED' });
+    expect(signals.map(signal => signal.aborted)).toEqual([true, true]);
+    await expect(bus.request('slow', 1, { signal: controller.signal }))
+      .rejects.toMatchObject({ code: 'EVENT_REQUEST_CANCELLED' });
+    expect(signals).toHaveLength(2);
+  });
+});
+
+describe('request extension points', () => {
+  it('observes isolated input and output and applies ordered replacements', async () => {
+    const bus = new EventBus();
+    const event = 'agent::prompt';
+    const trace: string[] = [];
+    const isPrompt = (value: unknown): value is { text: string } =>
+      typeof value === 'object' && value !== null && 'text' in value && typeof value.text === 'string';
+    bus.provide(event, { input: isPrompt, output: isPrompt, extensions: ['before', 'transform', 'after'] },
+      payload => {
+        trace.push('provider');
+        return payload;
+      });
+    bus.hook(event, 'before', payload => {
+      trace.push('before');
+      payload.text = 'ignored';
+      return false;
+    });
+    bus.hook(event, 'transform', payload => ({ text: payload.text + '!' }), { owner: 'last', priority: 20 });
+    bus.hook(event, 'transform', payload => ({ text: payload.text + ' world' }), { owner: 'first', priority: 10 });
+    bus.hook(event, 'after', payload => {
+      trace.push(payload.text);
+      payload.text = 'ignored';
+    });
+    expect(await bus.request(event, { text: 'hello' })).toEqual({ text: 'hello world!' });
+    expect(trace).toEqual(['before', 'provider', 'hello world!']);
+    expect(bus.removeOwner('first')).toBe(1);
+    expect(await bus.request(event, { text: 'hello' })).toEqual({ text: 'hello!' });
+  });
+
+  it('rejects invalid replacements and keeps duplicate registrations out', async () => {
+    const bus = new EventBus();
+    const event = 'agent::prompt';
+    const isText = (value: unknown): value is string => typeof value === 'string';
+    bus.provide(event, { input: isText, output: isText, extensions: ['transform'] }, text => text);
+    bus.hook(event, 'transform', () => 42);
+    expect(() => bus.hook(event, 'transform', () => 'duplicate')).toThrow('EVENT_HOOK_DUPLICATE');
+    await expect(bus.request(event, 'hello')).rejects.toMatchObject({ code: 'EVENT_REQUEST_INVALID_OUTPUT' });
+  });
+});

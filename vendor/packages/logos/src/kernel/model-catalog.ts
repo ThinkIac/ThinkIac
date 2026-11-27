@@ -39,6 +39,10 @@ export function modelCatalog(root: string) {
     for (const [name, model] of Object.entries(parsed.models) as any) {
       const previous = models[name];
       if (!previous) { models[name] = model; continue; }
+      if (previous.primaryKey && model.primaryKey && JSON.stringify(previous.primaryKey) !== JSON.stringify(model.primaryKey)) {
+        throw new Error(`Conflicting primary key for ${name}: ${file}`);
+      }
+      previous.primaryKey ??= model.primaryKey;
       for (const field of model.fields) {
         const old = previous.fields.find((f: any) => f.name === field.name);
         if (old && JSON.stringify(old) !== JSON.stringify(field)) throw new Error(`Conflicting model ${name}.${field.name}: ${file}`);

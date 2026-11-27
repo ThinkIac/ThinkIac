@@ -24,14 +24,22 @@ describe('event delivery governance', () => {
     } finally { ws.cleanup(); }
   });
 
-  it('package approval covers future events from the same package and is integrity-bound', async () => {
+  it('package approval covers only the same event, recipient and operation', async () => {
     let prompts = 0;
     const { ws, container } = setup(() => { prompts++; return 'package'; });
     try {
       let calls = 0;
       runAsPackage(container.authority, 'target', () => container.bus.on('*', () => calls++, { owner: 'target' }));
-      for (const event of ['new:event', 'other:event']) await runAsPackage(container.authority, 'source', () => container.bus.emit(event, {}));
-      expect({ calls, prompts }).toEqual({ calls: 2, prompts: 1 });
+      await runAsPackage(container.authority, 'source', () => container.bus.emit('new:event', {}));
+      await runAsPackage(container.authority, 'source', () => container.bus.emit('new:event', {}));
+      await runAsPackage(container.authority, 'source', () => container.bus.emit('other:event', {}));
+      await runAsPackage(container.authority, 'source', () => container.bus.pipeline('new:event', {}));
+      const request = container.eventGovernance.createRequest({
+        event: 'new:event', source: 'source', sourceIntegrity: container.eventGovernance.integrityFor('source'),
+        target: 'other-target', operation: 'emit', payload: {}, flowId: null,
+      });
+      expect(await container.eventGovernance.authorize(request)).toBe(true);
+      expect({ calls, prompts }).toEqual({ calls: 4, prompts: 4 });
       expect(container.eventGovernance.verify(container.eventGovernance.list()[0] as any)).toBe(true);
     } finally { ws.cleanup(); }
   });
@@ -43,8 +51,8 @@ describe('event delivery governance', () => {
       let calls = 0;
       runAsPackage(container.authority, 'target', () => container.bus.on('*', () => calls++, { owner: 'target' }));
       await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}, { flowId: 'f1' }));
-      await runAsPackage(container.authority, 'source', () => container.bus.emit('b', {}, { flowId: 'f1' }));
-      await runAsPackage(container.authority, 'source', () => container.bus.emit('c', {}, { flowId: 'f2' }));
+      await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}, { flowId: 'f1' }));
+      await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}, { flowId: 'f2' }));
       expect({ calls, prompts }).toEqual({ calls: 3, prompts: 2 });
       expect(container.eventGovernance.endFlow('f1')).toBe(1);
     } finally { ws.cleanup(); }
@@ -68,10 +76,36 @@ describe('event delivery governance', () => {
       runAsPackage(container.authority, 'target', () => container.bus.on('*', () => {}, { owner: 'target' }));
       await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}));
       expect(container.eventGovernance.revoke(container.eventGovernance.list()[0].receiptId)).toBe(true);
-      await runAsPackage(container.authority, 'source', () => container.bus.emit('b', {}));
+      await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}));
       fs.writeFileSync(path.join(ws.root, 'source', 'package.json'), JSON.stringify({ name: 'source', version: '2.0.0' }));
-      await runAsPackage(container.authority, 'source', () => container.bus.emit('c', {}));
+      await runAsPackage(container.authority, 'source', () => container.bus.emit('a', {}));
       expect(prompts).toBe(3);
     } finally { ws.cleanup(); }
   });
+});
+
+it('requires approval for the original caller on a nested asynchronous delivery', async () => {
+  const decisions: string[] = [];
+  const { ws, container } = setup((request: { source: string; target: string }) => {
+    const edge = request.source + '->' + request.target;
+    decisions.push(edge);
+    return edge === 'source->downstream' ? 'deny' : 'package';
+  });
+  try {
+    const isText = (value: unknown): value is string => typeof value === 'string';
+    const contract = { input: isText, output: isText };
+    container.bus.provide('downstream::read:secret', contract, () => 'secret', { owner: 'downstream' });
+    container.bus.provide('target::read:proxy', contract, async text => {
+      await Promise.resolve();
+      return await container.bus.request('downstream::read:secret', text, {
+        flowId: 'claimed-flow',
+      }) as string;
+    }, { owner: 'target' });
+    await expect(runAsPackage(container.authority, 'source', () =>
+      container.bus.request('target::read:proxy', 'claimed-system-origin')))
+      .rejects.toMatchObject({ code: 'EVENT_REQUEST_DENIED' });
+    expect(decisions).toEqual(['source->target', 'target->downstream', 'source->downstream']);
+    await expect(runAsPackage(container.authority, 'target', () =>
+      container.bus.request('downstream::read:secret', 'direct'))).resolves.toBe('secret');
+  } finally { ws.cleanup(); }
 });
