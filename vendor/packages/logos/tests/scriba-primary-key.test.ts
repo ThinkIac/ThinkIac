@@ -63,3 +63,41 @@ exports.legacy = (id) -> User[id]
     workspace.cleanup();
   }
 });
+
+it('reads typed keys across the isolated process boundary', async () => {
+  const { provideIsolation } = require('@thinkiac/module-isolated-runtime');
+  const workspace = makeWorkspace();
+  for (const name of ['north', 'south']) {
+    workspace.pkg(name, {
+      'package.json': JSON.stringify({ name }),
+      'schema.prisma': 'model User {\n  slug String @id\n}',
+      'read.type': '###*\n# @register_tool read\n###\nexports.read = (key) -> await User[key]\n',
+    });
+  }
+  const readByPrimaryKey = vi.fn((tenant, model, key) => ({ tenant, model, key }));
+  const isolation = provideIsolation({ authority: { runAsPackage } });
+  const runtime = await bootstrap({
+    workspace: workspace.root, externalModules: [],
+    authority: { grants: { north: { database: ['north'] } } },
+    modules: [
+      isolation,
+      { name: 'db', phase: 'boot', api: { getScriba: () => ({ readByPrimaryKey }) }, install() {} },
+    ],
+  });
+  try {
+    const start = (folder: string) => isolation.api.isolatedRunnerFor(runtime.container, {
+      ...runtime.container.registry.getPackage(folder), isolated: true,
+    });
+    const north = await start('north');
+    const south = await start('south');
+    await expect(north.invoke(north.manifest.tools[0].id, ['ana'])).resolves.toEqual({
+      tenant: 'north', model: 'User', key: { slug: 'ana' },
+    });
+    await expect(north.invoke(north.manifest.tools[0].id, [12])).rejects.toThrow('Invalid primary key');
+    await expect(south.invoke(south.manifest.tools[0].id, ['ana'])).rejects.toThrow('Cannot read User');
+    expect(readByPrimaryKey).toHaveBeenCalledTimes(1);
+  } finally {
+    await runtime.close();
+    workspace.cleanup();
+  }
+});

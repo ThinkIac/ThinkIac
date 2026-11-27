@@ -25,6 +25,13 @@ jobs:
         run: npm run build
       - name: Boot the kernel without downloaded modules
         run: node launcher/kernel-smoke.cjs
+      - name: Install the pinned isolation provider for the Scriba integration test
+        run: |
+          pin=$(node -p "require('./profiles/default.lock.json').dependencies['@thinkiac/module-isolated-runtime'].commit")
+          provider=node_modules/@thinkiac/module-isolated-runtime
+          git init "$provider"
+          git -C "$provider" fetch --depth 1 https://github.com/ThinkIac/isolated-runtime.git "$pin"
+          git -C "$provider" checkout --detach FETCH_HEAD
       - name: Test typed Scriba reads and tenant authorization
         working-directory: vendor/packages/logos
         run: npm test -- tests/scriba-primary-key.test.ts
