@@ -199,7 +199,7 @@
     },
     "@thinkiac/module-isolated-runtime": {
       "source": "ThinkIac/isolated-runtime#main",
-      "commit": "9203093ad951030bc3a502ca62b6c6afbe4a0176"
+      "commit": "a474f3bbb75ac80e14e7fa6b8ea34df1950f7e9c"
     },
     "@thinkiac/module-task-runner": {
       "source": "ThinkIac/task-runner#main",
