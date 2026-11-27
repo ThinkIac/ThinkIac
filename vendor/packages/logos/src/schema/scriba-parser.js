@@ -162,7 +162,17 @@ function parseScribaSchema(text) {
       if (field.isUnique) uniqueConstraints.push({ fields: [field.name], source: 'field' });
     }
 
-    models[modelName] = { fields, uniqueConstraints };
+    const fieldIds = fields.filter(field => field.isId).map(field => field.name);
+    const modelIds = [...body.matchAll(/^\s*@@id\s*\(\s*\[([^\]]+)\]/gm)]
+      .map(match => match[1].split(',').map(field => field.trim()));
+    const [members] = modelIds;
+    const primaryKey = !modelIds.length && fieldIds.length === 1
+      ? { fields: fieldIds, composite: false }
+      : modelIds.length === 1 && !fieldIds.length && members.length
+        && new Set(members).size === members.length
+        && members.every(name => fields.some(field => field.name === name))
+        ? { fields: members, composite: true } : null;
+    models[modelName] = { fields, uniqueConstraints, primaryKey };
   }
 
   return { models, enums };

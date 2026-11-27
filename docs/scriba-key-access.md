@@ -1,6 +1,6 @@
 # Acesso tipado por chave no Scriba
 
-Proposta para [ThinkIac #51](https://github.com/ThinkIac/ThinkIac/issues/51).
+Implementação para [ThinkIac #51](https://github.com/ThinkIac/ThinkIac/issues/51).
 
 ## Sintaxe e tipos
 
@@ -33,7 +33,11 @@ explícito ou falta de permissão de leitura produz `SCRIBA_READ_DENIED`. O
 principal de sistema usado como padrão por `currentAuthority()` sem um
 controlador ativo não concede acesso.
 
-O host verifica autorização para o modelo e o tenant antes de instanciar ou
+Em arquivos `.type`, o host usa o catálogo do pacote para reconhecer o modelo.
+O principal de pacote só pode usar essa leitura no próprio tenant e precisa de
+uma concessão explícita de banco, como `runtime.permissions.data.database: ["self"]`.
+A checagem registra o nome do modelo e usa a política de banco existente, que
+concede acesso no nível do tenant. O host autoriza antes de inicializar ou
 consultar o adaptador de dados. O adaptador usa uma conexão vinculada ao tenant.
 Se o armazenamento for compartilhado, a consulta exige também o predicado de
 tenant fornecido pelo host. Restrições de visibilidade de linhas entram na
@@ -43,11 +47,13 @@ tenta outro tenant após um resultado vazio.
 
 ## Compatibilidade e validação
 
-A main do ThinkIac consome Scriba por um módulo externo. O proxy global legado
+O ThinkIac consome Scriba pelo módulo externo `db`. O proxy global legado
 continua disponível para seus chamadores atuais e conserva a busca numérica
-por `id`. O novo caminho precisa de uma capacidade explícita no host e de uma
-operação de leitura por chave primária no módulo Scriba. O novo caminho não
-deve passar por `RecordProxy`, cuja API atual permite mutações.
+por `id`. A leitura tipada chama
+`readByPrimaryKey` do Scriba para consultar a chave declarada e projetar os campos
+escalares do schema. Campos de relação ficam fora do resultado. O carregador
+local do Lógos é o ponto de integração desta entrega. A execução isolada por RPC
+precisa expor a mesma capacidade para oferecer essa sintaxe.
 
 | Caso | Resultado esperado |
 | --- | --- |

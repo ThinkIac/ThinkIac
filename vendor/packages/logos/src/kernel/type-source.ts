@@ -15,7 +15,16 @@ export function isTypeSource(filename: string): boolean {
 /** The language compiler owns syntax, documentation and automatic exports. */
 export function compileType(source: string, filename: string): { js: string; docs: Record<string, string> } {
   const language = compiler ??= require(process.env.LOGOS_TYPE_COMPILER || 'logostype');
-  return language.compileResource(source, { filename });
+  const root = packageRoot(filename);
+  const catalog = /\.type$/i.test(filename) && fs.existsSync(path.join(root, 'package.json')) && modelCatalog(root);
+  const primaryKeyModels = catalog
+    ? Object.entries(catalog.models).filter(([, model]) => model.primaryKey).map(([name, model]) => ({
+      name,
+      primaryKey: model.primaryKey,
+      fields: model.fields,
+    }))
+    : [];
+  return language.compileResource(source, { filename, primaryKeyModels });
 }
 
 /** A local loader: no process-wide require.extensions hook or generated files. */
