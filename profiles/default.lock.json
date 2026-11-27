@@ -99,7 +99,7 @@
     },
     "scriba": {
       "source": "ThinkIac/scriba#main",
-      "commit": "736d3d5cdded6149e63c6343223040fdfb0f346e"
+      "commit": "15cc82bcc5a4cf0e0f8ea590d273f438581028bd"
     },
     "inflect": {
       "source": "ThinkIac/inflect#main",
