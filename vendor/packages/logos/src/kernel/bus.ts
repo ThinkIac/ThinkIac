@@ -23,6 +23,7 @@
 
 'use strict';
 
+import { deserialize, serialize } from 'node:v8';
 import type {
   AccessController,
   AuthorityPrincipal,
@@ -46,7 +47,10 @@ export interface RequestOptions {
   flowId?: string;
 }
 
+export type ExtensionPhase = 'before' | 'transform' | 'after';
+
 export interface RequestContract<Input, Output> {
+  extensions?: readonly ExtensionPhase[];
   input: (value: unknown) => value is Input;
   output: (value: unknown) => value is Output;
 }
@@ -71,6 +75,8 @@ export interface SubscribeOptions {
 
 export interface Subscription {
   requestProvider?: boolean;
+  extensionPhases?: readonly ExtensionPhase[];
+  extensionPhase?: ExtensionPhase;
   pattern: string;
   handler: BusHandler;
   priority: number;
@@ -146,14 +152,14 @@ export class EventBus {
     return this.register(pattern, handler, opts);
   }
 
-  private register(pattern: string, handler: BusHandler, opts: SubscribeOptions, requestProvider = false): () => void {
+  private register(pattern: string, handler: BusHandler, opts: SubscribeOptions, delivery: Pick<Subscription, 'requestProvider' | 'extensionPhases' | 'extensionPhase'> = {}): () => void {
     const principal = this.principalFor(opts.owner);
     const operation = opts.operation ?? 'subscribe';
     this.enforce(operation, pattern, principal);
     const sub: Subscription = {
       pattern,
       handler,
-      ...(requestProvider ? { requestProvider } : {}),
+      ...delivery,
       priority: opts.priority ?? 100,
       owner: opts.owner ?? (principal.kind === 'package' ? principal.id : null),
       principal,
@@ -196,7 +202,7 @@ export class EventBus {
 
   listeners(event: string): Subscription[] {
     return this.subs
-      .filter(s => !s.requestProvider && matchesEvent(s.pattern, event))
+      .filter(s => !s.requestProvider && !s.extensionPhase && matchesEvent(s.pattern, event))
       .sort((a, b) => a.priority - b.priority);
   }
 
@@ -210,12 +216,65 @@ export class EventBus {
     if (this.subs.some(sub => sub.requestProvider && sub.pattern === event)) {
       throw new EventRequestError('EVENT_PROVIDER_DUPLICATE', event);
     }
+    const extensionPhases = Object.freeze([...(contract.extensions ?? [])]);
     return this.register(event, async (payload: unknown, context: RequestContext) => {
       if (!contract.input(payload)) throw new EventRequestError('EVENT_REQUEST_INVALID_INPUT', event);
+      if (extensionPhases.includes('before')) await this.runExtensionPhase(event, 'before', payload, context);
+      context.signal.throwIfAborted();
       const result = await handler(payload, context);
       if (!contract.output(result)) throw new EventRequestError('EVENT_REQUEST_INVALID_OUTPUT', event);
-      return result;
-    }, opts, true);
+      const output = extensionPhases.includes('transform')
+        ? await this.runExtensionPhase(event, 'transform', result, context, contract.output) : result;
+      if (extensionPhases.includes('after')) await this.runExtensionPhase(event, 'after', output, context);
+      return output;
+    }, opts, { requestProvider: true, extensionPhases });
+  }
+
+  hook(
+    event: string,
+    phase: ExtensionPhase,
+    handler: BusHandler,
+    opts: Pick<SubscribeOptions, 'owner' | 'scope' | 'priority'> = {},
+  ): () => void {
+    if (!['before', 'transform', 'after'].includes(phase)) throw new TypeError('Invalid extension phase');
+    if (!event || event.includes('*')) throw new EventRequestError('EVENT_HOOK_INVALID_NAME', event);
+    const principal = this.principalFor(opts.owner);
+    if (this.subs.some(sub => sub.pattern === event && sub.extensionPhase === phase &&
+        sub.principal.kind === principal.kind && sub.principal.id === principal.id)) {
+      throw new EventRequestError('EVENT_HOOK_DUPLICATE', event);
+    }
+    return this.register(event, handler, {
+      ...opts, operation: phase === 'transform' ? 'transform' : 'subscribe',
+    }, { extensionPhase: phase });
+  }
+
+  private async runExtensionPhase(
+    event: string,
+    phase: ExtensionPhase,
+    payload: unknown,
+    context: RequestContext,
+    validate?: (value: unknown) => boolean,
+  ): Promise<unknown> {
+    const provider = this.subs.find(sub => sub.requestProvider && sub.pattern === event);
+    if (!provider?.extensionPhases?.includes(phase)) return payload;
+    const hooks = this.subs.filter(sub => sub.pattern === event && sub.extensionPhase === phase)
+      .sort((a, b) => a.priority - b.priority);
+    let current = payload;
+    for (const hook of hooks) {
+      context.signal.throwIfAborted();
+      const operation = phase === 'transform' ? 'extension-transform'
+        : phase === 'before' ? 'extension-before' : 'extension-after';
+      if (!await this.permits(hook, event, current, undefined, operation)) continue;
+      context.signal.throwIfAborted();
+      if (!this.subs.includes(hook) || !this.subs.includes(provider)) continue;
+      const result = await this.invoke(hook, deserialize(serialize(current)), context);
+      if (validate && result !== undefined) {
+        const replacement = deserialize(serialize(result));
+        if (!validate(replacement)) throw new EventRequestError('EVENT_REQUEST_INVALID_OUTPUT', event);
+        current = replacement;
+      }
+    }
+    return current;
   }
 
   async request(event: string, payload: unknown, options: RequestOptions = {}): Promise<unknown> {
@@ -247,7 +306,7 @@ export class EventBus {
         }
         signal.throwIfAborted();
         if (!this.subs.includes(provider)) throw new EventRequestError('EVENT_PROVIDER_NOT_FOUND', event);
-        return this.invoke(provider, payload, { event, signal });
+        return this.invoke(provider, payload, Object.freeze({ event, signal }));
       };
       return await Promise.race([aborted, deliver()]);
     } finally {

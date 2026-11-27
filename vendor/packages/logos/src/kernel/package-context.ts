@@ -1,4 +1,4 @@
-import type { RequestContext, RequestContract, RequestOptions } from './bus';
+import type { ExtensionPhase, RequestContext, RequestContract, RequestOptions } from './bus';
 import type { Container } from './container';
 import { runAsPackage, runAsSystem } from './authority-context';
 import { externalApi } from './external-modules';
@@ -14,6 +14,8 @@ export class PackageContext {
     transform: (event: string, handler: any, options?: any) => () => void;
     veto: (event: string, handler: any, options?: any) => () => void;
     request: (event: string, payload?: any, ctx?: any) => Promise<any>;
+    hook: (event: string, phase: ExtensionPhase, handler: (payload: unknown, context: RequestContext) => unknown,
+      priority?: number) => () => void;
     requestResponse: (event: string, payload: unknown, options?: RequestOptions) => Promise<unknown>;
     provideResponse: <Input, Output>(
       event: string,
@@ -68,6 +70,11 @@ export class PackageContext {
     };
     this.events = Object.freeze({
       provideResponse,
+      hook: (event: string, phase: ExtensionPhase, handler: (payload: unknown, context: RequestContext) => unknown,
+        priority?: number) => runAsPackage(this.container.authority, this.package, () =>
+        this.container.bus.hook(event, phase, handler, {
+          owner: this.package, scope: this.container.getPackageScope(this.package), priority,
+        })),
       requestResponse: (event: string, payload: unknown, options?: RequestOptions) =>
         runAsPackage(this.container.authority, this.package, () => this.container.bus.request(event, payload, options)),
       call: (event: string, payload?: any, ctx?: any) =>

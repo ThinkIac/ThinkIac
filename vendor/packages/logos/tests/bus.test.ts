@@ -249,3 +249,43 @@ describe('EventBus.request', () => {
     expect(signals).toHaveLength(2);
   });
 });
+
+describe('request extension points', () => {
+  it('observes isolated input and output and applies ordered replacements', async () => {
+    const bus = new EventBus();
+    const event = 'agent::prompt';
+    const trace: string[] = [];
+    const isPrompt = (value: unknown): value is { text: string } =>
+      typeof value === 'object' && value !== null && 'text' in value && typeof value.text === 'string';
+    bus.provide(event, { input: isPrompt, output: isPrompt, extensions: ['before', 'transform', 'after'] },
+      payload => {
+        trace.push('provider');
+        return payload;
+      });
+    bus.hook(event, 'before', payload => {
+      trace.push('before');
+      payload.text = 'ignored';
+      return false;
+    });
+    bus.hook(event, 'transform', payload => ({ text: payload.text + '!' }), { owner: 'last', priority: 20 });
+    bus.hook(event, 'transform', payload => ({ text: payload.text + ' world' }), { owner: 'first', priority: 10 });
+    bus.hook(event, 'after', payload => {
+      trace.push(payload.text);
+      payload.text = 'ignored';
+    });
+    expect(await bus.request(event, { text: 'hello' })).toEqual({ text: 'hello world!' });
+    expect(trace).toEqual(['before', 'provider', 'hello world!']);
+    expect(bus.removeOwner('first')).toBe(1);
+    expect(await bus.request(event, { text: 'hello' })).toEqual({ text: 'hello!' });
+  });
+
+  it('rejects invalid replacements and keeps duplicate registrations out', async () => {
+    const bus = new EventBus();
+    const event = 'agent::prompt';
+    const isText = (value: unknown): value is string => typeof value === 'string';
+    bus.provide(event, { input: isText, output: isText, extensions: ['transform'] }, text => text);
+    bus.hook(event, 'transform', () => 42);
+    expect(() => bus.hook(event, 'transform', () => 'duplicate')).toThrow('EVENT_HOOK_DUPLICATE');
+    await expect(bus.request(event, 'hello')).rejects.toMatchObject({ code: 'EVENT_REQUEST_INVALID_OUTPUT' });
+  });
+});

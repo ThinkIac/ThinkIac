@@ -19,3 +19,18 @@ A entrega respeita a autoridade e a governança do barramento.
 As APIs legadas `ctx.events.call` e `ctx.events.request` continuam
 adaptando as chamadas para `pipeline`. A escolha da operação é feita pelo
 método chamado, inclusive quando o chamador usa `await`.
+
+Um provedor pode declarar fases em `extensions` no contrato de
+`provideResponse`. `ctx.events.hook(evento, fase, handler, prioridade)`
+registra um hook por pacote, evento e fase. A prioridade menor executa primeiro.
+Hooks são descartados junto com o escopo do pacote.
+
+- `before` recebe uma cópia da entrada validada.
+- `transform` recebe uma cópia da saída atual. Um retorno diferente de
+  `undefined` substitui a saída após cópia e validação.
+- `after` recebe uma cópia da saída final.
+
+As fases de observação ignoram o retorno, inclusive `false`. Uma falha do hook
+rejeita a chamada. O prazo e o sinal de cancelamento da chamada abrangem as três
+fases. Valores expostos a hooks precisam aceitar a serialização do V8.
+Com governança habilitada, cada fase exige autorização da sua entrega.

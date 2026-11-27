@@ -13,7 +13,7 @@ export interface EventDeliveryRequest {
   sourceIntegrity: string;
   flowId: string | null;
   payloadHash: string;
-  operation: 'emit' | 'pipeline' | 'veto' | 'request';
+  operation: 'emit' | 'pipeline' | 'veto' | 'request' | 'extension-before' | 'extension-transform' | 'extension-after';
   occurredAt: string;
 }
 
