@@ -28,12 +28,15 @@ jobs:
       - name: Install the pinned isolation provider for the Scriba integration test
         run: |
           pin=$(node -p "require('./profiles/default.lock.json').dependencies['@thinkiac/module-isolated-runtime'].commit")
-          provider=node_modules/@thinkiac/module-isolated-runtime
+          provider="$RUNNER_TEMP/thinkiac-isolated-runtime"
           git init "$provider"
           git -C "$provider" fetch --depth 1 https://github.com/ThinkIac/isolated-runtime.git "$pin"
           git -C "$provider" checkout --detach FETCH_HEAD
       - name: Test typed Scriba reads and tenant authorization
         working-directory: vendor/packages/logos
+        env:
+          LOGOS_TEST_ISOLATION_PROVIDER: ${{ runner.temp }}/thinkiac-isolated-runtime
+          NODE_PATH: ${{ github.workspace }}/node_modules
         run: npm test -- tests/scriba-primary-key.test.ts
       - name: Install resource lifecycle test dependencies
         working-directory: vendor/packages/logos

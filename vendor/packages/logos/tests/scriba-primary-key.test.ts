@@ -64,8 +64,9 @@ exports.legacy = (id) -> User[id]
   }
 });
 
-it('reads typed keys across the isolated process boundary', async () => {
-  const { provideIsolation } = require('@thinkiac/module-isolated-runtime');
+const isolationProvider = process.env.LOGOS_TEST_ISOLATION_PROVIDER;
+it.skipIf(!isolationProvider)('reads typed keys across the isolated process boundary', async () => {
+  const { provideIsolation } = require(isolationProvider!);
   const workspace = makeWorkspace();
   for (const name of ['north', 'south']) {
     workspace.pkg(name, {
