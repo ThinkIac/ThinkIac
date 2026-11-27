@@ -37,3 +37,20 @@ Recibos históricos continuam disponíveis para consulta e revogação, mas não
 autorizam novas entregas. As concessões explícitas do host continuam sendo
 avaliadas pela política configurada. A verificação de conteúdo e o isolamento
 são controles independentes.
+
+## Pacotes não confiáveis
+
+Pacotes no processo principal compartilham a autoridade do processo sobre o
+sistema operacional. A identidade de pacote controla as operações do Lógos.
+
+Em um host Linux, instale o Bubblewrap e defina
+`LOGOS_ISOLATED_SANDBOX_ROOT` no ambiente do serviço antes de ativar pacotes
+não confiáveis marcados como isolados. O diretório contém o Node e as
+bibliotecas necessárias para inicializá-lo. A especificação da imagem e as
+instruções de implantação estão no README do executor isolado.
+
+O executor combina montagens de leitura com namespaces privados de rede e
+processos. Arquivos externos, rede, processos e credenciais são acessados
+pelas operações mediadas e autorizadas no host. O supervisor continua
+responsável pela inicialização, falhas e encerramento. O modo sem Bubblewrap
+continua disponível para a execução isolada de pacotes confiáveis.
