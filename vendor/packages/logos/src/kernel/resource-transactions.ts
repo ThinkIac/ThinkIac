@@ -1,3 +1,4 @@
+import { prepareExtensionDeclarations } from './extension-declarations';
 import type { Container } from './container';
 import { formatResourceIdentity, ResourceResolutionError } from './resource-identity';
 import type { ResourceIdentity, ResourceReference } from './resource-identity';
@@ -92,6 +93,7 @@ export class ResourceTransactions {
     };
     this.pending.set(owner, rollback);
     try {
+      next.push(prepareExtensionDeclarations(this.container, owner, packageName, resources));
       for (const mod of this.container.modules.values()) {
         for (const [type, consumer] of Object.entries(mod.resources || {})) {
           if (typeof consumer === 'function') continue;

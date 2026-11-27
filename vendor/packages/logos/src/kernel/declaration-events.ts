@@ -4,6 +4,7 @@ import type { Container } from './container';
 import { registerDeclarations } from './scan';
 import { getIsolatedRunner } from '../core/isolated/bridge';
 import { runAsPackage } from './authority-context';
+import { isExtensionDeclaration } from './extension-declarations';
 import { runtimeEvent } from './runtime-protocol';
 
 /** Deliver a serializable declaration and a separately mediated callable to modules. */
@@ -17,11 +18,14 @@ export async function collectPackageDeclarations(container: Container, pkg: any)
     : await registerDeclarations((pkg.dir ?? (path.isAbsolute(pkg.folder) ? pkg.folder : container.registry.getPackage(pkg.folder).dir)));
   for (const entry of entries) {
     const type = entry.declaration.type;
-    if (entry.declaration.legacy || ['module', 'type'].includes(type)) continue;
+    if (isExtensionDeclaration(entry.declaration) || entry.declaration.legacy || ['module', 'type'].includes(type)) continue;
     const available = [...container.modules.values()].some(mod => !!mod.resources?.[type])
       || container.state('runtime:accepted-types').has(type)
       || container.bus.listeners(`register:${type}`).length > 0;
     if (!available) throw new Error(`[logos] missing resource type "${type}" for package "${pkg.folder}" (${entry.file})`);
+  }
+  if (runner?.surfaces && entries.some(entry => isExtensionDeclaration(entry.declaration))) {
+    throw new Error('Extension declarations require local execution until RPC supports request context');
   }
   return entries.filter(entry => !['module', 'type'].includes(entry.declaration.type)).map(entry => ({
     declaration: entry.declaration, file: entry.file, package: pkg.folder,
