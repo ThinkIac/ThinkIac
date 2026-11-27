@@ -23,24 +23,16 @@
 
 'use strict';
 
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { deserialize, serialize } from 'node:v8';
 import type {
   AccessController,
   AuthorityPrincipal,
   EventAuthorityOperation,
 } from './access-controller';
-import { currentAuthority, runAsPrincipal, SYSTEM_PRINCIPAL } from './authority-context';
+import { currentAuthority, runAsPrincipal, runWithEventDelivery, SYSTEM_PRINCIPAL } from './authority-context';
 import type { EventContractRegistry } from './event-contracts';
 import type { EffectScope } from './effects';
 import type { EventGovernance, EventDeliveryRequest } from './event-governance';
-
-interface DeliveryFrame {
-  readonly caller: AuthorityPrincipal;
-  readonly provider: AuthorityPrincipal;
-  readonly event: string;
-  readonly operation: EventDeliveryRequest['operation'];
-}
 
 export type BusHandler = (payload: any, ctx?: any) => any;
 
@@ -112,7 +104,6 @@ export function matchesEvent(pattern: string, eventName: string): boolean {
 }
 
 export class EventBus {
-  private readonly deliveries = new AsyncLocalStorage<readonly DeliveryFrame[]>();
   private subs: Subscription[] = [];
   private nextRegistrationOrder = 0;
   private declaredExtensions = new Map<string, Subscription[]>();
@@ -140,13 +131,14 @@ export class EventBus {
     if (this.governance?.enabled && principal.kind === 'package') return;
     const access = this.authority ?? currentAuthority().access;
     access?.enforce({ principal, surface: 'events', operation, resource });
+    if (operation !== 'request') return;
+    for (const origin of this.delegatedCallers(principal)) {
+      access?.enforce({ principal: origin, surface: 'events', operation, resource });
+    }
   }
 
-  private invoke(sub: Subscription, payload: any, ctx: any, event: string, operation: DeliveryFrame['operation']): any {
-    const caller = currentAuthority().principal;
-    const frame = Object.freeze({ caller, provider: sub.principal, event, operation });
-    return this.deliveries.run(Object.freeze([...(this.deliveries.getStore() ?? []), frame]),
-      () => this.invokeHandler(sub, payload, ctx));
+  private invoke(sub: Subscription, payload: any, ctx: any, event: string, operation: EventDeliveryRequest['operation']): any {
+    return runWithEventDelivery(sub.principal, event, operation, () => this.invokeHandler(sub, payload, ctx));
   }
 
   private invokeHandler(sub: Subscription, payload: any, ctx: any): any {
@@ -161,21 +153,30 @@ export class EventBus {
     return runAsPrincipal(access, sub.principal, () => sub.handler(payload, ctx));
   }
 
+  private delegatedCallers(principal: AuthorityPrincipal): AuthorityPrincipal[] {
+    const callers = new Map<string, AuthorityPrincipal>();
+    for (const { caller } of currentAuthority().delegation) {
+      if (caller.kind === 'package' && (principal.kind !== 'package' || caller.id !== principal.id)) {
+        callers.set(caller.id, caller);
+      }
+    }
+    return [...callers.values()];
+  }
+
   private async permits(sub: Subscription, event: string, payload: any, ctx: any, operation: EventDeliveryRequest['operation']): Promise<boolean> {
     if (!this.governance?.enabled) return true;
     const principal = currentAuthority().principal;
     const source = principal.kind === 'package' ? principal.id : 'system';
     const target = sub.principal.kind === 'package' ? sub.principal.id : 'system';
-    const sources = new Set([source]);
-    for (const frame of this.deliveries.getStore() ?? []) {
-      if (frame.caller.kind === 'package') sources.add(frame.caller.id);
-    }
+    const callers = this.delegatedCallers(principal);
+    const sources = [source, ...callers.map(caller => caller.id)];
+    const delegation = callers.length ? currentAuthority().delegation : undefined;
     for (const origin of sources) {
       const request = this.governance.createRequest({
         event, source: origin, target,
         sourceIntegrity: origin === 'system' ? 'system' : this.governance.integrityFor(origin),
-        flowId: origin === source ? ctx?.flowId ?? null : null,
-        operation, payload,
+        flowId: delegation ? null : ctx?.flowId ?? null,
+        delegation, operation, payload,
       });
       if (!await this.governance.authorize(request)) return false;
     }

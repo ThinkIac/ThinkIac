@@ -1,3 +1,4 @@
+import type { EventDelegation } from './authority-context';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, generateKeyPairSync, randomUUID, sign, verify } from 'node:crypto';
@@ -15,10 +16,12 @@ export interface EventDeliveryRequest {
   payloadHash: string;
   operation: 'emit' | 'pipeline' | 'veto' | 'request' | 'extension-before' | 'extension-transform' | 'extension-after';
   occurredAt: string;
+  delegation?: readonly EventDelegation[];
 }
 
 export interface EventApprovalReceipt {
-  receiptVersion: 1 | 2;
+  receiptVersion: 1 | 2 | 3;
+  delegationHash?: string;
   event?: string;
   target?: string;
   operation?: EventDeliveryRequest['operation'];
@@ -105,8 +108,11 @@ export class EventGovernance {
   }
 
   createRequest(input: Omit<EventDeliveryRequest, 'deliveryId' | 'payloadHash' | 'occurredAt'> & { payload: any }): EventDeliveryRequest {
-    const { payload, ...rest } = input;
-    return Object.freeze({ ...rest, deliveryId: randomUUID(), payloadHash: digest(payload), occurredAt: new Date().toISOString() });
+    const { payload, delegation, ...rest } = input;
+    return Object.freeze({
+      ...rest, ...(delegation ? { delegation } : {}),
+      deliveryId: randomUUID(), payloadHash: digest(payload), occurredAt: new Date().toISOString(),
+    });
   }
 
   async authorize(request: EventDeliveryRequest): Promise<boolean> {
@@ -114,7 +120,7 @@ export class EventGovernance {
     if (this.findValid(request)) return true;
     const choice = await this.options.prompt?.(Object.freeze({ ...request })) ?? 'deny';
     this.audit('decision', request, { choice });
-    if (choice === 'deny') return false;
+    if (choice === 'deny' || (choice === 'flow' && !request.flowId)) return false;
     this.approve(request, choice);
     return true;
   }
@@ -122,7 +128,10 @@ export class EventGovernance {
   approve(request: EventDeliveryRequest, scope: EventApprovalScope, issuer = this.options.issuer ?? 'local-user'): EventApprovalReceipt {
     if (scope === 'flow' && !request.flowId) throw new TypeError('Flow approval requires flowId');
     const body = {
-      receiptVersion: 2 as const, receiptId: randomUUID(), decision: scope, issuer,
+      ...(request.delegation
+        ? { receiptVersion: 3 as const, delegationHash: digest(request.delegation) }
+        : { receiptVersion: 2 as const }),
+      receiptId: randomUUID(), decision: scope, issuer,
       source: request.source, sourceIntegrity: request.sourceIntegrity,
       event: request.event, target: request.target, operation: request.operation,
       flowId: scope === 'flow' ? request.flowId : null,
@@ -168,7 +177,10 @@ export class EventGovernance {
   private findValid(request: EventDeliveryRequest): EventApprovalReceipt | null {
     for (const receipt of this.receipts.values()) {
       if (receipt.revokedAt || receipt.source !== request.source || receipt.sourceIntegrity !== request.sourceIntegrity || !this.verify(receipt)) continue;
-      if (receipt.receiptVersion !== 2 || receipt.event !== request.event ||
+      if (request.delegation
+        ? receipt.receiptVersion !== 3 || receipt.delegationHash !== digest(request.delegation)
+        : receipt.receiptVersion !== 2) continue;
+      if (receipt.event !== request.event ||
           receipt.target !== request.target || receipt.operation !== request.operation) continue;
       if (receipt.decision === 'package') return receipt;
       if (receipt.decision === 'flow' && receipt.flowId === request.flowId) return receipt;
@@ -195,6 +207,6 @@ export class EventGovernance {
   }
 
   private audit(action: string, request: EventDeliveryRequest | null, detail: Record<string, any>): void {
-    fs.appendFileSync(path.join(this.dataDir, 'audit.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), action, ...(request ? { deliveryId: request.deliveryId, event: request.event, source: request.source, target: request.target, operation: request.operation, flowId: request.flowId, payloadHash: request.payloadHash } : {}), ...detail })}\n`, { mode: 0o600 });
+    fs.appendFileSync(path.join(this.dataDir, 'audit.jsonl'), `${JSON.stringify({ at: new Date().toISOString(), action, ...(request ? { deliveryId: request.deliveryId, event: request.event, source: request.source, target: request.target, operation: request.operation, flowId: request.flowId, delegation: request.delegation, payloadHash: request.payloadHash } : {}), ...detail })}\n`, { mode: 0o600 });
   }
 }
