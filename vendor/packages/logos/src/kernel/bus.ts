@@ -33,6 +33,7 @@ import type {
 import { currentAuthority, runAsPrincipal, SYSTEM_PRINCIPAL } from './authority-context';
 import type { EventContractRegistry } from './event-contracts';
 import type { EffectScope } from './effects';
+import { eventCallAllowed, EventPermissionRequiredError, type ResolveEventContract } from './event-call-policy';
 import type { EventGovernance, EventDeliveryRequest } from './event-governance';
 
 interface DeliveryFrame {
@@ -123,6 +124,7 @@ export class EventBus {
     private authority: AccessController | null = null,
     private eventContracts: EventContractRegistry | null = null,
     private governance: EventGovernance | null = null,
+    private resolveEventContract: ResolveEventContract = () => null,
   ) {
     this.log = log;
   }
@@ -132,6 +134,24 @@ export class EventBus {
     if (owner && owner !== 'kernel' && owner !== 'system') return { kind: 'package', id: owner };
     if (owner === 'kernel' || owner === 'system') return SYSTEM_PRINCIPAL;
     return currentAuthority().principal;
+  }
+
+  private resolveInvocation(requestedEvent: string): string | null {
+    const principal = currentAuthority().principal;
+    const contract = this.resolveEventContract(principal);
+    if (!contract || contract.eventCalls === null) return null;
+    const packageName = contract.package.name;
+    const event = requestedEvent.includes('::') ? requestedEvent : `${packageName}::${requestedEvent}`;
+    if (!eventCallAllowed(contract, event)) {
+      this.governance?.auditCallDenial(principal.id, event);
+      throw new EventPermissionRequiredError(packageName, event, requestedEvent);
+    }
+    return event;
+  }
+
+  async call(event: string, payload?: any, ctx?: any): Promise<any> {
+    const qualified = this.resolveInvocation(event);
+    return this.runPipeline(qualified ?? event, payload, ctx, qualified === null ? 'transform' : 'request');
   }
 
   private enforce(operation: EventAuthorityOperation, resource: string, principal = currentAuthority().principal): void {
@@ -355,7 +375,8 @@ export class EventBus {
     return current;
   }
 
-  async request(event: string, payload: unknown, options: RequestOptions = {}): Promise<unknown> {
+  async request(requestedEvent: string, payload: unknown, options: RequestOptions = {}): Promise<unknown> {
+    const event = this.resolveInvocation(requestedEvent) ?? requestedEvent;
     this.enforce('request', event);
     const timeoutMs = options.timeoutMs ?? 30_000;
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) {
@@ -420,6 +441,10 @@ export class EventBus {
 
   /** Transform pipeline — the contract packages use to change runtime behavior. */
   async pipeline(event: string, payload: any, ctx?: any, operation: 'transform' | 'request' = 'transform'): Promise<any> {
+    return this.runPipeline(operation === 'request' ? this.resolveInvocation(event) ?? event : event, payload, ctx, operation);
+  }
+
+  private async runPipeline(event: string, payload: any, ctx: any, operation: 'transform' | 'request'): Promise<any> {
     this.enforce(operation, event);
     this.eventContracts?.validate(event, payload);
     let current = payload;

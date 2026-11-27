@@ -70,6 +70,8 @@ describe('optional package $ event-call policy', () => {
       const call = (event: string) => runAsPackage(container.authority, 'agenda',
         () => requestPackageResponse(container, event, 'hello'));
       await expect(call('agent::prompt:private')).rejects.toMatchObject({ code: 'EVENT_PERMISSION_REQUIRED' });
+      await expect(runAsPackage(container.authority, 'agenda', () =>
+        container.bus.request('agent::prompt:private', 'hello'))).rejects.toMatchObject({ code: 'EVENT_PERMISSION_REQUIRED' });
       expect(prompt).not.toHaveBeenCalled();
       await expect(call('agent::prompt:get')).resolves.toBe('hello');
       expect(prompt).toHaveBeenCalledOnce();
@@ -155,4 +157,51 @@ describe('canonical resource resolution', () => {
       ws.cleanup();
     }
   });
+});
+
+it('limits explicit host grants to their sender, recipient and operation', async () => {
+  const ws = makeWorkspace('logos-event-grants-');
+  try {
+    const container = new Container({ workspace: ws.root, eventGovernance: {
+      enabled: true,
+      grants: [{ source: 'source', target: 'target', operation: 'extension-before', event: '*' }],
+    } });
+    const permits = (changes: Partial<import('../src/kernel/event-governance').EventDeliveryRequest> = {}) =>
+      container.eventGovernance.authorize(container.eventGovernance.createRequest({
+        source: 'source', target: 'target', event: 'target::response:read',
+        operation: 'extension-before', flowId: null, sourceIntegrity: 'test', payload: null, ...changes,
+      }));
+    expect(await permits()).toBe(true);
+    expect(await permits({ event: 'target::response:other' })).toBe(true);
+    expect(await permits({ operation: 'extension-transform' })).toBe(false);
+    expect(await permits({ operation: 'request' })).toBe(false);
+    expect(await permits({ target: 'another' })).toBe(false);
+    expect(await permits({ source: 'another' })).toBe(false);
+    expect(container.eventGovernance.list()).toEqual([]);
+  } finally { ws.cleanup(); }
+});
+
+it('delivers only the hook phase granted by the host', async () => {
+  const ws = makeWorkspace('logos-event-operations-');
+  try {
+    const event = 'provider::response:compose';
+    const prompt = vi.fn(() => 'deny' as const);
+    const container = new Container({ workspace: ws.root, eventGovernance: {
+      enabled: true, prompt,
+      grants: [{ source: 'provider', target: 'extension', operation: 'extension-before', event }],
+    } });
+    const isText = (value: unknown): value is string => typeof value === 'string';
+    container.bus.provide(event, { input: isText, output: isText, extensions: ['before', 'transform'] },
+      value => value, { owner: 'provider' });
+    const observe = vi.fn();
+    const transform = vi.fn(() => 'changed');
+    container.bus.hook(event, 'before', observe, { owner: 'extension' });
+    container.bus.hook(event, 'transform', transform, { owner: 'extension' });
+    await expect(container.bus.request(event, 'original')).resolves.toBe('original');
+    expect(observe).toHaveBeenCalledOnce();
+    expect(transform).not.toHaveBeenCalled();
+    expect(prompt).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      source: 'provider', target: 'extension', event, operation: 'extension-transform',
+    }));
+  } finally { ws.cleanup(); }
 });
