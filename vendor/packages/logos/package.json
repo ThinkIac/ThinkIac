@@ -51,7 +51,7 @@
     "vitest": "^4.1.12"
   },
   "dependencies": {
-    "logostype": "github:ThinkIac/LogosType#c67e0cc33ff5ab759d65a7ff512a440681dd3352"
+    "logostype": "github:ThinkIac/LogosType#6de04772b43ae85c8bf13bbcaff95f2c3c1555a6"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -43,4 +43,4 @@ jobs:
         run: npm install --legacy-peer-deps --no-save --package-lock=false git+https://github.com/ThinkIac/stabilizer.git#b85b49d49cca5fe63b5d612fd4c411bda1212564
       - name: Test resource resolution and reload
         working-directory: vendor/packages/logos
-        run: npm test -- tests/event-calls.test.ts tests/resource-transactions.test.ts
+        run: npm test -- tests/event-calls.test.ts tests/resource-transactions.test.ts tests/extension-declarations.test.ts
