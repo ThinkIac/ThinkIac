@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { typedResource } from './resource-types';
+import type { RequestContext } from './bus';
 import type { Container } from './container';
 import { registerDeclarations } from './scan';
 import { getIsolatedRunner } from '../core/isolated/bridge';
@@ -14,7 +15,15 @@ export async function collectPackageDeclarations(container: Container, pkg: any)
     throw new Error(`Isolated package ${pkg.folder} has no running runner`);
   }
   const entries = runner?.surfaces
-    ? runner.surfaces.declarations.map(entry => ({ ...entry, handler: (...args: any[]) => runner.invoke(entry.id, args) }))
+    ? runner.surfaces.declarations.map(entry => ({
+        ...entry,
+        handler: isExtensionDeclaration(entry.declaration)
+          ? (...args: any[]) => {
+              const { event, flowId, signal } = args.pop() as RequestContext;
+              return runner.invokeWithContext!(entry.id, args, { event, flowId }, signal);
+            }
+          : (...args: any[]) => runner.invoke(entry.id, args),
+      }))
     : await registerDeclarations((pkg.dir ?? (path.isAbsolute(pkg.folder) ? pkg.folder : container.registry.getPackage(pkg.folder).dir)));
   for (const entry of entries) {
     const type = entry.declaration.type;
@@ -24,8 +33,8 @@ export async function collectPackageDeclarations(container: Container, pkg: any)
       || container.bus.listeners(`register:${type}`).length > 0;
     if (!available) throw new Error(`[logos] missing resource type "${type}" for package "${pkg.folder}" (${entry.file})`);
   }
-  if (runner?.surfaces && entries.some(entry => isExtensionDeclaration(entry.declaration))) {
-    throw new Error('Extension declarations require local execution until RPC supports request context');
+  if (runner?.surfaces && !runner.invokeWithContext && entries.some(entry => isExtensionDeclaration(entry.declaration))) {
+    throw new Error('Extension declarations require an isolation provider with request-context support');
   }
   return entries.filter(entry => !['module', 'type'].includes(entry.declaration.type)).map(entry => ({
     declaration: entry.declaration, file: entry.file, package: pkg.folder,

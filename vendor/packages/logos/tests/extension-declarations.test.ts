@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { bootstrap } from '../src/index';
 import { runAsPackage } from '../src/kernel/authority-context';
 import { Container } from '../src/kernel/container';
 import { emitPackageDeclarations, preparePackageResources } from '../src/kernel/declaration-events';
@@ -65,6 +66,52 @@ it('runs typed prompt extensions in order and replaces them transactionally', as
     await expect(request({ message: 'hello' })).resolves.toBe('hello!');
   } finally {
     await c.closeModules();
+    ws.cleanup();
+  }
+});
+
+const isolationProvider = process.env.LOGOS_TEST_ISOLATION_PROVIDER;
+it.skipIf(!isolationProvider)('runs declared extensions and a response across the isolated process boundary', async () => {
+  const { provideIsolation } = require(isolationProvider!);
+  const ws = makeWorkspace();
+  ws.pkg('agent', {
+    'package.json': '{"name":"agent"}',
+    'prompt.type': [
+      'response compose = (message: string, suffix: string = "!"): string ->',
+      '  @extensions before',
+      '  @extensions transform',
+      '  @extensions after',
+      '  message + suffix',
+    ].join('\n'),
+  });
+  ws.pkg('plugin', {
+    'package.json': '{"name":"plugin"}',
+    'hooks.type': [
+      'extensionHook inspect = before agent::response:compose ({message}, ctx) ->',
+      '  throw new Error("invalid context") unless message is "hello" and ctx.event is "agent::response:compose" and ctx.flowId is "trace" and ctx.signal.aborted is false',
+      'extensionHook customize = transform agent::response:compose ({result}, ctx) ->',
+      '  ctx.signal.throwIfAborted()',
+      '  result.toUpperCase()',
+      'extensionHook finish = after agent::response:compose ({result}, ctx) ->',
+      '  throw new Error("invalid result") unless result is "HELLO!" and ctx.flowId is "trace"',
+    ].join('\n'),
+  });
+  const isolation = provideIsolation({ authority: { runAsPackage } });
+  const runtime = await bootstrap({
+    workspace: ws.root, externalModules: [], modules: [isolation],
+    eventGovernance: { enabled: true, prompt: () => 'once' },
+  });
+  try {
+    for (const folder of ['agent', 'plugin']) {
+      const pkg = { ...runtime.container.registry.getPackage(folder), isolated: true };
+      const runner = await isolation.api.isolatedRunnerFor(runtime.container, pkg);
+      expect(runner.pid).not.toBe(process.pid);
+      await emitPackageDeclarations(runtime.container, pkg);
+    }
+    await expect(runtime.container.bus.request('agent::response:compose', { message: 'hello' }, { flowId: 'trace' }))
+      .resolves.toBe('HELLO!');
+  } finally {
+    await runtime.close();
     ws.cleanup();
   }
 });

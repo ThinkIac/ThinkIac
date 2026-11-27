@@ -25,22 +25,22 @@ jobs:
         run: npm run build
       - name: Boot the kernel without downloaded modules
         run: node launcher/kernel-smoke.cjs
-      - name: Install the pinned isolation provider for the Scriba integration test
+      - name: Install the pinned isolation provider
         run: |
           pin=$(node -p "require('./profiles/default.lock.json').dependencies['@thinkiac/module-isolated-runtime'].commit")
           provider="$RUNNER_TEMP/thinkiac-isolated-runtime"
           git init "$provider"
           git -C "$provider" fetch --depth 1 https://github.com/ThinkIac/isolated-runtime.git "$pin"
           git -C "$provider" checkout --detach FETCH_HEAD
-      - name: Test typed Scriba reads and tenant authorization
+      - name: Test typed Scriba reads and declared extensions in isolation
         working-directory: vendor/packages/logos
         env:
           LOGOS_TEST_ISOLATION_PROVIDER: ${{ runner.temp }}/thinkiac-isolated-runtime
           NODE_PATH: ${{ github.workspace }}/node_modules
-        run: npm test -- tests/scriba-primary-key.test.ts
+        run: npm test -- tests/scriba-primary-key.test.ts tests/extension-declarations.test.ts
       - name: Install resource lifecycle test dependencies
         working-directory: vendor/packages/logos
         run: npm install --legacy-peer-deps --no-save --package-lock=false git+https://github.com/ThinkIac/stabilizer.git#b85b49d49cca5fe63b5d612fd4c411bda1212564
       - name: Test resource resolution and reload
         working-directory: vendor/packages/logos
-        run: npm test -- tests/event-calls.test.ts tests/resource-transactions.test.ts tests/extension-declarations.test.ts
+        run: npm test -- tests/event-calls.test.ts tests/resource-transactions.test.ts
