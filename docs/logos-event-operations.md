@@ -34,3 +34,13 @@ As fases de observação ignoram o retorno, inclusive `false`. Uma falha do hook
 rejeita a chamada. O prazo e o sinal de cancelamento da chamada abrangem as três
 fases. Valores expostos a hooks precisam aceitar a serialização do V8.
 Com governança habilitada, cada fase exige autorização da sua entrega.
+
+Quando o manifesto tem política `$`, o contrato ativo resolve o nome
+qualificado e verifica a permissão de chamada antes de consultar a governança
+de entrega. Isso vale tanto para a chamada legada quanto para `requestResponse`.
+Sem a política, os nomes recebidos são preservados.
+
+Recibos de entrega da versão 2 incluem origem, integridade da origem, evento,
+destinatário e operação. Recibos de fluxo também incluem o identificador do
+fluxo. Recibos da versão 1 permanecem disponíveis para auditoria e precisam
+de nova decisão para autorizar entregas futuras.

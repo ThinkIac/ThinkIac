@@ -2,7 +2,7 @@ import type { ExtensionPhase, RequestContext, RequestContract, RequestOptions } 
 import type { Container } from './container';
 import { runAsPackage, runAsSystem } from './authority-context';
 import { externalApi } from './external-modules';
-import { callPackageEvent } from './package-event-calls';
+import { callPackageEvent, requestPackageResponse } from './package-event-calls';
 
 export class PackageContext {
   readonly package: string;
@@ -76,7 +76,7 @@ export class PackageContext {
           owner: this.package, scope: this.container.getPackageScope(this.package), priority,
         })),
       requestResponse: (event: string, payload: unknown, options?: RequestOptions) =>
-        runAsPackage(this.container.authority, this.package, () => this.container.bus.request(event, payload, options)),
+        runAsPackage(this.container.authority, this.package, () => requestPackageResponse(this.container, event, payload, options)),
       call: (event: string, payload?: any, ctx?: any) =>
         runAsPackage(this.container.authority, this.package, () =>
           callPackageEvent(this.container, event, payload, ctx)),
