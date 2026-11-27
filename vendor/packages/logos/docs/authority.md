@@ -15,8 +15,12 @@ available for tracing and cannot authorize nested delivery. Delegated approval
 supports once and package scopes. Audit entries contain the host chain and the
 existing payload hash.
 
-Without delivery governance, nested response requests also check the upstream
-callers' event request authority according to their manifest modes. The
-provider still executes as its owner. This contract covers work carried by
-the in-process event bus. The isolated module's independent child-to-host
-messages and authority on other surfaces require their own mediation.
+Without delivery governance, nested requests, notifications and transformations
+also check upstream callers' event authority according to their manifest modes.
+The provider executes as its owner.
+
+The isolated executor associates child-to-host events and capability requests
+with an active host invocation. The host restores the invocation's original
+authority before running the mediator. Concurrent invocations have separate
+contexts, and the mediator rejects requests from completed, cancelled or
+expired invocations. Capability providers apply their own surface permissions.

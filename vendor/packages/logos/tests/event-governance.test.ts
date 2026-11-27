@@ -175,3 +175,52 @@ it('checks upstream strict request authority when delivery governance is disable
       .rejects.toMatchObject({ code: 'AUTHORITY_DENIED', decision: { caller: 'source', resource: event } });
   } finally { ws.cleanup(); }
 });
+
+const isolationProvider = process.env.LOGOS_TEST_ISOLATION_PROVIDER;
+it.skipIf(!isolationProvider)('checks the original caller on events sent back by an isolated provider', async () => {
+  const requests: import('../src/kernel/event-governance').EventDeliveryRequest[] = [];
+  const { ws, container } = setup((request: typeof requests[number]) => {
+    requests.push(request);
+    return request.source === 'source' && request.target === 'downstream' ? 'deny' : 'package';
+  });
+  const { provideIsolation } = require(isolationProvider!);
+  const isolation = provideIsolation({ authority: { runAsPackage } });
+  const event = 'downstream::notice:received';
+  const proxy = 'target::response:forward';
+  ws.pkg('target', {
+    'index.js': `
+      const { emit } = require('logos');
+      exports.forward = async function (text) {
+        /** @register_tool forward */
+        await Promise.resolve();
+        await emit('${event}', { text, caller: 'system', delegation: [] });
+        return text;
+      };
+    `,
+  });
+  const pkg = { folder: 'target', dir: path.join(ws.root, 'target'), isolated: true };
+  try {
+    const runner = await isolation.api.isolatedRunnerFor(container, pkg);
+    const handler = runner.surfaces.tools[0].id;
+    const isText = (value: unknown): value is string => typeof value === 'string';
+    container.bus.provide(proxy, { input: isText, output: isText },
+      text => runner.invoke(handler, [text]), { owner: 'target' });
+    const delivered: string[] = [];
+    container.bus.on(event, payload => delivered.push(payload.text), { owner: 'downstream' });
+
+    await runAsPackage(container.authority, 'source', () => container.bus.request(proxy, 'delegated'));
+    expect(delivered).toEqual([]);
+    expect(requests.filter(request => request.event === event).map(request => [
+      request.source, request.target, request.delegation?.[0].caller.id,
+    ])).toEqual([
+      ['target', 'downstream', 'source'],
+      ['source', 'downstream', 'source'],
+    ]);
+
+    await runAsPackage(container.authority, 'target', () => runner.invoke(handler, ['direct']));
+    expect(delivered).toEqual(['direct']);
+  } finally {
+    await isolation.api.stopIsolatedRunner(container, 'target', 'test complete');
+    ws.cleanup();
+  }
+});

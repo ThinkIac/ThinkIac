@@ -151,7 +151,7 @@ export class EventBus {
     if (this.governance?.enabled && principal.kind === 'package') return;
     const access = this.authority ?? currentAuthority().access;
     access?.enforce({ principal, surface: 'events', operation, resource });
-    if (operation !== 'request') return;
+    if (operation !== 'request' && operation !== 'publish' && operation !== 'transform') return;
     for (const origin of this.delegatedCallers(principal)) {
       access?.enforce({ principal: origin, surface: 'events', operation, resource });
     }
